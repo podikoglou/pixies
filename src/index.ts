@@ -146,8 +146,13 @@ agent.subscribe((event: AgentEvent) => {
 			break;
 		}
 
-		case "tool_execution_update":
+		case "tool_execution_update": {
+			const toolCall = toolCalls.get(event.toolCallId);
+			if (!toolCall) break;
+			const queued = (event.partialResult as any)?.details?.queued;
+			if (typeof queued === "boolean") toolCall.setQueued(queued);
 			break;
+		}
 
 		case "tool_execution_end": {
 			const toolCall = toolCalls.get(event.toolCallId);
