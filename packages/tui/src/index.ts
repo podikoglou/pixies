@@ -205,7 +205,9 @@ editor.onSubmit = (value: string) => {
 		return;
 	}
 	if (trimmed === "/location") {
-		addAssistantText(status.getLocation() ? `Location: ${status.getLocation()}` : "No location set.");
+		addAssistantText(
+			status.getLocation() ? `Location: ${status.getLocation()}` : "No location set.",
+		);
 		return;
 	}
 

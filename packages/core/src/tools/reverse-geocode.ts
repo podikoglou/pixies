@@ -27,16 +27,10 @@ export const reverseGeocodeTool: AgentTool<typeof schema, ReverseGeocodeToolDeta
 	executionMode: "sequential",
 	async execute(_toolCallId, params, signal, onUpdate) {
 		if (signal?.aborted) throw new Error("Operation aborted");
-		const result = await nominatim.reverse(
-			params.lat,
-			params.lon,
-			{ zoom: params.zoom },
-			signal,
-			{
-				onQueued: () => onUpdate?.({ content: [], details: { queued: true } as any }),
-				onStart: () => onUpdate?.({ content: [], details: { queued: false } as any }),
-			},
-		);
+		const result = await nominatim.reverse(params.lat, params.lon, { zoom: params.zoom }, signal, {
+			onQueued: () => onUpdate?.({ content: [], details: { queued: true } as any }),
+			onStart: () => onUpdate?.({ content: [], details: { queued: false } as any }),
+		});
 		if (!result || !result.display_name) {
 			return {
 				content: [{ type: "text", text: "No results." }],

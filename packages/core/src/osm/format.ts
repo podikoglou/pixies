@@ -24,9 +24,7 @@ export function formatElement(el: OverpassElement): string {
 	const name = el.tags?.name;
 	if (name) segments.push(name);
 
-	const otherTags = el.tags
-		? Object.entries(el.tags).filter(([k]) => k !== "name")
-		: [];
+	const otherTags = el.tags ? Object.entries(el.tags).filter(([k]) => k !== "name") : [];
 	const tail: string[] = [];
 	if (otherTags.length > 0) {
 		tail.push(otherTags.map(([k, v]) => `${k}=${v}`).join(", "));
@@ -52,7 +50,7 @@ export function formatNominatimResult(r: NominatimResult): string {
 
 	if (r.display_name) segments.push(r.display_name);
 
-	const category = r.class && r.type ? `${r.class}/${r.type}` : r.class ?? r.type;
+	const category = r.class && r.type ? `${r.class}/${r.type}` : (r.class ?? r.type);
 	if (category) segments.push(category);
 
 	return segments.join(" | ");

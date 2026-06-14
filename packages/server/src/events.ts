@@ -20,13 +20,30 @@ export function translateAgentEvent(event: AgentEvent): SseEvent[] {
 				? [{ event: "text_delta", data: { delta: event.assistantMessageEvent.delta } }]
 				: [];
 		case "message_end":
-			return event.message.role === "assistant" ? [{ event: "message_end", data: { message: event.message } }] : [];
+			return event.message.role === "assistant"
+				? [{ event: "message_end", data: { message: event.message } }]
+				: [];
 		case "tool_execution_start":
-			return [{ event: "tool_execution_start", data: { toolCallId: event.toolCallId, toolName: event.toolName, args: event.args } }];
+			return [
+				{
+					event: "tool_execution_start",
+					data: { toolCallId: event.toolCallId, toolName: event.toolName, args: event.args },
+				},
+			];
 		case "tool_execution_update":
-			return [{ event: "tool_execution_update", data: { toolCallId: event.toolCallId, details: event.partialResult?.details } }];
+			return [
+				{
+					event: "tool_execution_update",
+					data: { toolCallId: event.toolCallId, details: event.partialResult?.details },
+				},
+			];
 		case "tool_execution_end":
-			return [{ event: "tool_execution_end", data: { toolCallId: event.toolCallId, isError: event.isError, result: event.result } }];
+			return [
+				{
+					event: "tool_execution_end",
+					data: { toolCallId: event.toolCallId, isError: event.isError, result: event.result },
+				},
+			];
 		default:
 			return [];
 	}

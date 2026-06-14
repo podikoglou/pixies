@@ -18,9 +18,11 @@ async function readMessage(req: Request): Promise<MessageResult> {
 	} catch {
 		return { ok: false, status: 400, error: "invalid JSON" };
 	}
-	if (typeof body !== "object" || body === null) return { ok: false, status: 400, error: "missing required field: message" };
+	if (typeof body !== "object" || body === null)
+		return { ok: false, status: 400, error: "missing required field: message" };
 	const message = (body as { message?: unknown }).message;
-	if (typeof message !== "string" || !message.trim()) return { ok: false, status: 400, error: "missing required field: message" };
+	if (typeof message !== "string" || !message.trim())
+		return { ok: false, status: 400, error: "missing required field: message" };
 	return { ok: true, message };
 }
 
@@ -69,8 +71,13 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 				POST: async (req, server) => {
 					const id = req.params.id;
 					const conv = store.get(id);
-					if (!conv) return Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
-					if (conv.inFlight) return Response.json({ error: "conversation already has an in-flight prompt" }, { status: 409 });
+					if (!conv)
+						return Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
+					if (conv.inFlight)
+						return Response.json(
+							{ error: "conversation already has an in-flight prompt" },
+							{ status: 409 },
+						);
 					const parsed = await readMessage(req);
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
 					server.timeout(req, 0);

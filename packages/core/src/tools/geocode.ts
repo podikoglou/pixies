@@ -7,9 +7,7 @@ const schema = Type.Object({
 	query: Type.String({
 		description: "Free-form place query, e.g. 'Berlin', '123 Main St, London', 'Eiffel Tower'",
 	}),
-	limit: Type.Optional(
-		Type.Number({ description: "Max results (Nominatim max 40, default 10)" }),
-	),
+	limit: Type.Optional(Type.Number({ description: "Max results (Nominatim max 40, default 10)" })),
 });
 
 export interface GeocodeToolDetails {

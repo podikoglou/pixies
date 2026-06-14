@@ -105,9 +105,7 @@ export class ToolCall implements Component {
 		if (this.status === "running") {
 			const frame = FRAMES[this.frame] ?? "";
 			indicator = c.accent(frame);
-			const suffix = this.queued
-				? c.warning("queued (rate limit)")
-				: c.muted(this.formatElapsed());
+			const suffix = this.queued ? c.warning("queued (rate limit)") : c.muted(this.formatElapsed());
 			rest = `${toolTag} ${this.label}  ${suffix}`;
 		} else if (this.status === "done") {
 			indicator = c.success("✓");
