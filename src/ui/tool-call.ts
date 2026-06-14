@@ -12,6 +12,11 @@ export interface ToolCallOptions {
 
 const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const INTERVAL_MS = 80;
+const BODY_INDENT = "        ";
+const BODY_INDENT_WIDTH = BODY_INDENT.length;
+const MAX_ARG_LINES = 3;
+const MAX_RESULT_LINES = 3;
+const MAX_VALUE_WIDTH = 60;
 
 export class ToolCall implements Component {
 	private readonly ui: TUI | null;
@@ -19,6 +24,8 @@ export class ToolCall implements Component {
 	private label: string;
 	private summary: string | undefined;
 	private status: ToolCallStatus = "running";
+	private args: unknown = undefined;
+	private resultText: string | undefined = undefined;
 	private frame = 0;
 	private intervalId: NodeJS.Timeout | null = null;
 
@@ -37,6 +44,16 @@ export class ToolCall implements Component {
 
 	setSummary(summary: string | undefined): void {
 		this.summary = summary;
+		this.requestRender();
+	}
+
+	setArgs(args: unknown): void {
+		this.args = args;
+		this.requestRender();
+	}
+
+	setResult(text: string | undefined): void {
+		this.resultText = text;
 		this.requestRender();
 	}
 
@@ -59,8 +76,16 @@ export class ToolCall implements Component {
 	}
 
 	render(width: number): string[] {
-		const line = this.buildLine(width);
-		return [line];
+		const lines: string[] = [this.buildLine(width)];
+		const bodyWidth = Math.max(0, width - BODY_INDENT_WIDTH);
+
+		for (const line of this.renderArgs(bodyWidth)) lines.push(line);
+
+		if (this.status !== "running") {
+			for (const line of this.renderResult(bodyWidth)) lines.push(line);
+		}
+
+		return lines;
 	}
 
 	private buildLine(width: number): string {
@@ -82,6 +107,52 @@ export class ToolCall implements Component {
 		}
 
 		return truncateToWidth(`${pad}${indicator} ${rest}`, width, "");
+	}
+
+	private renderArgs(bodyWidth: number): string[] {
+		const entries = this.argEntries();
+		if (entries.length === 0) return [];
+
+		const lines: string[] = [];
+		for (const [key, value] of entries.slice(0, MAX_ARG_LINES)) {
+			const valueStr = truncateToWidth(this.formatValue(value), MAX_VALUE_WIDTH, "…");
+			const line = `${key}: ${valueStr}`;
+			lines.push(c.muted(BODY_INDENT + truncateToWidth(line, bodyWidth, "…")));
+		}
+		const overflow = entries.length - MAX_ARG_LINES;
+		if (overflow > 0) {
+			lines.push(c.muted(BODY_INDENT + truncateToWidth(`... ${overflow} more`, bodyWidth, "…")));
+		}
+		return lines;
+	}
+
+	private renderResult(bodyWidth: number): string[] {
+		if (this.resultText === undefined) return [];
+
+		const allLines = this.resultText.split("\n");
+		const lines: string[] = allLines
+			.slice(0, MAX_RESULT_LINES)
+			.map((line) => c.muted(BODY_INDENT + truncateToWidth(line, bodyWidth, "…")));
+		const overflow = allLines.length - MAX_RESULT_LINES;
+		if (overflow > 0) {
+			lines.push(c.muted(BODY_INDENT + truncateToWidth(`... ${overflow} more`, bodyWidth, "…")));
+		}
+		return lines;
+	}
+
+	private argEntries(): [string, unknown][] {
+		if (typeof this.args !== "object" || this.args === null) return [];
+		if (Array.isArray(this.args)) return [];
+		return Object.entries(this.args as Record<string, unknown>);
+	}
+
+	private formatValue(value: unknown): string {
+		if (typeof value === "string") return value;
+		try {
+			return JSON.stringify(value) ?? String(value);
+		} catch {
+			return String(value);
+		}
 	}
 
 	private setStatus(status: ToolCallStatus): void {
