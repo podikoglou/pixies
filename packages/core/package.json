@@ -10,7 +10,7 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsgo",
     "format": "oxfmt src",
     "format:check": "oxfmt --check src",
     "lint": "oxlint src",

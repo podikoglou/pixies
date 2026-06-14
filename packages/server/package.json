@@ -11,7 +11,7 @@
   },
   "scripts": {
     "start": "bun run src/index.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsgo",
     "format": "oxfmt src",
     "format:check": "oxfmt --check src",
     "lint": "oxlint src",
@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@types/bun": "1.3.14",
+    "bun-types": "1.3.14",
     "oxfmt": "^0.54.0",
     "oxlint": "^1.69.0"
   }
