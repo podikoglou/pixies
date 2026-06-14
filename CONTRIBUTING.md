@@ -33,7 +33,6 @@ refactoring, reorganising modules, or making code testable, use that one.
 
 - Follow existing patterns — check neighbouring files before introducing new ones.
 - Prefer small, atomic commits.
-- Don't add comments unless asked.
 - Never commit secrets or keys.
 - Run `bun run typecheck`, `bun run format`, and `bun run lint` before pushing.
 
