@@ -1,4 +1,3 @@
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import {
 	CombinedAutocompleteProvider,
 	Container,
@@ -11,18 +10,11 @@ import {
 	Text,
 	matchesKey,
 } from "@earendil-works/pi-tui";
-import {
-	createAgent,
-	MisconfigError,
-	readConfigFromEnv,
-	summarizeToolDetails,
-	toolLabel,
-} from "@pixies/core";
-import type { ToolName } from "@pixies/core";
+import { createAgent, MisconfigError, readConfigFromEnv } from "@pixies/core";
 import { c, editorTheme, markdownTheme } from "./theme.ts";
-import { AssistantMessageComponent } from "./ui/assistant-message.ts";
 import { StatusBar } from "./ui/status-bar.ts";
-import { ToolCall } from "./ui/tool-call.ts";
+import { createAgentEventHandler } from "./agent-events.ts";
+import { wireCommands } from "./commands.ts";
 
 let agent;
 try {
@@ -77,9 +69,6 @@ editor.setAutocompleteProvider(
 tui.addChild(editor);
 tui.setFocus(editor);
 
-let streamingComponent: AssistantMessageComponent | undefined;
-const toolCalls = new Map<string, ToolCall>();
-
 function addAssistantText(text: string): void {
 	chat.addChild(new Text(c.assistant("assistant"), 1, 0));
 	chat.addChild(new Markdown(text, 1, 0, markdownTheme));
@@ -87,132 +76,9 @@ function addAssistantText(text: string): void {
 	tui.requestRender();
 }
 
-agent.subscribe((event: AgentEvent) => {
-	switch (event.type) {
-		case "message_start":
-			if (event.message.role === "user") {
-				chat.addChild(new Text(c.user("you"), 1, 0));
-				const content = event.message.content;
-				const userText =
-					typeof content === "string"
-						? content
-						: content
-								.filter((block): block is { type: "text"; text: string } => block.type === "text")
-								.map((block) => block.text)
-								.join("");
-				chat.addChild(new Markdown(userText, 1, 0, markdownTheme));
-				chat.addChild(new Spacer(1));
-				tui.requestRender();
-			} else if (event.message.role === "assistant") {
-				chat.addChild(new Text(c.assistant("assistant"), 1, 0));
-				streamingComponent = new AssistantMessageComponent();
-				chat.addChild(streamingComponent);
-				streamingComponent.updateContent(event.message);
-				tui.requestRender();
-			}
-			break;
+agent.subscribe(createAgentEventHandler({ chat, tui }));
 
-		case "message_update":
-			if (streamingComponent && event.message.role === "assistant") {
-				streamingComponent.updateContent(event.message);
-				tui.requestRender();
-			}
-			break;
-
-		case "message_end":
-			if (streamingComponent && event.message.role === "assistant") {
-				streamingComponent.updateContent(event.message);
-				streamingComponent = undefined;
-				chat.addChild(new Spacer(1));
-				tui.requestRender();
-			}
-			break;
-
-		case "tool_execution_start": {
-			const toolCall = new ToolCall(tui, {
-				tool: event.toolName,
-				label: toolLabel(event.toolName),
-			});
-			toolCall.setArgs(event.args);
-			toolCalls.set(event.toolCallId, toolCall);
-			chat.addChild(toolCall);
-			tui.requestRender();
-			break;
-		}
-
-		case "tool_execution_update": {
-			const toolCall = toolCalls.get(event.toolCallId);
-			if (!toolCall) break;
-			const queued = (event.partialResult as any)?.details?.queued;
-			if (typeof queued === "boolean") toolCall.setQueued(queued);
-			break;
-		}
-
-		case "tool_execution_end": {
-			const toolCall = toolCalls.get(event.toolCallId);
-			if (toolCall) {
-				const text = (event.result?.content ?? [])
-					.filter((block: any) => block.type === "text")
-					.map((block: any) => block.text)
-					.join("\n");
-				toolCall.setResult(text || undefined);
-				if (event.isError) {
-					const errText = event.result?.content?.[0]?.text;
-					toolCall.fail(typeof errText === "string" ? errText : "Error");
-				} else {
-					toolCall.finish(summarizeToolDetails(event.toolName as ToolName, event.result?.details));
-				}
-				toolCalls.delete(event.toolCallId);
-				tui.requestRender();
-			}
-			break;
-		}
-	}
-});
-
-let busy = false;
-editor.onSubmit = (value: string) => {
-	if (busy) return;
-	const trimmed = value.trim();
-	if (!trimmed) return;
-
-	if (trimmed === "/clear") {
-		agent.reset();
-		chat.clear();
-		tui.requestRender();
-		return;
-	}
-	if (trimmed === "/help") {
-		addAssistantText(
-			`**Example queries**
-- vegan cafés near camden
-- how many bus stops in manchester
-- nearest 24/7 pharmacy to the eiffel tower
-- drinking water along the south downs way`,
-		);
-		return;
-	}
-	if (trimmed === "/model") {
-		addAssistantText(`Current model: \`${agent.state.model.provider}/${agent.state.model.id}\``);
-		return;
-	}
-	if (trimmed === "/location") {
-		addAssistantText(
-			status.getLocation() ? `Location: ${status.getLocation()}` : "No location set.",
-		);
-		return;
-	}
-
-	busy = true;
-	editor.disableSubmit = true;
-	status.setStatus("thinking");
-
-	agent.prompt(trimmed).finally(() => {
-		busy = false;
-		editor.disableSubmit = false;
-		status.setStatus(null);
-	});
-};
+wireCommands({ agent, chat, tui, editor, status, respond: addAssistantText });
 
 tui.addInputListener((data: string) => {
 	if (matchesKey(data, Key.ctrl("c"))) {
