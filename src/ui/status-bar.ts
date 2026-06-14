@@ -18,6 +18,14 @@ export class StatusBar implements Component {
 		this.state = state;
 	}
 
+	getModel(): string {
+		return this.state.model;
+	}
+
+	getLocation(): string | null {
+		return this.state.location;
+	}
+
 	setModel(model: string): void {
 		this.state.model = model;
 		this.invalidate();
