@@ -1,6 +1,7 @@
 import { Agent } from "@earendil-works/pi-agent-core";
 import { getModels } from "@earendil-works/pi-ai";
 import type { Api, KnownProvider, Model } from "@earendil-works/pi-ai";
+import { tools } from "./tools/index.ts";
 
 const SYSTEM_PROMPT = `You are Pixies, an AI agent that answers questions about places using OpenStreetMap data.
 
@@ -41,7 +42,7 @@ export const agent = new Agent({
 		systemPrompt: SYSTEM_PROMPT,
 		model,
 		thinkingLevel: "off",
-		tools: [],
+		tools,
 	},
 });
 
