@@ -1,5 +1,7 @@
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import {
 	CombinedAutocompleteProvider,
+	Container,
 	Editor,
 	Key,
 	Markdown,
@@ -9,9 +11,10 @@ import {
 	Text,
 	matchesKey,
 } from "@earendil-works/pi-tui";
+import { agent, model } from "./agent.ts";
 import { c, editorTheme, markdownTheme } from "./theme.ts";
+import { AssistantMessageComponent } from "./ui/assistant-message.ts";
 import { StatusBar } from "./ui/status-bar.ts";
-import { ToolCall } from "./ui/tool-call.ts";
 
 const WELCOME = `pixies — OSM agent
 
@@ -22,20 +25,22 @@ Ask me anything about places. Try:
 
 Type / for commands. Ctrl+C to exit.`;
 
-const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
 const terminal = new ProcessTerminal();
 const tui = new TUI(terminal);
 
 const status = new StatusBar({
 	appName: "pixies",
-	model: "claude-sonnet",
+	model: model.name,
 	location: null,
 	status: null,
 });
 tui.addChild(status);
 tui.addChild(new Spacer(1));
-tui.addChild(new Text(WELCOME, 1, 0));
+
+const chat = new Container();
+chat.addChild(new Text(WELCOME, 1, 0));
+chat.addChild(new Spacer(1));
+tui.addChild(chat);
 tui.addChild(new Spacer(1));
 
 const editor = new Editor(tui, editorTheme);
@@ -53,77 +58,57 @@ editor.setAutocompleteProvider(
 tui.addChild(editor);
 tui.setFocus(editor);
 
-function insertAboveEditor(...components: (Text | Markdown | Spacer | ToolCall)[]): void {
-	const children = tui.children;
-	children.splice(children.length - 1, 0, ...components);
+let streamingComponent: AssistantMessageComponent | undefined;
+
+function addAssistantText(text: string): void {
+	chat.addChild(new Text(c.assistant("assistant"), 1, 0));
+	chat.addChild(new Markdown(text, 1, 0, markdownTheme));
+	chat.addChild(new Spacer(1));
 	tui.requestRender();
 }
 
-function addUserMessage(text: string): void {
-	insertAboveEditor(
-		new Text(c.user("you"), 1, 0),
-		new Markdown(text, 1, 0, markdownTheme),
-		new Spacer(1),
-	);
-}
+agent.subscribe((event: AgentEvent) => {
+	switch (event.type) {
+		case "message_start":
+			if (event.message.role === "user") {
+				chat.addChild(new Text(c.user("you"), 1, 0));
+				const content = event.message.content;
+				const userText =
+					typeof content === "string"
+						? content
+						: content
+								.filter((block): block is { type: "text"; text: string } => block.type === "text")
+								.map((block) => block.text)
+								.join("");
+				chat.addChild(new Markdown(userText, 1, 0, markdownTheme));
+				chat.addChild(new Spacer(1));
+				tui.requestRender();
+			} else if (event.message.role === "assistant") {
+				chat.addChild(new Text(c.assistant("assistant"), 1, 0));
+				streamingComponent = new AssistantMessageComponent();
+				chat.addChild(streamingComponent);
+				streamingComponent.updateContent(event.message);
+				tui.requestRender();
+			}
+			break;
 
-function addAssistantMessage(text: string): void {
-	insertAboveEditor(
-		new Text(c.assistant("assistant"), 1, 0),
-		new Markdown(text, 1, 0, markdownTheme),
-		new Spacer(1),
-	);
-}
+		case "message_update":
+			if (streamingComponent && event.message.role === "assistant") {
+				streamingComponent.updateContent(event.message);
+				tui.requestRender();
+			}
+			break;
 
-function addToolCall(tc: ToolCall): void {
-	insertAboveEditor(tc);
-}
-
-function clearTranscript(): void {
-	const children = tui.children;
-	// keep: [0]=status, [1]=spacer, [last]=editor
-	children.splice(2, children.length - 3);
-	tui.requestRender();
-}
-
-function pickPlace(prompt: string): string {
-	const m = prompt.match(/(?:near|in|to(?:\s+the)?)\s+([a-z][a-z\s'-]+)/i);
-	return m?.[1]?.trim() ?? "the area";
-}
-
-async function mockRespond(prompt: string): Promise<void> {
-	const place = pickPlace(prompt);
-
-	await delay(300);
-	const geocode = new ToolCall(tui, { tool: "geocode", label: place });
-	addToolCall(geocode);
-	await delay(700);
-	geocode.finish("51.5290, -0.1425");
-
-	const tags = /cafe|coffee|café/i.test(prompt)
-		? "amenity=cafe, diet:vegan"
-		: /pharmacy|chemist/i.test(prompt)
-			? "amenity=pharmacy, opening_hours:24/7"
-			: "amenity=bus_stop";
-	const overpass = new ToolCall(tui, { tool: "overpass", label: tags });
-	addToolCall(overpass);
-	await delay(900);
-	const count = 4 + Math.floor(Math.random() * 15);
-	overpass.finish(`${count} results`);
-
-	await delay(200);
-	addAssistantMessage(
-		`Found **${count} matches** near **${place}**.
-
-| Name | Type | Distance |
-|------|------|----------|
-| The Green Bean | cafe · vegan | 0.4 km |
-| Hazelnut Haus | cafe · vegetarian | 0.7 km |
-| Root & Stem | restaurant · vegan | 1.1 km |
-
-[OpenStreetMap permalink](https://www.openstreetmap.org/?mlat=51.5290&mlon=-0.1425#map=15/51.5290/-0.1425)`,
-	);
-}
+		case "message_end":
+			if (streamingComponent && event.message.role === "assistant") {
+				streamingComponent.updateContent(event.message);
+				streamingComponent = undefined;
+				chat.addChild(new Spacer(1));
+				tui.requestRender();
+			}
+			break;
+	}
+});
 
 let busy = false;
 editor.onSubmit = (value: string) => {
@@ -132,11 +117,13 @@ editor.onSubmit = (value: string) => {
 	if (!trimmed) return;
 
 	if (trimmed === "/clear") {
-		clearTranscript();
+		agent.reset();
+		chat.clear();
+		tui.requestRender();
 		return;
 	}
 	if (trimmed === "/help") {
-		addAssistantMessage(
+		addAssistantText(
 			`**Example queries**
 - vegan cafés near camden
 - how many bus stops in manchester
@@ -146,20 +133,19 @@ editor.onSubmit = (value: string) => {
 		return;
 	}
 	if (trimmed === "/model") {
-		addAssistantMessage(`Current model: \`${status.getModel()}\``);
+		addAssistantText(`Current model: \`${model.provider}/${model.id}\``);
 		return;
 	}
 	if (trimmed === "/location") {
-		addAssistantMessage(status.getLocation() ? `Location: ${status.getLocation()}` : "No location set.");
+		addAssistantText(status.getLocation() ? `Location: ${status.getLocation()}` : "No location set.");
 		return;
 	}
 
 	busy = true;
 	editor.disableSubmit = true;
 	status.setStatus("thinking");
-	addUserMessage(trimmed);
 
-	mockRespond(trimmed).finally(() => {
+	agent.prompt(trimmed).finally(() => {
 		busy = false;
 		editor.disableSubmit = false;
 		status.setStatus(null);
@@ -168,8 +154,13 @@ editor.onSubmit = (value: string) => {
 
 tui.addInputListener((data: string) => {
 	if (matchesKey(data, Key.ctrl("c"))) {
-		tui.stop();
-		process.exit(0);
+		if (agent.state.isStreaming) {
+			agent.abort();
+		} else {
+			tui.stop();
+			process.exit(0);
+		}
+		return undefined;
 	}
 	return undefined;
 });
