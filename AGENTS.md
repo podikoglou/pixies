@@ -8,6 +8,8 @@ This project uses `bun`.
 
 Build: `bun run typecheck` / Format: `bun run format` / Lint: `bun run lint`
 
-For code style, see docs/CODESTYLE.md
-For pre-commit hook behavior, see docs/CODING.md
+A `lefthook` pre-commit hook runs format → typecheck → lint, stopping on the
+first failure. Formatting uses `stage_fixed` so changes are re-staged automatically.
+Skip with `--no-verify` or `LEFTHOOK=0`.
+
 For the TUI framework contract, see docs/PI-TUI.md
