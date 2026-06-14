@@ -15,11 +15,14 @@
     "dev:server": "bun run --watch packages/server/src/index.ts",
     "typecheck": "bun run --filter '@pixies/*' typecheck",
     "format": "bun run --filter '@pixies/*' format",
-    "format:check": "bun run --filter '@pixies/*' format:check"
+    "format:check": "bun run --filter '@pixies/*' format:check",
+    "lint": "bun run --filter '@pixies/*' lint",
+    "lint:fix": "bun run --filter '@pixies/*' lint:fix"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
     "oxfmt": "^0.54.0",
+    "oxlint": "^1.69.0",
     "typescript": "^5.6.0"
   }
 }
