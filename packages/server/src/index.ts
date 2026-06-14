@@ -1,4 +1,5 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import { MisconfigError, readConfigFromEnv, type PixiesConfig } from "@pixies/core";
 import { ConversationStore, type Conversation } from "./conversations.ts";
 import { translateAgentEvent } from "./events.ts";
 import { SseWriter } from "./sse.ts";
@@ -6,6 +7,7 @@ import { SseWriter } from "./sse.ts";
 export interface StartServerOptions {
 	hostname?: string;
 	port?: number;
+	config?: PixiesConfig;
 	onReady?: (url: string) => void;
 }
 
@@ -49,7 +51,16 @@ function streamPrompt(conv: Conversation, message: string, conversationId?: stri
 }
 
 export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined> {
-	const store = new ConversationStore();
+	let config: PixiesConfig;
+	try {
+		config = opts.config ?? readConfigFromEnv();
+	} catch (e) {
+		if (e instanceof MisconfigError) {
+			throw new MisconfigError(`Server configuration error: ${e.message}`);
+		}
+		throw e;
+	}
+	const store = new ConversationStore(config);
 	const hostname = opts.hostname ?? process.env.PIXIES_HOST ?? "127.0.0.1";
 	const port = opts.port ?? Number(process.env.PIXIES_PORT ?? 3000);
 

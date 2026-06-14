@@ -1,5 +1,5 @@
-export { createAgent, createOsmClients } from "./agent.ts";
-export type { CreateAgentOptions } from "./agent.ts";
+export { createAgent, createOsmClients, readConfigFromEnv, MisconfigError } from "./agent.ts";
+export type { CreateAgentOptions, PixiesConfig } from "./agent.ts";
 export { SYSTEM_PROMPT } from "./system-prompt.ts";
 export type {
 	GeocodeToolDetails,
