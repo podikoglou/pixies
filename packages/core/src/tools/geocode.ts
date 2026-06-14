@@ -10,11 +10,9 @@ const schema = Type.Object({
 	limit: Type.Optional(Type.Number({ description: "Max results (Nominatim max 40, default 10)" })),
 });
 
-export interface GeocodeToolDetails {
-	top?: string;
-}
+export type GeocodeToolDetails = { top?: string } | { queued: boolean };
 
-export const geocodeTool: AgentTool<typeof schema, GeocodeToolDetails | undefined> = {
+export const geocodeTool: AgentTool<typeof schema, GeocodeToolDetails> = {
 	name: "geocode",
 	label: "Geocode",
 	description:
@@ -24,8 +22,8 @@ export const geocodeTool: AgentTool<typeof schema, GeocodeToolDetails | undefine
 	async execute(_toolCallId, params, signal, onUpdate) {
 		if (signal?.aborted) throw new Error("Operation aborted");
 		const results = await nominatim.search(params.query, { limit: params.limit }, signal, {
-			onQueued: () => onUpdate?.({ content: [], details: { queued: true } as any }),
-			onStart: () => onUpdate?.({ content: [], details: { queued: false } as any }),
+			onQueued: () => onUpdate?.({ content: [], details: { queued: true } }),
+			onStart: () => onUpdate?.({ content: [], details: { queued: false } }),
 		});
 		if (results.length === 0) {
 			return {
