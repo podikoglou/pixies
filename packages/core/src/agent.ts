@@ -1,33 +1,19 @@
 import { Agent } from "@earendil-works/pi-agent-core";
 import { getModels } from "@earendil-works/pi-ai";
 import type { Api, KnownProvider, Model } from "@earendil-works/pi-ai";
+import { type PixiesConfig } from "./config-schema.ts";
 import { resolveOsmConfig } from "./osm/config.ts";
 import { NominatimClient } from "./osm/nominatim.ts";
 import { OverpassClient } from "./osm/overpass.ts";
 import { createTools, type OsmClients } from "./tools/index.ts";
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 
-export class MisconfigError extends Error {
-	constructor(message: string) {
-		super(message);
-		this.name = "MisconfigError";
-		Error.captureStackTrace(this, MisconfigError);
-	}
-}
-
-export interface PixiesConfig {
-	model: string;
-	apiKey: string;
-	contactEmail?: string;
-	overpassUrl?: string;
-	nominatimUrl?: string;
-	userAgent?: string;
-}
+export type { PixiesConfig } from "./config-schema.ts";
 
 function resolveModel(modelRef: string): Model<Api> {
 	const slashIndex = modelRef.indexOf("/");
 	if (slashIndex === -1) {
-		throw new MisconfigError(`Model must be in "provider/model-id" format. Got: "${modelRef}"`);
+		throw new Error(`Model must be in "provider/model-id" format. Got: "${modelRef}"`);
 	}
 
 	const provider = modelRef.slice(0, slashIndex);
@@ -36,7 +22,7 @@ function resolveModel(modelRef: string): Model<Api> {
 	const models = getModels(provider as KnownProvider) as Model<Api>[];
 	const model = models.find((m) => m.id === modelId);
 	if (!model) {
-		throw new MisconfigError(`Unknown model: "${modelRef}". Check provider and model ID.`);
+		throw new Error(`Unknown model: "${modelRef}". Check provider and model ID.`);
 	}
 
 	return model;
@@ -44,13 +30,17 @@ function resolveModel(modelRef: string): Model<Api> {
 
 export function readConfigFromEnv(): PixiesConfig {
 	const apiKey = process.env.PIXIES_API_KEY;
-	if (!apiKey) throw new MisconfigError("PIXIES_API_KEY is not set.");
+	if (!apiKey) throw new Error("PIXIES_API_KEY is not set.");
 
 	const modelRef = process.env.PIXIES_MODEL;
 	if (!modelRef) {
-		throw new MisconfigError(
+		throw new Error(
 			'PIXIES_MODEL is not set. Expected format: "provider/model-id" (e.g. "anthropic/claude-sonnet-4-20250514")',
 		);
+	}
+
+	if (!modelRef.includes("/")) {
+		throw new Error(`Model must be in "provider/model-id" format. Got: "${modelRef}"`);
 	}
 
 	return {
