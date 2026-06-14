@@ -15,6 +15,7 @@ import { agent, model } from "./agent.ts";
 import { c, editorTheme, markdownTheme } from "./theme.ts";
 import { AssistantMessageComponent } from "./ui/assistant-message.ts";
 import { StatusBar } from "./ui/status-bar.ts";
+import { ToolCall } from "./ui/tool-call.ts";
 
 const WELCOME = `pixies — OSM agent
 
@@ -59,6 +60,31 @@ tui.addChild(editor);
 tui.setFocus(editor);
 
 let streamingComponent: AssistantMessageComponent | undefined;
+const toolCalls = new Map<string, ToolCall>();
+
+const TOOL_LABELS: Record<string, string> = {
+	geocode: "Geocode",
+	reverse_geocode: "Reverse geocode",
+	query_osm: "Query OSM",
+};
+
+function toolLabel(name: string): string {
+	const known = TOOL_LABELS[name];
+	if (known) return known;
+	return name
+		.split("_")
+		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+		.join(" ");
+}
+
+function summarizeToolCall(toolName: string, details: unknown): string | undefined {
+	if (!details || typeof details !== "object") return undefined;
+	const d = details as Record<string, unknown>;
+	if (toolName === "geocode" && typeof d.top === "string") return d.top;
+	if (toolName === "reverse_geocode" && typeof d.name === "string") return d.name;
+	if (toolName === "query_osm" && typeof d.count === "number") return `${d.count} elements`;
+	return undefined;
+}
 
 function addAssistantText(text: string): void {
 	chat.addChild(new Text(c.assistant("assistant"), 1, 0));
@@ -107,6 +133,35 @@ agent.subscribe((event: AgentEvent) => {
 				tui.requestRender();
 			}
 			break;
+
+		case "tool_execution_start": {
+			const toolCall = new ToolCall(tui, {
+				tool: event.toolName,
+				label: toolLabel(event.toolName),
+			});
+			toolCalls.set(event.toolCallId, toolCall);
+			chat.addChild(toolCall);
+			tui.requestRender();
+			break;
+		}
+
+		case "tool_execution_update":
+			break;
+
+		case "tool_execution_end": {
+			const toolCall = toolCalls.get(event.toolCallId);
+			if (toolCall) {
+				if (event.isError) {
+					const text = event.result?.content?.[0]?.text;
+					toolCall.fail(typeof text === "string" ? text : "Error");
+				} else {
+					toolCall.finish(summarizeToolCall(event.toolName, event.result?.details));
+				}
+				toolCalls.delete(event.toolCallId);
+				tui.requestRender();
+			}
+			break;
+		}
 	}
 });
 
