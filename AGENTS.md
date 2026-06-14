@@ -13,3 +13,4 @@ first failure. Formatting uses `stage_fixed` so changes are re-staged automatica
 Skip with `--no-verify` or `LEFTHOOK=0`.
 
 For the TUI framework contract, see docs/PI-TUI.md
+For contributing guidelines, see CONTRIBUTING.md
