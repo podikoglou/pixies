@@ -12,6 +12,7 @@ import {
 	matchesKey,
 } from "@earendil-works/pi-tui";
 import { createAgent, summarizeToolDetails, toolLabel } from "@pixies/core";
+import type { ToolName } from "@pixies/core";
 import { c, editorTheme, markdownTheme } from "./theme.ts";
 import { AssistantMessageComponent } from "./ui/assistant-message.ts";
 import { StatusBar } from "./ui/status-bar.ts";
@@ -144,7 +145,7 @@ agent.subscribe((event: AgentEvent) => {
 					const errText = event.result?.content?.[0]?.text;
 					toolCall.fail(typeof errText === "string" ? errText : "Error");
 				} else {
-					toolCall.finish(summarizeToolDetails(event.toolName, event.result?.details));
+					toolCall.finish(summarizeToolDetails(event.toolName as ToolName, event.result?.details));
 				}
 				toolCalls.delete(event.toolCallId);
 				tui.requestRender();
