@@ -26,12 +26,21 @@ const RATE_LIMIT_MS = 1100;
 let chain: Promise<unknown> = Promise.resolve();
 let lastCallTime = 0;
 
-function withRateLimit<T>(fn: () => Promise<T>): Promise<T> {
+export interface RateLimitCallbacks {
+	onQueued?: () => void;
+	onStart?: () => void;
+}
+
+function withRateLimit<T>(fn: () => Promise<T>, opts: RateLimitCallbacks = {}): Promise<T> {
 	const run = chain.then(async () => {
 		const elapsed = Date.now() - lastCallTime;
 		const wait = RATE_LIMIT_MS - elapsed;
-		if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+		if (wait > 0) {
+			opts.onQueued?.();
+			await new Promise((r) => setTimeout(r, wait));
+		}
 		lastCallTime = Date.now();
+		opts.onStart?.();
 		return fn();
 	});
 	chain = run.then(
@@ -50,7 +59,11 @@ function buildUrl(path: string, params: Record<string, string | number | undefin
 	return url;
 }
 
-async function fetchJson(url: URL, signal?: AbortSignal): Promise<unknown> {
+async function fetchJson(
+	url: URL,
+	signal?: AbortSignal,
+	opts: RateLimitCallbacks = {},
+): Promise<unknown> {
 	return withRateLimit(async () => {
 		const merged = mergeSignals(signal, AbortSignal.timeout(60000));
 		const res = await fetch(url, {
@@ -61,7 +74,7 @@ async function fetchJson(url: URL, signal?: AbortSignal): Promise<unknown> {
 			throw new Error(`Nominatim ${res.status}: ${await res.text()}`);
 		}
 		return res.json();
-	});
+	}, opts);
 }
 
 function mergeSignals(...signals: (AbortSignal | undefined)[]): AbortSignal {
@@ -78,14 +91,19 @@ function mergeSignals(...signals: (AbortSignal | undefined)[]): AbortSignal {
 }
 
 export const nominatim = {
-	async search(query: string, opts: SearchOptions = {}, signal?: AbortSignal): Promise<NominatimResult[]> {
+	async search(
+		query: string,
+		opts: SearchOptions = {},
+		signal?: AbortSignal,
+		callbacks: RateLimitCallbacks = {},
+	): Promise<NominatimResult[]> {
 		const url = buildUrl("/search", {
 			q: query,
 			format: "jsonv2",
 			limit: opts.limit,
 			addressdetails: 1,
 		});
-		const json = await fetchJson(url, signal);
+		const json = await fetchJson(url, signal, callbacks);
 		return json as NominatimResult[];
 	},
 
@@ -94,6 +112,7 @@ export const nominatim = {
 		lon: number,
 		opts: ReverseOptions = {},
 		signal?: AbortSignal,
+		callbacks: RateLimitCallbacks = {},
 	): Promise<NominatimResult | null> {
 		const url = buildUrl("/reverse", {
 			lat,
@@ -102,7 +121,7 @@ export const nominatim = {
 			zoom: opts.zoom,
 			addressdetails: 1,
 		});
-		const json = await fetchJson(url, signal);
+		const json = await fetchJson(url, signal, callbacks);
 		const result = json as NominatimResult | { error?: string };
 		if ("error" in result && result.error) {
 			throw new Error(`Nominatim: ${result.error}`);
