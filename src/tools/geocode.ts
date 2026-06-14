@@ -23,9 +23,12 @@ export const geocodeTool: AgentTool<typeof schema, GeocodeToolDetails | undefine
 		"Geocode a place name or address to coordinates and OSM metadata using Nominatim. Returns ranked matches with display_name, lat/lon, osm_type/osm_id, and category. Use for resolving place names to coordinates before running an Overpass query.",
 	parameters: schema,
 	executionMode: "sequential",
-	async execute(_toolCallId, params, signal) {
+	async execute(_toolCallId, params, signal, onUpdate) {
 		if (signal?.aborted) throw new Error("Operation aborted");
-		const results = await nominatim.search(params.query, { limit: params.limit }, signal);
+		const results = await nominatim.search(params.query, { limit: params.limit }, signal, {
+			onQueued: () => onUpdate?.({ content: [], details: { queued: true } as any }),
+			onStart: () => onUpdate?.({ content: [], details: { queued: false } as any }),
+		});
 		if (results.length === 0) {
 			return {
 				content: [{ type: "text", text: "No results." }],
