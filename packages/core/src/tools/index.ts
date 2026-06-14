@@ -41,13 +41,6 @@ export const toolRegistry: ToolRegistry = {
 
 export const tools: AgentTool[] = [geocodeTool, reverseGeocodeTool, queryOsmTool];
 
-export function summarizeToolDetails(name: string, details: unknown): string | undefined {
-	if (!details || typeof details !== "object") return undefined;
-	const d = details as Record<string, unknown>;
-	if (name === "geocode" && typeof d.top === "string") return d.top;
-	if (name === "reverse_geocode" && typeof d.name === "string") return d.name;
-	if (name === "query_osm" && typeof d.count === "number") return `${d.count} elements`;
-	return undefined;
-}
+export { TOOL_LABELS, toolLabel, summarizeToolDetails } from "./presentation.ts";
 
 export { geocodeTool, queryOsmTool, reverseGeocodeTool };
