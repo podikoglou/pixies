@@ -5,10 +5,9 @@ import type { QueryOsmToolDetails } from "./query-osm.ts";
 import { queryOsmTool } from "./query-osm.ts";
 import type { ReverseGeocodeToolDetails } from "./reverse-geocode.ts";
 import { reverseGeocodeTool } from "./reverse-geocode.ts";
+import type { ToolName } from "./presentation.ts";
 
-export type { GeocodeToolDetails, ReverseGeocodeToolDetails, QueryOsmToolDetails };
-
-export type ToolName = "geocode" | "reverse_geocode" | "query_osm";
+export type { GeocodeToolDetails, ReverseGeocodeToolDetails, QueryOsmToolDetails, ToolName };
 
 export type ToolRegistry = {
 	geocode: typeof geocodeTool;
@@ -19,6 +18,13 @@ export type ToolRegistry = {
 export type ToolDetailsMap = {
 	geocode: GeocodeToolDetails;
 	reverse_geocode: ReverseGeocodeToolDetails | undefined;
+	query_osm: QueryOsmToolDetails;
+};
+
+/** Extracts only the final-result shape from each tool's details union (excludes queued state). */
+export type ToolFinalDetailsMap = {
+	geocode: { top?: string };
+	reverse_geocode: { name?: string } | undefined;
 	query_osm: QueryOsmToolDetails;
 };
 
@@ -41,13 +47,6 @@ export const toolRegistry: ToolRegistry = {
 
 export const tools: AgentTool[] = [geocodeTool, reverseGeocodeTool, queryOsmTool];
 
-export function summarizeToolDetails(name: string, details: unknown): string | undefined {
-	if (!details || typeof details !== "object") return undefined;
-	const d = details as Record<string, unknown>;
-	if (name === "geocode" && typeof d.top === "string") return d.top;
-	if (name === "reverse_geocode" && typeof d.name === "string") return d.name;
-	if (name === "query_osm" && typeof d.count === "number") return `${d.count} elements`;
-	return undefined;
-}
+export { toolLabel, summarizeToolDetails } from "./presentation.ts";
 
 export { geocodeTool, queryOsmTool, reverseGeocodeTool };
