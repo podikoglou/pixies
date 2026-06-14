@@ -28,6 +28,9 @@ export class ToolCall implements Component {
 	private resultText: string | undefined = undefined;
 	private frame = 0;
 	private intervalId: NodeJS.Timeout | null = null;
+	private readonly startedAt: number = Date.now();
+	private endedAt: number | undefined = undefined;
+	private queued = false;
 
 	constructor(ui: TUI | null, opts: ToolCallOptions) {
 		this.ui = ui;
@@ -54,6 +57,11 @@ export class ToolCall implements Component {
 
 	setResult(text: string | undefined): void {
 		this.resultText = text;
+		this.requestRender();
+	}
+
+	setQueued(queued: boolean): void {
+		this.queued = queued;
 		this.requestRender();
 	}
 
@@ -97,13 +105,18 @@ export class ToolCall implements Component {
 		if (this.status === "running") {
 			const frame = FRAMES[this.frame] ?? "";
 			indicator = c.accent(frame);
-			rest = `${toolTag} ${this.label}`;
+			const suffix = this.queued
+				? c.warning("queued (rate limit)")
+				: c.muted(this.formatElapsed());
+			rest = `${toolTag} ${this.label}  ${suffix}`;
 		} else if (this.status === "done") {
 			indicator = c.success("✓");
-			rest = `${toolTag} ${this.label}${this.summary ? c.muted(`  (${this.summary})`) : ""}`;
+			const summary = this.summary ? c.muted(`  (${this.summary})`) : "";
+			rest = `${toolTag} ${this.label}${summary}  ${c.muted(this.formatElapsed())}`;
 		} else {
 			indicator = c.error("✗");
-			rest = `${toolTag} ${this.label}${this.summary ? c.error(`  ${this.summary}`) : ""}`;
+			const err = this.summary ? c.error(`  ${this.summary}`) : "";
+			rest = `${toolTag} ${this.label}${err}  ${c.muted(this.formatElapsed())}`;
 		}
 
 		return truncateToWidth(`${pad}${indicator} ${rest}`, width, "");
@@ -156,9 +169,20 @@ export class ToolCall implements Component {
 	}
 
 	private setStatus(status: ToolCallStatus): void {
+		this.endedAt = Date.now();
 		this.status = status;
 		this.stopAnimation();
 		this.requestRender();
+	}
+
+	private elapsedMs(): number {
+		return (this.endedAt ?? Date.now()) - this.startedAt;
+	}
+
+	private formatElapsed(): string {
+		const s = this.elapsedMs() / 1000;
+		if (s < 10) return `${s.toFixed(1)}s`;
+		return `${Math.round(s)}s`;
 	}
 
 	private startAnimation(): void {
