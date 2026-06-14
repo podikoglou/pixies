@@ -11,14 +11,29 @@ import {
 	Text,
 	matchesKey,
 } from "@earendil-works/pi-tui";
-import { createAgent, readConfigFromEnv, summarizeToolDetails, toolLabel } from "@pixies/core";
+import {
+	createAgent,
+	MisconfigError,
+	readConfigFromEnv,
+	summarizeToolDetails,
+	toolLabel,
+} from "@pixies/core";
 import type { ToolName } from "@pixies/core";
 import { c, editorTheme, markdownTheme } from "./theme.ts";
 import { AssistantMessageComponent } from "./ui/assistant-message.ts";
 import { StatusBar } from "./ui/status-bar.ts";
 import { ToolCall } from "./ui/tool-call.ts";
 
-const agent = createAgent({ config: readConfigFromEnv() });
+let agent;
+try {
+	agent = createAgent({ config: readConfigFromEnv() });
+} catch (e) {
+	if (e instanceof MisconfigError) {
+		console.error(`Configuration error: ${e.message}`);
+		process.exit(1);
+	}
+	throw e;
+}
 
 const WELCOME = `pixies — OSM agent
 

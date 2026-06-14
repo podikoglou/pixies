@@ -11,10 +11,9 @@ export interface OsmConfig {
 
 export function resolveOsmConfig(overrides?: OsmConfig) {
 	return {
-		overpassUrl: overrides?.overpassUrl ?? process.env.PIXIES_OVERPASS_URL ?? DEFAULT_OVERPASS_URL,
-		nominatimUrl:
-			overrides?.nominatimUrl ?? process.env.PIXIES_NOMINATIM_URL ?? DEFAULT_NOMINATIM_URL,
-		contactEmail: overrides?.contactEmail ?? process.env.PIXIES_CONTACT_EMAIL,
+		overpassUrl: overrides?.overpassUrl ?? DEFAULT_OVERPASS_URL,
+		nominatimUrl: overrides?.nominatimUrl ?? DEFAULT_NOMINATIM_URL,
+		contactEmail: overrides?.contactEmail,
 		userAgent: overrides?.userAgent ?? USER_AGENT,
 	};
 }

@@ -11,6 +11,7 @@ export class MisconfigError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = "MisconfigError";
+		Error.captureStackTrace(this, MisconfigError);
 	}
 }
 
@@ -20,14 +21,13 @@ export interface PixiesConfig {
 	contactEmail?: string;
 	overpassUrl?: string;
 	nominatimUrl?: string;
+	userAgent?: string;
 }
 
 function resolveModel(modelRef: string): Model<Api> {
 	const slashIndex = modelRef.indexOf("/");
 	if (slashIndex === -1) {
-		throw new MisconfigError(
-			`PIXIES_MODEL must be in "provider/model-id" format. Got: "${modelRef}"`,
-		);
+		throw new MisconfigError(`Model must be in "provider/model-id" format. Got: "${modelRef}"`);
 	}
 
 	const provider = modelRef.slice(0, slashIndex);
@@ -59,6 +59,7 @@ export function readConfigFromEnv(): PixiesConfig {
 		contactEmail: process.env.PIXIES_CONTACT_EMAIL,
 		overpassUrl: process.env.PIXIES_OVERPASS_URL,
 		nominatimUrl: process.env.PIXIES_NOMINATIM_URL,
+		userAgent: process.env.PIXIES_USER_AGENT,
 	};
 }
 
@@ -67,10 +68,12 @@ export interface CreateAgentOptions {
 	fetch?: typeof globalThis.fetch;
 }
 
-export function createOsmClients(options?: {
+export interface CreateOsmClientsOptions {
 	osm?: { overpassUrl?: string; nominatimUrl?: string; contactEmail?: string; userAgent?: string };
 	fetch?: typeof globalThis.fetch;
-}): OsmClients {
+}
+
+export function createOsmClients(options?: CreateOsmClientsOptions): OsmClients {
 	const osmConfig = resolveOsmConfig(options?.osm);
 	const fetchFn = options?.fetch;
 	return {
@@ -96,6 +99,7 @@ export function createAgent(options: CreateAgentOptions): Agent {
 			overpassUrl: config.overpassUrl,
 			nominatimUrl: config.nominatimUrl,
 			contactEmail: config.contactEmail,
+			userAgent: config.userAgent,
 		},
 		fetch: options.fetch,
 	});
