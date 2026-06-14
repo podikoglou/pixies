@@ -61,8 +61,8 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 		throw e;
 	}
 	const store = new ConversationStore(config);
-	const hostname = opts.hostname ?? process.env.PIXIES_HOST ?? "127.0.0.1";
-	const port = opts.port ?? Number(process.env.PIXIES_PORT ?? 3000);
+	const hostname = opts.hostname ?? config.host;
+	const port = opts.port ?? config.port;
 
 	const server = Bun.serve({
 		hostname,
