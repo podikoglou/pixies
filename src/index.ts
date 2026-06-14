@@ -139,6 +139,7 @@ agent.subscribe((event: AgentEvent) => {
 				tool: event.toolName,
 				label: toolLabel(event.toolName),
 			});
+			toolCall.setArgs(event.args);
 			toolCalls.set(event.toolCallId, toolCall);
 			chat.addChild(toolCall);
 			tui.requestRender();
@@ -151,9 +152,14 @@ agent.subscribe((event: AgentEvent) => {
 		case "tool_execution_end": {
 			const toolCall = toolCalls.get(event.toolCallId);
 			if (toolCall) {
+				const text = (event.result?.content ?? [])
+					.filter((block: any) => block.type === "text")
+					.map((block: any) => block.text)
+					.join("\n");
+				toolCall.setResult(text || undefined);
 				if (event.isError) {
-					const text = event.result?.content?.[0]?.text;
-					toolCall.fail(typeof text === "string" ? text : "Error");
+					const errText = event.result?.content?.[0]?.text;
+					toolCall.fail(typeof errText === "string" ? errText : "Error");
 				} else {
 					toolCall.finish(summarizeToolCall(event.toolName, event.result?.details));
 				}
