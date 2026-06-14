@@ -51,13 +51,27 @@ export class NominatimClient {
 		this.fetchFn = config.fetch ?? globalThis.fetch;
 	}
 
-	private withRateLimit<T>(fn: () => Promise<T>, opts: RateLimitCallbacks = {}): Promise<T> {
+	private withRateLimit<T>(
+		fn: () => Promise<T>,
+		signal?: AbortSignal,
+		opts: RateLimitCallbacks = {},
+	): Promise<T> {
 		const run = this.chain.then(async () => {
 			const elapsed = Date.now() - this.lastCallTime;
 			const wait = RATE_LIMIT_MS - elapsed;
 			if (wait > 0) {
 				opts.onQueued?.();
-				await new Promise((r) => setTimeout(r, wait));
+				await new Promise<void>((resolve, reject) => {
+					const timer = setTimeout(resolve, wait);
+					signal?.addEventListener(
+						"abort",
+						() => {
+							clearTimeout(timer);
+							reject(signal.reason ?? new Error("Aborted"));
+						},
+						{ once: true },
+					);
+				});
 			}
 			this.lastCallTime = Date.now();
 			opts.onStart?.();
@@ -84,13 +98,18 @@ export class NominatimClient {
 		signal?: AbortSignal,
 		opts: RateLimitCallbacks = {},
 	): Promise<unknown> {
-		return this.withRateLimit(async () => {
-			const res = await osmFetch(url, this.fetchFn, {
-				headers: { "User-Agent": this.userAgent },
-				signal,
-			});
-			return res.json();
-		}, opts);
+		return this.withRateLimit(
+			async () => {
+				const res = await osmFetch(url, this.fetchFn, {
+					service: "Nominatim",
+					headers: { "User-Agent": this.userAgent },
+					signal,
+				});
+				return res.json();
+			},
+			signal,
+			opts,
+		);
 	}
 
 	async search(

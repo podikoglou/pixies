@@ -38,6 +38,7 @@ export class OverpassClient {
 
 	async query(query: string, parentSignal?: AbortSignal): Promise<OverpassResponse> {
 		const res = await osmFetch(this.baseUrl, this.fetchFn, {
+			service: "Overpass",
 			method: "POST",
 			headers: {
 				"User-Agent": this.userAgent,

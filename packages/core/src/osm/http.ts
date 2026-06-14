@@ -4,6 +4,7 @@ export interface OsmFetchOptions {
 	body?: string;
 	signal?: AbortSignal;
 	timeoutMs?: number;
+	service?: string;
 }
 
 export async function osmFetch(
@@ -11,24 +12,26 @@ export async function osmFetch(
 	fetchFn: typeof globalThis.fetch,
 	opts: OsmFetchOptions = {},
 ): Promise<Response> {
-	const { signal, timeoutMs = 60_000, ...rest } = opts;
+	const { signal, timeoutMs = 60_000, service, ...rest } = opts;
 	const merged = mergeSignals(signal, AbortSignal.timeout(timeoutMs));
 	const res = await fetchFn(url, { ...rest, signal: merged });
 	if (!res.ok) {
-		throw new Error(`${res.status}: ${await res.text()}`);
+		const prefix = service ? `${service}: ` : "";
+		throw new Error(`${prefix}${res.status}: ${await res.text()}`);
 	}
 	return res;
 }
 
 export function mergeSignals(...signals: (AbortSignal | undefined)[]): AbortSignal {
 	const controller = new AbortController();
+	const cleanup = () => controller.abort();
 	for (const signal of signals) {
 		if (!signal) continue;
 		if (signal.aborted) {
-			controller.abort();
+			cleanup();
 			break;
 		}
-		signal.addEventListener("abort", () => controller.abort(), { once: true });
+		signal.addEventListener("abort", cleanup, { once: true });
 	}
 	return controller.signal;
 }
