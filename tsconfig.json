@@ -4,7 +4,6 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2023"],
-    "outDir": "dist",
     "rootDir": ".",
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -14,6 +13,8 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "isolatedModules": true,
     "forceConsistentCasingInFileNames": true
   },
