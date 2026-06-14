@@ -4,12 +4,6 @@
   "workspaces": {
     "": {
       "name": "pixies",
-      "dependencies": {
-        "@earendil-works/pi-agent-core": "0.79.3",
-        "@earendil-works/pi-ai": "0.79.3",
-        "@earendil-works/pi-tui": "0.79.3",
-        "chalk": "5.6.2",
-      },
       "devDependencies": {
         "@types/node": "^22.19.0",
         "typescript": "^5.6.0",
