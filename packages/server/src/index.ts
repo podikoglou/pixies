@@ -85,6 +85,14 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 				},
 			},
 			"/conversations/:id": {
+				GET: (req) => {
+					const id = req.params.id;
+					const conv = store.get(id);
+					if (!conv)
+						return Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
+					const messages = conv.agent.state.messages;
+					return Response.json({ id, messages });
+				},
 				DELETE: (req) => {
 					const id = req.params.id;
 					const ok = store.delete(id);
