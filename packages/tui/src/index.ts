@@ -10,7 +10,7 @@ import {
 	Text,
 	matchesKey,
 } from "@earendil-works/pi-tui";
-import { createAgent, MisconfigError, readConfigFromEnv } from "@pixies/core";
+import { createAgent, readConfigFromEnv } from "@pixies/core";
 import { c, editorTheme, markdownTheme } from "./theme.ts";
 import { StatusBar } from "./ui/status-bar.ts";
 import { createAgentEventHandler } from "./agent-events.ts";
@@ -20,7 +20,7 @@ let agent;
 try {
 	agent = createAgent({ config: readConfigFromEnv() });
 } catch (e) {
-	if (e instanceof MisconfigError) {
+	if (e instanceof Error) {
 		console.error(`Configuration error: ${e.message}`);
 		process.exit(1);
 	}

@@ -1,5 +1,5 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import { MisconfigError, readConfigFromEnv, type PixiesConfig } from "@pixies/core";
+import { readConfigFromEnv, type PixiesConfig } from "@pixies/core";
 import { ConversationStore, type Conversation } from "./conversations.ts";
 import { translateAgentEvent } from "./events.ts";
 import { SseWriter } from "./sse.ts";
@@ -55,8 +55,8 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 	try {
 		config = opts.config ?? readConfigFromEnv();
 	} catch (e) {
-		if (e instanceof MisconfigError) {
-			throw new MisconfigError(`Server configuration error: ${e.message}`);
+		if (e instanceof Error) {
+			throw new Error(`Server configuration error: ${e.message}`);
 		}
 		throw e;
 	}
