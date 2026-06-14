@@ -1,7 +1,7 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
+import type { OverpassClient } from "../osm/overpass.ts";
 import { formatElement } from "../osm/format.ts";
-import { overpass } from "../osm/overpass.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -14,26 +14,30 @@ export interface QueryOsmToolDetails {
 	count: number;
 }
 
-export const queryOsmTool: AgentTool<typeof schema, QueryOsmToolDetails | undefined> = {
-	name: "query_osm",
-	label: "Query OSM",
-	description:
-		"Run an Overpass QL query against OpenStreetMap data. Use for finding features by tag, area, or geometry. Always include '[out:json]' prefix and a timeout. Use 'out center;' for ways/relations to get center coordinates.",
-	parameters: schema,
-	async execute(_toolCallId, params, signal) {
-		if (signal?.aborted) throw new Error("Operation aborted");
-		const response = await overpass.query(params.query, signal);
-		const elements = response.elements ?? [];
-		if (elements.length === 0) {
+export function createQueryOsmTool(
+	overpass: OverpassClient,
+): AgentTool<typeof schema, QueryOsmToolDetails | undefined> {
+	return {
+		name: "query_osm",
+		label: "Query OSM",
+		description:
+			"Run an Overpass QL query against OpenStreetMap data. Use for finding features by tag, area, or geometry. Always include '[out:json]' prefix and a timeout. Use 'out center;' for ways/relations to get center coordinates.",
+		parameters: schema,
+		async execute(_toolCallId, params, signal) {
+			if (signal?.aborted) throw new Error("Operation aborted");
+			const response = await overpass.query(params.query, signal);
+			const elements = response.elements ?? [];
+			if (elements.length === 0) {
+				return {
+					content: [{ type: "text", text: "No results." }],
+					details: { count: 0 },
+				};
+			}
+			const lines = elements.map(formatElement);
 			return {
-				content: [{ type: "text", text: "No results." }],
-				details: { count: 0 },
+				content: [{ type: "text", text: lines.join("\n") }],
+				details: { count: elements.length },
 			};
-		}
-		const lines = elements.map(formatElement);
-		return {
-			content: [{ type: "text", text: lines.join("\n") }],
-			details: { count: elements.length },
-		};
-	},
-};
+		},
+	};
+}

@@ -1,5 +1,4 @@
-import { config } from "./config.ts";
-import { mergeSignals } from "./signal.ts";
+import { osmFetch } from "./http.ts";
 
 export interface OverpassElement {
 	type: "node" | "way" | "relation";
@@ -20,21 +19,34 @@ export interface OverpassResponse {
 	remark?: string;
 }
 
-export const overpass = {
+export interface OverpassConfig {
+	baseUrl: string;
+	userAgent: string;
+	fetch?: typeof globalThis.fetch;
+}
+
+export class OverpassClient {
+	private readonly baseUrl: string;
+	private readonly userAgent: string;
+	private readonly fetchFn: typeof globalThis.fetch;
+
+	constructor(config: OverpassConfig) {
+		this.baseUrl = config.baseUrl;
+		this.userAgent = config.userAgent;
+		this.fetchFn = config.fetch ?? globalThis.fetch;
+	}
+
 	async query(query: string, parentSignal?: AbortSignal): Promise<OverpassResponse> {
-		const signal = mergeSignals(parentSignal, AbortSignal.timeout(60000));
-		const res = await fetch(config.overpassUrl, {
+		const res = await osmFetch(this.baseUrl, this.fetchFn, {
+			service: "Overpass",
 			method: "POST",
 			headers: {
-				"User-Agent": config.userAgent,
+				"User-Agent": this.userAgent,
 				"Content-Type": "application/x-www-form-urlencoded",
 			},
 			body: `data=${encodeURIComponent(query)}`,
-			signal,
+			signal: parentSignal,
 		});
-		if (!res.ok) {
-			throw new Error(`Overpass ${res.status}: ${await res.text()}`);
-		}
 		const contentType = res.headers.get("content-type") ?? "";
 		if (!contentType.includes("application/json")) {
 			throw new Error("Only [out:json] is supported");
@@ -44,5 +56,5 @@ export const overpass = {
 			throw new Error(`Overpass: ${json.remark}`);
 		}
 		return json;
-	},
-};
+	}
+}
