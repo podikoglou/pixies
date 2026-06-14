@@ -1,4 +1,4 @@
-# pixies
+# pixies (https://github.com/podikoglou/pixies)
 
 Pixies is an OSM-querying AI agent built on `@earendil-works/pi-tui`:
 a terminal chat that answers natural-language place questions via OpenStreetMap
