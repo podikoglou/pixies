@@ -6,7 +6,7 @@ export interface OverpassElement {
 	lat?: number;
 	lon?: number;
 	center?: { lat: number; lon: number };
-	bounds?: { minlat: number; minlon: number; maxlat: number; maxlat: number };
+	bounds?: { minlat: number; minlon: number; maxlat: number; maxlon: number };
 	nodes?: number[];
 	geometry?: Array<{ lat: number; lon: number }>;
 	tags?: Record<string, string>;
