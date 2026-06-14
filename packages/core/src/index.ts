@@ -11,4 +11,4 @@ export type {
 	ToolDetailVariant,
 	ToolDetailsDiscriminatedUnion,
 } from "./tools/index.ts";
-export { toolRegistry, summarizeToolDetails } from "./tools/index.ts";
+export { toolRegistry, TOOL_LABELS, toolLabel, summarizeToolDetails } from "./tools/index.ts";
