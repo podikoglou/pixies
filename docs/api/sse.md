@@ -109,6 +109,27 @@ Content-Type: application/json
 
 Returned when a previous prompt on this conversation is still streaming. Clients should retry after the previous stream completes.
 
+### Get conversation transcript
+
+```
+GET /conversations/:id
+```
+
+Returns the full reconstructed transcript of a conversation. The response shape is consistent with the `message_end` SSE event payload — each entry in `messages` is an assistant message with `{ role, content, stopReason }`.
+
+**Response (200):** `application/json`
+
+```json
+{
+  "id": "01901234-5678-7abc-def0-1234567890ab",
+  "messages": [
+    { "role": "assistant", "content": [...], "stopReason": "stop" }
+  ]
+}
+```
+
+**Response (404):** `application/json` — conversation not found.
+
 ### Delete conversation
 
 ```
@@ -339,5 +360,4 @@ while (true) {
 - **Persistence.** None. Browser `sessionStorage` if the client wants to survive page refresh within a tab.
 - **CORS.** Not enabled; configuration planned.
 - **WebSocket transport.** Possible alternative to SSE for bidirectional needs (none currently).
-- **Conversation transcript endpoint.** Not provided; clients reconstruct from events. Could add `GET /conversations/:id` if needed.
 - **Rate limiting on the API surface.** None. OSM rate limits are enforced internally; API surface trusts clients.
