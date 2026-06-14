@@ -11,14 +11,14 @@ import {
 	Text,
 	matchesKey,
 } from "@earendil-works/pi-tui";
-import { createAgent, summarizeToolDetails, toolLabel } from "@pixies/core";
+import { createAgent, readConfigFromEnv, summarizeToolDetails, toolLabel } from "@pixies/core";
 import type { ToolName } from "@pixies/core";
 import { c, editorTheme, markdownTheme } from "./theme.ts";
 import { AssistantMessageComponent } from "./ui/assistant-message.ts";
 import { StatusBar } from "./ui/status-bar.ts";
 import { ToolCall } from "./ui/tool-call.ts";
 
-const agent = createAgent();
+const agent = createAgent({ config: readConfigFromEnv() });
 
 const WELCOME = `pixies — OSM agent
 

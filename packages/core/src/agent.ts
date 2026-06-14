@@ -7,45 +7,70 @@ import { OverpassClient } from "./osm/overpass.ts";
 import { createTools, type OsmClients } from "./tools/index.ts";
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 
-function resolveModel(): Model<Api> {
-	const ref = process.env.PIXIES_MODEL;
-	if (!ref) {
-		console.error(
-			'PIXIES_MODEL is not set. Expected format: "provider/model-id" (e.g. "anthropic/claude-sonnet-4-20250514")',
-		);
-		process.exit(1);
+export class MisconfigError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "MisconfigError";
 	}
+}
 
-	const slashIndex = ref.indexOf("/");
+export interface PixiesConfig {
+	model: string;
+	apiKey: string;
+	contactEmail?: string;
+	overpassUrl?: string;
+	nominatimUrl?: string;
+}
+
+function resolveModel(modelRef: string): Model<Api> {
+	const slashIndex = modelRef.indexOf("/");
 	if (slashIndex === -1) {
-		console.error(`PIXIES_MODEL must be in "provider/model-id" format. Got: "${ref}"`);
-		process.exit(1);
+		throw new MisconfigError(
+			`PIXIES_MODEL must be in "provider/model-id" format. Got: "${modelRef}"`,
+		);
 	}
 
-	const provider = ref.slice(0, slashIndex);
-	const modelId = ref.slice(slashIndex + 1);
+	const provider = modelRef.slice(0, slashIndex);
+	const modelId = modelRef.slice(slashIndex + 1);
 
 	const models = getModels(provider as KnownProvider) as Model<Api>[];
 	const model = models.find((m) => m.id === modelId);
 	if (!model) {
-		console.error(`Unknown model: "${ref}". Check provider and model ID.`);
-		process.exit(1);
+		throw new MisconfigError(`Unknown model: "${modelRef}". Check provider and model ID.`);
 	}
 
 	return model;
 }
 
-export interface CreateAgentOptions {
-	osm?: {
-		overpassUrl?: string;
-		nominatimUrl?: string;
-		contactEmail?: string;
-		userAgent?: string;
+export function readConfigFromEnv(): PixiesConfig {
+	const apiKey = process.env.PIXIES_API_KEY;
+	if (!apiKey) throw new MisconfigError("PIXIES_API_KEY is not set.");
+
+	const modelRef = process.env.PIXIES_MODEL;
+	if (!modelRef) {
+		throw new MisconfigError(
+			'PIXIES_MODEL is not set. Expected format: "provider/model-id" (e.g. "anthropic/claude-sonnet-4-20250514")',
+		);
+	}
+
+	return {
+		model: modelRef,
+		apiKey,
+		contactEmail: process.env.PIXIES_CONTACT_EMAIL,
+		overpassUrl: process.env.PIXIES_OVERPASS_URL,
+		nominatimUrl: process.env.PIXIES_NOMINATIM_URL,
 	};
+}
+
+export interface CreateAgentOptions {
+	config: PixiesConfig;
 	fetch?: typeof globalThis.fetch;
 }
 
-export function createOsmClients(options?: CreateAgentOptions): OsmClients {
+export function createOsmClients(options?: {
+	osm?: { overpassUrl?: string; nominatimUrl?: string; contactEmail?: string; userAgent?: string };
+	fetch?: typeof globalThis.fetch;
+}): OsmClients {
 	const osmConfig = resolveOsmConfig(options?.osm);
 	const fetchFn = options?.fetch;
 	return {
@@ -63,17 +88,20 @@ export function createOsmClients(options?: CreateAgentOptions): OsmClients {
 	};
 }
 
-export function createAgent(options?: CreateAgentOptions): Agent {
-	const apiKey = process.env.PIXIES_API_KEY;
-	if (!apiKey) {
-		console.error("PIXIES_API_KEY is not set.");
-		process.exit(1);
-	}
-	const model = resolveModel();
-	const clients = createOsmClients(options);
+export function createAgent(options: CreateAgentOptions): Agent {
+	const { config } = options;
+	const model = resolveModel(config.model);
+	const clients = createOsmClients({
+		osm: {
+			overpassUrl: config.overpassUrl,
+			nominatimUrl: config.nominatimUrl,
+			contactEmail: config.contactEmail,
+		},
+		fetch: options.fetch,
+	});
 	const tools = createTools(clients);
 	return new Agent({
 		initialState: { systemPrompt: SYSTEM_PROMPT, model, thinkingLevel: "off", tools },
-		getApiKey: () => apiKey,
+		getApiKey: () => config.apiKey,
 	});
 }
