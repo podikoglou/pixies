@@ -1,18 +1,25 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { NominatimClient } from "../osm/nominatim.ts";
+import type { OverpassClient } from "../osm/overpass.ts";
+import { createGeocodeTool } from "./geocode.ts";
 import type { GeocodeToolDetails } from "./geocode.ts";
-import { geocodeTool } from "./geocode.ts";
+import { createQueryOsmTool } from "./query-osm.ts";
 import type { QueryOsmToolDetails } from "./query-osm.ts";
-import { queryOsmTool } from "./query-osm.ts";
+import { createReverseGeocodeTool } from "./reverse-geocode.ts";
 import type { ReverseGeocodeToolDetails } from "./reverse-geocode.ts";
-import { reverseGeocodeTool } from "./reverse-geocode.ts";
 import type { ToolName } from "./presentation.ts";
 
 export type { GeocodeToolDetails, ReverseGeocodeToolDetails, QueryOsmToolDetails, ToolName };
 
+export interface OsmClients {
+	nominatim: NominatimClient;
+	overpass: OverpassClient;
+}
+
 export type ToolRegistry = {
-	geocode: typeof geocodeTool;
-	reverse_geocode: typeof reverseGeocodeTool;
-	query_osm: typeof queryOsmTool;
+	geocode: AgentTool;
+	reverse_geocode: AgentTool;
+	query_osm: AgentTool;
 };
 
 export type ToolDetailsMap = {
@@ -39,14 +46,16 @@ export type ToolDetailsDiscriminatedUnion = {
 	[K in ToolName]: ToolDetailVariant<K>;
 }[ToolName];
 
-export const toolRegistry: ToolRegistry = {
-	geocode: geocodeTool,
-	reverse_geocode: reverseGeocodeTool,
-	query_osm: queryOsmTool,
-};
+export function createToolRegistry(clients: OsmClients): ToolRegistry {
+	const geocode = createGeocodeTool(clients.nominatim);
+	const reverseGeocode = createReverseGeocodeTool(clients.nominatim);
+	const queryOsm = createQueryOsmTool(clients.overpass);
+	return { geocode, reverse_geocode: reverseGeocode, query_osm: queryOsm };
+}
 
-export const tools: AgentTool[] = [geocodeTool, reverseGeocodeTool, queryOsmTool];
+export function createTools(clients: OsmClients): AgentTool[] {
+	const registry = createToolRegistry(clients);
+	return [registry.geocode, registry.reverse_geocode, registry.query_osm];
+}
 
 export { toolLabel, summarizeToolDetails } from "./presentation.ts";
-
-export { geocodeTool, queryOsmTool, reverseGeocodeTool };
