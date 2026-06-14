@@ -1,4 +1,5 @@
 import { config } from "./config.ts";
+import { mergeSignals } from "./signal.ts";
 
 export interface OverpassElement {
 	type: "node" | "way" | "relation";
@@ -17,19 +18,6 @@ export interface OverpassResponse {
 	generator?: string;
 	elements?: OverpassElement[];
 	remark?: string;
-}
-
-function mergeSignals(...signals: (AbortSignal | undefined)[]): AbortSignal {
-	const controller = new AbortController();
-	for (const signal of signals) {
-		if (!signal) continue;
-		if (signal.aborted) {
-			controller.abort();
-			break;
-		}
-		signal.addEventListener("abort", () => controller.abort(), { once: true });
-	}
-	return controller.signal;
 }
 
 export const overpass = {
