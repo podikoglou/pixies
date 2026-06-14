@@ -11,7 +11,7 @@ import {
 	Text,
 	matchesKey,
 } from "@earendil-works/pi-tui";
-import { createAgent, summarizeToolDetails } from "@pixies/core";
+import { createAgent, summarizeToolDetails, toolLabel } from "@pixies/core";
 import { c, editorTheme, markdownTheme } from "./theme.ts";
 import { AssistantMessageComponent } from "./ui/assistant-message.ts";
 import { StatusBar } from "./ui/status-bar.ts";
@@ -63,21 +63,6 @@ tui.setFocus(editor);
 
 let streamingComponent: AssistantMessageComponent | undefined;
 const toolCalls = new Map<string, ToolCall>();
-
-const TOOL_LABELS: Record<string, string> = {
-	geocode: "Geocode",
-	reverse_geocode: "Reverse geocode",
-	query_osm: "Query OSM",
-};
-
-function toolLabel(name: string): string {
-	const known = TOOL_LABELS[name];
-	if (known) return known;
-	return name
-		.split("_")
-		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-		.join(" ");
-}
 
 function addAssistantText(text: string): void {
 	chat.addChild(new Text(c.assistant("assistant"), 1, 0));
