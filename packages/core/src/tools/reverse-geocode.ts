@@ -14,9 +14,7 @@ const schema = Type.Object({
 	),
 });
 
-export interface ReverseGeocodeToolDetails {
-	name?: string;
-}
+export type ReverseGeocodeToolDetails = { name?: string } | { queued: boolean };
 
 export const reverseGeocodeTool: AgentTool<typeof schema, ReverseGeocodeToolDetails | undefined> = {
 	name: "reverse_geocode",
@@ -28,8 +26,8 @@ export const reverseGeocodeTool: AgentTool<typeof schema, ReverseGeocodeToolDeta
 	async execute(_toolCallId, params, signal, onUpdate) {
 		if (signal?.aborted) throw new Error("Operation aborted");
 		const result = await nominatim.reverse(params.lat, params.lon, { zoom: params.zoom }, signal, {
-			onQueued: () => onUpdate?.({ content: [], details: { queued: true } as any }),
-			onStart: () => onUpdate?.({ content: [], details: { queued: false } as any }),
+			onQueued: () => onUpdate?.({ content: [], details: { queued: true } }),
+			onStart: () => onUpdate?.({ content: [], details: { queued: false } }),
 		});
 		if (!result || !result.display_name) {
 			return {
