@@ -11,7 +11,7 @@ import {
 	Text,
 	matchesKey,
 } from "@earendil-works/pi-tui";
-import { createAgent } from "@pixies/core";
+import { createAgent, summarizeToolDetails } from "@pixies/core";
 import { c, editorTheme, markdownTheme } from "./theme.ts";
 import { AssistantMessageComponent } from "./ui/assistant-message.ts";
 import { StatusBar } from "./ui/status-bar.ts";
@@ -77,15 +77,6 @@ function toolLabel(name: string): string {
 		.split("_")
 		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
 		.join(" ");
-}
-
-function summarizeToolCall(toolName: string, details: unknown): string | undefined {
-	if (!details || typeof details !== "object") return undefined;
-	const d = details as Record<string, unknown>;
-	if (toolName === "geocode" && typeof d.top === "string") return d.top;
-	if (toolName === "reverse_geocode" && typeof d.name === "string") return d.name;
-	if (toolName === "query_osm" && typeof d.count === "number") return `${d.count} elements`;
-	return undefined;
 }
 
 function addAssistantText(text: string): void {
@@ -168,7 +159,7 @@ agent.subscribe((event: AgentEvent) => {
 					const errText = event.result?.content?.[0]?.text;
 					toolCall.fail(typeof errText === "string" ? errText : "Error");
 				} else {
-					toolCall.finish(summarizeToolCall(event.toolName, event.result?.details));
+					toolCall.finish(summarizeToolDetails(event.toolName, event.result?.details));
 				}
 				toolCalls.delete(event.toolCallId);
 				tui.requestRender();
