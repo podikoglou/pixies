@@ -2,6 +2,7 @@ import { type FormEvent, type KeyboardEvent } from "react";
 import { SendHorizontal, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ChatInputProps {
 	value: string;
@@ -41,29 +42,28 @@ export function ChatInput({ value, onChange, onSubmit, isStreaming, onAbort }: C
 					aria-label="Message pixies"
 					className="max-h-48 min-h-11 resize-none py-3 leading-5"
 				/>
-				{isStreaming ? (
-					<Button
-						variant="outline"
-						size="icon"
-						type="button"
-						onClick={onAbort}
-						aria-label="Stop"
-						className="shrink-0"
-					>
-						<Square className="size-4" />
-					</Button>
-				) : (
-					<Button
-						variant="default"
-						size="icon"
-						type="submit"
-						disabled={!canSend}
-						aria-label="Send"
-						className="shrink-0"
-					>
-						<SendHorizontal className="size-4" />
-					</Button>
-				)}
+				<Tooltip>
+					<TooltipTrigger
+						render={
+							<Button
+								variant={isStreaming ? "outline" : "default"}
+								size="icon"
+								type={isStreaming ? "button" : "submit"}
+								onClick={isStreaming ? onAbort : undefined}
+								disabled={isStreaming ? false : !canSend}
+								aria-label={isStreaming ? "Stop" : "Send"}
+								className="shrink-0"
+							>
+								{isStreaming ? (
+									<Square className="size-4" />
+								) : (
+									<SendHorizontal className="size-4" />
+								)}
+							</Button>
+						}
+					/>
+					<TooltipContent>{isStreaming ? "Stop" : "Send"}</TooltipContent>
+				</Tooltip>
 			</form>
 		</div>
 	);

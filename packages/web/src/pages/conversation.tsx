@@ -3,6 +3,7 @@ import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useChatContext } from "@/contexts/chat-context";
 import { ChatView } from "@/components/chat/chat-view";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,17 +55,15 @@ export function ConversationPage() {
 			}
 			return (
 				<div className="flex h-dvh items-center justify-center px-4">
-					<Card className="w-full max-w-sm">
-						<CardHeader>
-							<CardTitle>Something went wrong</CardTitle>
-							<CardDescription>{error.message}</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<Button variant="default" className="w-full" onClick={() => void refetch()}>
-								Retry
-							</Button>
-						</CardContent>
-					</Card>
+					<div className="w-full max-w-sm space-y-4">
+						<Alert variant="danger">
+							<AlertTitle>Something went wrong</AlertTitle>
+							<AlertDescription>{error.message}</AlertDescription>
+						</Alert>
+						<Button variant="default" className="w-full" onClick={() => void refetch()}>
+							Retry
+						</Button>
+					</div>
 				</div>
 			);
 		}

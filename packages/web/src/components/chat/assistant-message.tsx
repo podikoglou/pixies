@@ -2,6 +2,15 @@ import Markdown, { type Components } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import { Sparkles } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 interface AssistantMessageProps {
@@ -30,7 +39,7 @@ const components: Components = {
 	),
 	strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
 	em: ({ children }) => <em className="italic">{children}</em>,
-	hr: () => <hr className="border-border my-4" />,
+	hr: () => <Separator className="my-4" />,
 	pre: ({ children }) => (
 		<pre className="bg-muted/50 mb-3 overflow-x-auto rounded-lg p-4">{children}</pre>
 	),
@@ -49,16 +58,15 @@ const components: Components = {
 		);
 	},
 	table: ({ children }) => (
-		<div className="mb-3 overflow-x-auto">
-			<table className="border-border w-full border-collapse text-sm">{children}</table>
+		<div className="mb-3">
+			<Table>{children}</Table>
 		</div>
 	),
-	thead: ({ children }) => <thead className="bg-muted">{children}</thead>,
-	tbody: ({ children }) => <tbody>{children}</tbody>,
-	th: ({ children }) => (
-		<th className="border-border border px-3 py-1.5 text-left font-semibold">{children}</th>
-	),
-	td: ({ children }) => <td className="border-border border px-3 py-1.5">{children}</td>,
+	thead: ({ children }) => <TableHeader>{children}</TableHeader>,
+	tbody: ({ children }) => <TableBody>{children}</TableBody>,
+	tr: ({ children }) => <TableRow>{children}</TableRow>,
+	th: ({ children }) => <TableHead>{children}</TableHead>,
+	td: ({ children }) => <TableCell>{children}</TableCell>,
 };
 
 export function AssistantMessage({ text, streaming }: AssistantMessageProps) {
