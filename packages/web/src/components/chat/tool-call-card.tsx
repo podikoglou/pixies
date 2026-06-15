@@ -17,7 +17,26 @@ import { cn } from "@/lib/utils";
 import { formatToolName } from "@/lib/format-tool-name";
 import type { TimelineItem } from "@/state/chat-reducer";
 import { JsonTree } from "./json-tree";
-import { MapWidget } from "./map-widget";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
+
+const DisplayMapDataSchema = Type.Object({
+	markers: Type.Array(
+		Type.Object({
+			lat: Type.Number(),
+			lon: Type.Number(),
+			label: Type.Optional(Type.String()),
+		}),
+	),
+	bounds: Type.Optional(
+		Type.Object({
+			minlat: Type.Number(),
+			minlon: Type.Number(),
+			maxlat: Type.Number(),
+			maxlon: Type.Number(),
+		}),
+	),
+});
 
 type ToolCallItem = Extract<TimelineItem, { kind: "tool-call" }>;
 
@@ -43,30 +62,8 @@ function isLongValue(value: unknown): boolean {
 	return typeof value === "string" && value.length > 80;
 }
 
-function isDisplayMapData(data: unknown): data is {
-	markers: Array<{ lat: number; lon: number; label?: string }>;
-	bounds?: { minlat: number; minlon: number; maxlat: number; maxlon: number };
-} {
-	if (typeof data !== "object" || data === null) return false;
-	const d = data as Record<string, unknown>;
-	if (!Array.isArray(d.markers) || d.markers.length === 0) return false;
-	for (const m of d.markers) {
-		if (typeof m !== "object" || m === null) return false;
-		const marker = m as Record<string, unknown>;
-		if (typeof marker.lat !== "number" || typeof marker.lon !== "number") return false;
-	}
-	if (d.bounds !== undefined) {
-		if (typeof d.bounds !== "object" || d.bounds === null) return false;
-		const b = d.bounds as Record<string, unknown>;
-		if (
-			typeof b.minlat !== "number" ||
-			typeof b.minlon !== "number" ||
-			typeof b.maxlat !== "number" ||
-			typeof b.maxlon !== "number"
-		)
-			return false;
-	}
-	return true;
+export function isDisplayMapData(data: unknown) {
+	return Value.Check(DisplayMapDataSchema, data);
 }
 
 export function ToolCallCard({ item }: ToolCallCardProps) {
@@ -132,16 +129,7 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 										{entries.length > 0 && (
 											<div className="text-muted-foreground mb-1 font-mono text-xs">result</div>
 										)}
-										{item.toolName === "display_map" &&
-										item.status === "done" &&
-										isDisplayMapData(parsedResult) ? (
-											<>
-												<div className="text-muted-foreground mb-2 font-mono text-xs">
-													{item.resultText}
-												</div>
-												<MapWidget markers={parsedResult.markers} bounds={parsedResult.bounds} />
-											</>
-										) : hasParsedResult ? (
+										{hasParsedResult ? (
 											<ScrollArea className="max-h-80">
 												<JsonTree data={parsedResult} />
 											</ScrollArea>
