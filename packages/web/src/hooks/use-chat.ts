@@ -8,6 +8,7 @@ import {
 	joinContentText,
 	summarizeDetails,
 	type ChatAction,
+	type TimelineItem,
 } from "../state/chat-reducer.ts";
 
 function isAbortError(err: unknown): boolean {
@@ -112,5 +113,9 @@ export function useChat() {
 		dispatch({ type: "RESET" });
 	}, []);
 
-	return { state, sendMessage, abort, reset };
+	const loadTranscript = useCallback((conversationId: string, items: TimelineItem[]) => {
+		dispatch({ type: "LOAD_TRANSCRIPT", conversationId, items });
+	}, []);
+
+	return { state, sendMessage, abort, reset, loadTranscript };
 }
