@@ -6,7 +6,6 @@ import {
 	chatReducer,
 	initialChatState,
 	joinContentText,
-	summarizeDetails,
 	type ChatAction,
 	type TimelineItem,
 } from "../state/chat-reducer.ts";
@@ -52,7 +51,7 @@ function dispatchSseEvent(evt: SSEEvent, dispatch: Dispatch<ChatAction>): void {
 				toolCallId: evt.data.toolCallId,
 				isError: evt.data.isError,
 				resultText: joinContentText(evt.data.result.content, "\n") || null,
-				summary: summarizeDetails(evt.data.result.details),
+				details: evt.data.result.details,
 			});
 			break;
 		case "done":
