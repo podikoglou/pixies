@@ -71,6 +71,8 @@ export type {
 	TranscriptToolResultMessage,
 	TranscriptMessage,
 } from "./transcript-schema.ts";
+export { createDb, conversations } from "./db/index.ts";
+export type { DbClient } from "./db/index.ts";
 export { NominatimClient } from "./osm/nominatim.ts";
 export type { NominatimConfig, NominatimResult } from "./osm/nominatim.ts";
 export { OverpassClient } from "./osm/overpass.ts";

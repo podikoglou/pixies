@@ -38,6 +38,11 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 		host: process.env.PIXIES_HOST,
 		port: process.env.PIXIES_PORT !== undefined ? Number(process.env.PIXIES_PORT) : undefined,
 		thinkingLevel: process.env.PIXIES_THINKING_LEVEL,
+		dbFile: process.env.PIXIES_DB_FILE,
+		cacheSize:
+			process.env.PIXIES_CACHE_SIZE !== undefined
+				? Number(process.env.PIXIES_CACHE_SIZE)
+				: undefined,
 	};
 
 	return PixiesConfigSchema.parse(raw);
