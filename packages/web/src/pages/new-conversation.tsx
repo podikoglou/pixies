@@ -4,8 +4,12 @@ import { useChatContext } from "@/contexts/chat-context";
 import { ChatView } from "@/components/chat/chat-view";
 
 export function NewConversationPage() {
-	const { state } = useChatContext();
+	const { state, reset } = useChatContext();
 	const navigate = useNavigate();
+
+	useEffect(() => {
+		reset();
+	}, [reset]);
 
 	useEffect(() => {
 		if (state.conversationId) {
