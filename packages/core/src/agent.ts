@@ -46,6 +46,14 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 export interface CreateAgentOptions {
 	config: ResolvedPixiesConfig;
 	fetch?: typeof globalThis.fetch;
+	/**
+	 * Pre-built OSM clients. When omitted, clients are constructed inside this
+	 * call via {@link createOsmClients} (the path used by single-user adapters
+	 * such as the TUI). Multi-tenant adapters (e.g. the server) MUST inject a
+	 * single shared instance so the Nominatim rate-limit chain is process-global
+	 * — see ADR-0004.
+	 */
+	osmClients?: OsmClients;
 }
 
 export interface CreateOsmClientsOptions {
@@ -75,13 +83,17 @@ export function createOsmClients(options: CreateOsmClientsOptions): OsmClients {
 export function createAgent(options: CreateAgentOptions): Agent {
 	const { config } = options;
 	const model = resolveModel(config.model);
-	const clients = createOsmClients({
-		overpassUrl: config.overpassUrl,
-		nominatimUrl: config.nominatimUrl,
-		contactEmail: config.contactEmail,
-		userAgent: config.userAgent,
-		fetch: options.fetch,
-	});
+	// Inject callers own the client lifetime (server: one per process). When not
+	// injected, build a fresh pair — this preserves the TUI/test path. See ADR-0004.
+	const clients =
+		options.osmClients ??
+		createOsmClients({
+			overpassUrl: config.overpassUrl,
+			nominatimUrl: config.nominatimUrl,
+			contactEmail: config.contactEmail,
+			userAgent: config.userAgent,
+			fetch: options.fetch,
+		});
 	const tools = createTools(clients);
 	return new Agent({
 		initialState: {
