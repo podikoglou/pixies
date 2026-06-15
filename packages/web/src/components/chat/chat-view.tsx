@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useChatContext } from "@/contexts/chat-context";
-import { Toaster } from "@/components/ui/sonner";
 import { ChatInput } from "./chat-input";
 import { ChatTimeline } from "./chat-timeline";
 
@@ -11,10 +11,13 @@ const WELCOME_EXAMPLES = [
 	"nearest 24/7 pharmacy to the eiffel tower",
 ];
 
+const PIN_THRESHOLD = 100;
+
 export function ChatView() {
 	const { state, sendMessage, abort } = useChatContext();
 	const [text, setText] = useState("");
 	const scrollRef = useRef<HTMLDivElement>(null);
+	const isPinnedRef = useRef(true);
 
 	const isEmpty =
 		state.items.length === 0 &&
@@ -29,9 +32,17 @@ export function ChatView() {
 		setText("");
 	};
 
+	const handleScroll = useCallback(() => {
+		const el = scrollRef.current;
+		if (!el) return;
+		const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+		isPinnedRef.current = distanceFromBottom <= PIN_THRESHOLD;
+	}, []);
+
 	useEffect(() => {
 		const el = scrollRef.current;
-		if (el) el.scrollTop = el.scrollHeight;
+		if (!el || !isPinnedRef.current) return;
+		el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
 	}, [state.items.length, state.streamingText]);
 
 	useEffect(() => {
@@ -46,10 +57,15 @@ export function ChatView() {
 				</div>
 			</header>
 
-			<div ref={scrollRef} className="flex-1 overflow-y-auto">
+			<div
+				ref={scrollRef}
+				onScroll={handleScroll}
+				style={{ scrollBehavior: "auto" }}
+				className="flex-1 overflow-y-auto"
+			>
 				{isEmpty ? (
 					<div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-16 text-center">
-						<h1 className="text-foreground text-xl font-semibold">pixies</h1>
+						<Sparkles className="text-muted-foreground size-8" />
 						<p className="text-muted-foreground text-sm">Ask me anything about places. Try:</p>
 						<div className="flex w-full flex-col gap-2">
 							{WELCOME_EXAMPLES.map((example) => (
@@ -76,8 +92,6 @@ export function ChatView() {
 				isStreaming={state.isStreaming}
 				onAbort={abort}
 			/>
-
-			<Toaster />
 		</div>
 	);
 }
