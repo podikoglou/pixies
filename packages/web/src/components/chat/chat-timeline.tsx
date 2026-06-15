@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import type { ChatState, TimelineItem } from "@/state/chat-reducer";
-import { isDisplayMapData, type DisplayMapData } from "@pixies/core";
+import type { DisplayMapData } from "@pixies/core";
 import { resolveMapMarkers } from "@/lib/resolve-map-markers";
 import { ToolCallCard } from "./tool-call-card";
 import { MapWidget } from "./map-widget";
@@ -41,9 +41,9 @@ export function ChatTimeline({ state }: ChatTimelineProps) {
 				} else if (
 					item.toolName === "display_map" &&
 					item.status === "done" &&
-					isDisplayMapData(item.resultData)
+					item.result.kind === "display_map"
 				) {
-					content = renderDisplayMap(item.resultData, state.items);
+					content = renderDisplayMap(item.result.data, state.items);
 				} else {
 					content = <ToolCallCard item={item} />;
 				}
