@@ -7,7 +7,7 @@ import { createGeocodeTool } from "./geocode.ts";
 import { createQueryOsmTool } from "./query-osm.ts";
 import { createReverseGeocodeTool } from "./reverse-geocode.ts";
 import { createDisplayMapTool } from "./display-map.ts";
-import { ToolNameSchema, isToolName } from "./presentation.ts";
+import type { ToolName } from "./presentation.ts";
 export type { ToolName } from "./presentation.ts";
 export { ToolNameSchema, isToolName } from "./presentation.ts";
 

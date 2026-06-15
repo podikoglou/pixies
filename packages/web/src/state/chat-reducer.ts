@@ -5,7 +5,6 @@ import {
 	summarizeToolDetails,
 	isToolName,
 	type ToolDetails,
-	type ToolName,
 	type ToolProgress,
 } from "@pixies/core";
 
