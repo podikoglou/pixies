@@ -28,6 +28,26 @@ function resolveModel(modelRef: string): Model<Api> {
 	return model;
 }
 
+function parseThinkingLevel(
+	raw: string | undefined,
+): "off" | "low" | "medium" | "high" | undefined {
+	if (!raw) return undefined;
+	const level = raw.toLowerCase();
+	if (level !== "off" && level !== "low" && level !== "medium" && level !== "high") {
+		throw new Error(`Invalid PIXIES_THINKING_LEVEL: "${raw}". Must be off|low|medium|high.`);
+	}
+	return level;
+}
+
+function parseLogLevel(raw: string | undefined): "debug" | "info" | "warn" | "error" | undefined {
+	if (!raw) return undefined;
+	const level = raw.toLowerCase();
+	if (level !== "debug" && level !== "info" && level !== "warn" && level !== "error") {
+		throw new Error(`Invalid PIXIES_LOG_LEVEL: "${raw}". Must be debug|info|warn|error.`);
+	}
+	return level;
+}
+
 export function readConfigFromEnv(): PixiesConfig {
 	const apiKey = process.env.PIXIES_API_KEY;
 	if (!apiKey) throw new Error("PIXIES_API_KEY is not set.");
@@ -50,6 +70,13 @@ export function readConfigFromEnv(): PixiesConfig {
 		overpassUrl: process.env.PIXIES_OVERPASS_URL,
 		nominatimUrl: process.env.PIXIES_NOMINATIM_URL,
 		userAgent: process.env.PIXIES_USER_AGENT,
+		host: process.env.PIXIES_HOST ?? "127.0.0.1",
+		port: Number(process.env.PIXIES_PORT ?? "3000"),
+		thinkingLevel: parseThinkingLevel(process.env.PIXIES_THINKING_LEVEL),
+		maxConversations: Number(process.env.PIXIES_MAX_CONVERSATIONS ?? "100"),
+		maxMessages: Number(process.env.PIXIES_MAX_MESSAGES ?? "50"),
+		logLevel: parseLogLevel(process.env.PIXIES_LOG_LEVEL),
+		defaultLimit: Number(process.env.PIXIES_DEFAULT_LIMIT ?? "10"),
 	};
 }
 
@@ -95,7 +122,12 @@ export function createAgent(options: CreateAgentOptions): Agent {
 	});
 	const tools = createTools(clients);
 	return new Agent({
-		initialState: { systemPrompt: SYSTEM_PROMPT, model, thinkingLevel: "off", tools },
+		initialState: {
+			systemPrompt: SYSTEM_PROMPT,
+			model,
+			thinkingLevel: config.thinkingLevel ?? "off",
+			tools,
+		},
 		getApiKey: () => config.apiKey,
 	});
 }

@@ -7,6 +7,29 @@ export const PixiesConfigSchema = Type.Object({
 	overpassUrl: Type.Optional(Type.String({ description: "Custom Overpass API URL" })),
 	nominatimUrl: Type.Optional(Type.String({ description: "Custom Nominatim API URL" })),
 	userAgent: Type.Optional(Type.String({ description: "Custom User-Agent for OSM requests" })),
+	host: Type.Optional(Type.String({ description: "Server listen hostname", default: "127.0.0.1" })),
+	port: Type.Optional(Type.Number({ description: "Server listen port", default: 3000 })),
+	thinkingLevel: Type.Optional(
+		Type.Union(
+			[Type.Literal("off"), Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")],
+			{ description: "AI thinking level", default: "off" },
+		),
+	),
+	maxConversations: Type.Optional(
+		Type.Number({ description: "Maximum concurrent conversations", default: 100 }),
+	),
+	maxMessages: Type.Optional(
+		Type.Number({ description: "Maximum messages per conversation", default: 50 }),
+	),
+	logLevel: Type.Optional(
+		Type.Union(
+			[Type.Literal("debug"), Type.Literal("info"), Type.Literal("warn"), Type.Literal("error")],
+			{ description: "Logging level", default: "info" },
+		),
+	),
+	defaultLimit: Type.Optional(
+		Type.Number({ description: "Default result limit for geocode/tool calls", default: 10 }),
+	),
 });
 
 export type PixiesConfig = Static<typeof PixiesConfigSchema>;
