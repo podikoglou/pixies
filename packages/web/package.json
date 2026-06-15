@@ -1,0 +1,37 @@
+{
+	"name": "@pixies/web",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build",
+		"preview": "vite preview",
+		"typecheck": "tsgo",
+		"format": "oxfmt src",
+		"format:check": "oxfmt --check src",
+		"lint": "oxlint src",
+		"lint:fix": "oxlint --fix src"
+	},
+	"dependencies": {
+		"@base-ui/react": "latest",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0",
+		"tailwind-merge": "^3.0.0",
+		"clsx": "^2.1.0",
+		"lucide-react": "latest",
+		"class-variance-authority": "latest",
+		"tw-animate-css": "latest"
+	},
+	"devDependencies": {
+		"vite": "^7.0.0",
+		"@vitejs/plugin-react": "^5.2.0",
+		"tailwindcss": "^4.0.0",
+		"@tailwindcss/vite": "^4.0.0",
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0",
+		"oxfmt": "^0.54.0",
+		"oxlint": "^1.69.0",
+		"@typescript/native-preview": "^7.0.0-dev.20260423.1"
+	}
+}
