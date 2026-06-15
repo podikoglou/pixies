@@ -14,3 +14,6 @@ Skip with `--no-verify` or `LEFTHOOK=0`.
 
 For the TUI framework contract, see docs/PI-TUI.md
 For contributing guidelines, see CONTRIBUTING.md
+
+The web frontend (`@pixies/web`) is a Vite + React SPA served by the server
+package. Build it with `bun run build:web`. See docs/adr/0002 and 0003.

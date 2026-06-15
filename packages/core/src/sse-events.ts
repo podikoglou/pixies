@@ -1,0 +1,107 @@
+import { Type } from "typebox";
+import type { Static, TSchema } from "typebox";
+
+export const ConversationCreatedData = Type.Object({
+	id: Type.String(),
+});
+
+export const MessageStartData = Type.Object({});
+
+export const TextDeltaData = Type.Object({
+	delta: Type.String(),
+});
+
+export const TextContentBlock = Type.Object({
+	type: Type.Literal("text"),
+	text: Type.String(),
+});
+
+export const UnknownContentBlock = Type.Object({
+	type: Type.String(),
+});
+
+export const ContentBlock = Type.Union([TextContentBlock, UnknownContentBlock]);
+
+export const AssistantMessageSchema = Type.Object({
+	role: Type.Literal("assistant"),
+	content: Type.Array(ContentBlock),
+	stopReason: Type.Optional(Type.String()),
+});
+
+export const MessageEndData = Type.Object({
+	message: AssistantMessageSchema,
+});
+
+export const ToolExecutionStartData = Type.Object({
+	toolCallId: Type.String(),
+	toolName: Type.String(),
+	args: Type.Unknown(),
+});
+
+export const ToolExecutionUpdateData = Type.Object({
+	toolCallId: Type.String(),
+	details: Type.Unknown(),
+});
+
+export const ToolResultSchema = Type.Object({
+	content: Type.Array(ContentBlock),
+	details: Type.Optional(Type.Unknown()),
+});
+
+export const ToolExecutionEndData = Type.Object({
+	toolCallId: Type.String(),
+	isError: Type.Boolean(),
+	result: ToolResultSchema,
+});
+
+export const DoneData = Type.Object({});
+
+export const ErrorData = Type.Object({
+	message: Type.String(),
+});
+
+export const SSEEventSchema = Type.Union([
+	Type.Object({ event: Type.Literal("conversation_created"), data: ConversationCreatedData }),
+	Type.Object({ event: Type.Literal("message_start"), data: MessageStartData }),
+	Type.Object({ event: Type.Literal("text_delta"), data: TextDeltaData }),
+	Type.Object({ event: Type.Literal("message_end"), data: MessageEndData }),
+	Type.Object({ event: Type.Literal("tool_execution_start"), data: ToolExecutionStartData }),
+	Type.Object({ event: Type.Literal("tool_execution_update"), data: ToolExecutionUpdateData }),
+	Type.Object({ event: Type.Literal("tool_execution_end"), data: ToolExecutionEndData }),
+	Type.Object({ event: Type.Literal("done"), data: DoneData }),
+	Type.Object({ event: Type.Literal("error"), data: ErrorData }),
+]);
+
+export type SSEEventName =
+	| "conversation_created"
+	| "message_start"
+	| "text_delta"
+	| "message_end"
+	| "tool_execution_start"
+	| "tool_execution_update"
+	| "tool_execution_end"
+	| "done"
+	| "error";
+
+export type SSEEvent =
+	| { event: "conversation_created"; data: Static<typeof ConversationCreatedData> }
+	| { event: "message_start"; data: Static<typeof MessageStartData> }
+	| { event: "text_delta"; data: Static<typeof TextDeltaData> }
+	| { event: "message_end"; data: Static<typeof MessageEndData> }
+	| { event: "tool_execution_start"; data: Static<typeof ToolExecutionStartData> }
+	| { event: "tool_execution_update"; data: Static<typeof ToolExecutionUpdateData> }
+	| { event: "tool_execution_end"; data: Static<typeof ToolExecutionEndData> }
+	| { event: "done"; data: Static<typeof DoneData> }
+	| { event: "error"; data: Static<typeof ErrorData> };
+
+export const SSE_EVENT_DATA_SCHEMAS: Record<SSEEventName, TSchema> = {
+	conversation_created: ConversationCreatedData,
+	message_start: MessageStartData,
+	text_delta: TextDeltaData,
+	message_end: MessageEndData,
+	tool_execution_start: ToolExecutionStartData,
+	tool_execution_update: ToolExecutionUpdateData,
+	tool_execution_end: ToolExecutionEndData,
+	done: DoneData,
+	error: ErrorData,
+};

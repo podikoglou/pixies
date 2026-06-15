@@ -8,7 +8,7 @@ export interface Conversation {
 	inFlight: boolean;
 }
 
-const TTL_MS = 60 * 60 * 1000;
+const TTL_MS = 24 * 60 * 60 * 1000;
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 export class ConversationStore {
