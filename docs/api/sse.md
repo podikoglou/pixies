@@ -303,7 +303,7 @@ There is no abort endpoint. Closing the connection IS the abort.
 ## Concurrency
 
 - One in-flight prompt per conversation. Concurrent prompt attempts return **409**.
-- No cross-conversation serialization (beyond the shared Nominatim rate-limit mutex, which is global to the server's source IP).
+- No cross-conversation serialization of agent work itself. Nominatim rate-limiting **is** serialized cross-conversation: the server owns a single `NominatimClient` per process (constructed once in `ConversationStore`) and injects it into every `createAgent` call, so the rate-limit chain is global to the server's source IP (1 req / 1.1s). This is required by Nominatim's per-IP usage policy — see ADR-0004. Overpass has no such mutex and is not serialized.
 
 ## Conversation TTL
 
