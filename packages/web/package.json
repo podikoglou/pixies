@@ -14,9 +14,11 @@
 		"lint:fix": "oxlint --fix src"
 	},
 	"dependencies": {
+		"@pixies/core": "workspace:*",
 		"@base-ui/react": "latest",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",
+		"typebox": "1.1.38",
 		"tailwind-merge": "^3.0.0",
 		"clsx": "^2.1.0",
 		"lucide-react": "latest",

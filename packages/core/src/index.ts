@@ -2,6 +2,25 @@ export { createAgent, createOsmClients, readConfigFromEnv } from "./agent.ts";
 export type { CreateAgentOptions } from "./agent.ts";
 export { PixiesConfigSchema, type PixiesConfig } from "./config-schema.ts";
 export { SYSTEM_PROMPT } from "./system-prompt.ts";
+export {
+	ConversationCreatedData,
+	MessageStartData,
+	TextDeltaData,
+	TextContentBlock,
+	UnknownContentBlock,
+	ContentBlock,
+	AssistantMessageSchema,
+	MessageEndData,
+	ToolExecutionStartData,
+	ToolExecutionUpdateData,
+	ToolResultSchema,
+	ToolExecutionEndData,
+	DoneData,
+	ErrorData,
+	SSEEventSchema,
+	SSE_EVENT_DATA_SCHEMAS,
+} from "./sse-events.ts";
+export type { SSEEvent, SSEEventName } from "./sse-events.ts";
 export type {
 	GeocodeToolDetails,
 	ReverseGeocodeToolDetails,

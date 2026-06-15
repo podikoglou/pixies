@@ -57,6 +57,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@base-ui/react": "latest",
+        "@pixies/core": "workspace:*",
         "class-variance-authority": "latest",
         "clsx": "^2.1.0",
         "lucide-react": "latest",
@@ -64,6 +65,7 @@
         "react-dom": "^19.0.0",
         "tailwind-merge": "^3.0.0",
         "tw-animate-css": "latest",
+        "typebox": "1.1.38",
       },
       "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",
