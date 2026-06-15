@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useChatContext } from "@/contexts/chat-context";
 import { SparklesIcon } from "@/components/icons";
@@ -18,7 +18,8 @@ const WELCOME_EXAMPLES = [
 const PIN_THRESHOLD = 100;
 
 export function ChatView() {
-	const { state, sendMessage, abort } = useChatContext();
+	const { state, sendMessage, abort, reset } = useChatContext();
+	const navigate = useNavigate();
 	const [text, setText] = useState("");
 	const rootRef = useRef<HTMLDivElement>(null);
 	const isPinnedRef = useRef(true);
@@ -70,7 +71,7 @@ export function ChatView() {
 		<div className="flex h-dvh flex-col">
 			<header className="border-border border-b">
 				<div className="mx-auto max-w-3xl px-4 py-2.5">
-					<Link to="/" className="text-muted-foreground text-sm font-medium tracking-tight">pixies</Link>
+					<button type="button" onClick={() => { reset(); navigate({ to: "/" }); }} className="text-muted-foreground text-sm font-medium tracking-tight">pixies</button>
 				</div>
 			</header>
 
