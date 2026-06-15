@@ -48,29 +48,15 @@ export function createDisplayMapTool(): AgentTool<typeof schema, DisplayMapToolD
 			const hasQueryRef = params.queryRef !== undefined;
 
 			if (hasMarkers && hasQueryRef) {
-				return {
-					isError: true,
-					content: [
-						{
-							type: "text",
-							text: "Provide either markers (inline) or queryRef (reference to a prior query_osm call), not both.",
-						},
-					],
-					details: { data: { markers: [], bounds: params.bounds } },
-				};
+				throw new Error(
+					"Provide either markers (inline) or queryRef (reference to a prior query_osm call), not both.",
+				);
 			}
 
 			if (!hasMarkers && !hasQueryRef) {
-				return {
-					isError: true,
-					content: [
-						{
-							type: "text",
-							text: "Provide either markers (inline) or queryRef (reference to a prior query_osm call).",
-						},
-					],
-					details: { data: { markers: [], bounds: params.bounds } },
-				};
+				throw new Error(
+					"Provide either markers (inline) or queryRef (reference to a prior query_osm call).",
+				);
 			}
 
 			if (hasQueryRef) {
@@ -93,7 +79,9 @@ export function createDisplayMapTool(): AgentTool<typeof schema, DisplayMapToolD
 			}
 
 			return {
-				content: [{ type: "text", text: `Displaying ${params.markers!.length} marker(s) on map.` }],
+				content: [
+					{ type: "text", text: `Displaying ${params.markers!.length} marker(s) on map.` },
+				],
 				details: {
 					data: {
 						markers: params.markers!,
