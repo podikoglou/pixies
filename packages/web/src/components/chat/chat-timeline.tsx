@@ -9,7 +9,7 @@ interface ChatTimelineProps {
 
 export function ChatTimeline({ state }: ChatTimelineProps) {
 	return (
-		<div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-6">
+		<div className="mx-auto flex max-w-3xl min-w-0 flex-col gap-4 overflow-hidden px-4 py-6">
 			{state.items.map((item, i) => {
 				if (item.kind === "user-message") return <UserMessage key={i} text={item.text} />;
 				if (item.kind === "assistant-message") return <AssistantMessage key={i} text={item.text} />;

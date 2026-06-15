@@ -108,11 +108,11 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 										<div className="text-muted-foreground mb-1 font-mono text-xs">result</div>
 									)}
 									{hasParsedResult ? (
-										<div className="max-h-80 overflow-y-auto py-0.5">
+										<div className="max-h-80 overflow-auto py-0.5">
 											<JsonTree data={parsedResult} />
 										</div>
 									) : (
-										<pre className="text-muted-foreground max-h-60 overflow-y-auto whitespace-pre-wrap font-mono text-xs">
+										<pre className="text-muted-foreground max-h-60 overflow-auto whitespace-pre-wrap font-mono text-xs">
 											{item.resultText}
 										</pre>
 									)}

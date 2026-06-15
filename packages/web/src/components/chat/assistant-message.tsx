@@ -1,6 +1,7 @@
 import Markdown, { type Components } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
+import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AssistantMessageProps {
@@ -9,10 +10,12 @@ interface AssistantMessageProps {
 }
 
 const components: Components = {
-	h1: ({ children }) => <h1 className="mt-4 mb-2 text-2xl font-semibold">{children}</h1>,
-	h2: ({ children }) => <h2 className="mt-4 mb-2 text-xl font-semibold">{children}</h2>,
-	h3: ({ children }) => <h3 className="mt-3 mb-2 text-lg font-semibold">{children}</h3>,
-	h4: ({ children }) => <h4 className="mt-3 mb-2 text-base font-semibold">{children}</h4>,
+	h1: ({ children }) => <h1 className="mt-4 mb-2 first:mt-0 text-2xl font-semibold">{children}</h1>,
+	h2: ({ children }) => <h2 className="mt-4 mb-2 first:mt-0 text-xl font-semibold">{children}</h2>,
+	h3: ({ children }) => <h3 className="mt-3 mb-2 first:mt-0 text-lg font-semibold">{children}</h3>,
+	h4: ({ children }) => (
+		<h4 className="mt-3 mb-2 first:mt-0 text-base font-semibold">{children}</h4>
+	),
 	p: ({ children }) => <p className="mb-3 leading-relaxed last:mb-0">{children}</p>,
 	ul: ({ children }) => <ul className="mb-3 ml-6 list-disc space-y-1">{children}</ul>,
 	ol: ({ children }) => <ol className="mb-3 ml-6 list-decimal space-y-1">{children}</ol>,
@@ -60,7 +63,11 @@ const components: Components = {
 
 export function AssistantMessage({ text, streaming }: AssistantMessageProps) {
 	return (
-		<div className="text-foreground w-full text-sm">
+		<div className="text-foreground w-full min-w-0 break-words overflow-hidden text-sm">
+			<div className="text-muted-foreground mb-1.5 flex items-center gap-1 text-xs font-medium">
+				<Sparkles className="size-3" />
+				pixies
+			</div>
 			<Markdown
 				components={components}
 				rehypePlugins={[rehypeHighlight]}
