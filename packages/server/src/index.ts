@@ -1,8 +1,11 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { readConfigFromEnv, type PixiesConfig } from "@pixies/core";
+import path from "node:path";
 import { ConversationStore, type Conversation } from "./conversations.ts";
 import { translateAgentEvent } from "./events.ts";
 import { SseWriter } from "./sse.ts";
+
+const WEB_DIST = process.env.PIXIES_WEB_DIST ?? path.resolve(import.meta.dir, "../../web/dist");
 
 export interface StartServerOptions {
 	hostname?: string;
@@ -113,7 +116,15 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 				},
 			},
 		},
-		fetch: () => Response.json({ error: "not found" }, { status: 404 }),
+		fetch: (req) => {
+			const url = new URL(req.url);
+			const requested = url.pathname === "/" ? "/index.html" : url.pathname;
+			const file = Bun.file(path.join(WEB_DIST, requested));
+			if (file.size > 0) return new Response(file);
+			const indexHtml = Bun.file(path.join(WEB_DIST, "index.html"));
+			if (indexHtml.size > 0) return new Response(indexHtml);
+			return Response.json({ error: "not found" }, { status: 404 });
+		},
 	});
 
 	opts.onReady?.(`http://${hostname}:${port}`);
