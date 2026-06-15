@@ -1,16 +1,10 @@
-import { Type } from "typebox";
-import { Value } from "typebox/value";
 import type { ConversationTranscript } from "../api/conversations.ts";
 import {
-	summarizeToolDetails,
-	isToolName,
-	type ToolDetails,
+	parseToolResult,
+	summarizeResult,
 	type ToolProgress,
+	type ToolResult,
 } from "@pixies/core";
-
-const DataContainerSchema = Type.Object({
-	data: Type.Optional(Type.Unknown()),
-});
 
 export type TimelineItem =
 	| { kind: "user-message"; text: string }
@@ -23,7 +17,7 @@ export type TimelineItem =
 			status: "running" | "done" | "error";
 			queued: boolean;
 			resultText: string | null;
-			resultData: unknown;
+			result: ToolResult;
 			summary: string | null;
 	  };
 
@@ -57,7 +51,6 @@ export type ChatAction =
 			toolCallId: string;
 			isError: boolean;
 			resultText: string | null;
-			resultData: unknown;
 			details: unknown;
 	  }
 	| { type: "STREAM_DONE" }
@@ -111,7 +104,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 						status: "running",
 						queued: false,
 						resultText: null,
-						resultData: null,
+						result: { kind: "empty" },
 						summary: null,
 					},
 				],
@@ -128,20 +121,18 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 		case "TOOL_END":
 			return {
 				...state,
-				items: state.items.map((it) =>
-					it.kind === "tool-call" && it.toolCallId === action.toolCallId
-						? {
-								...it,
-								status: action.isError ? "error" : "done",
-								queued: false,
-								resultText: action.resultText,
-								resultData: action.resultData,
-								summary: isToolName(it.toolName)
-									? (summarizeToolDetails(it.toolName, action.details as ToolDetails) ?? null)
-									: null,
-							}
-						: it,
-				),
+				items: state.items.map((it) => {
+					if (it.kind !== "tool-call" || it.toolCallId !== action.toolCallId) return it;
+					const parsed = parseToolResult(it.toolName, action.details);
+					return {
+						...it,
+						status: action.isError ? "error" : "done",
+						queued: false,
+						resultText: action.resultText,
+						result: parsed,
+						summary: summarizeResult(parsed),
+					};
+				}),
 			};
 		case "STREAM_DONE":
 			return { ...state, isStreaming: false };
@@ -181,7 +172,8 @@ export function transcriptToItems(transcript: ConversationTranscript): TimelineI
 				if (text.length > 0) items.push({ kind: "assistant-message", text });
 				break;
 			}
-			case "toolResult":
+			case "toolResult": {
+				const parsed = parseToolResult(msg.toolName, msg.details);
 				items.push({
 					kind: "tool-call",
 					toolCallId: msg.toolCallId,
@@ -190,14 +182,11 @@ export function transcriptToItems(transcript: ConversationTranscript): TimelineI
 					status: msg.isError ? "error" : "done",
 					queued: false,
 					resultText: joinContentText(msg.content, "\n") || null,
-					resultData: Value.Check(DataContainerSchema, msg.details)
-						? (msg.details.data ?? null)
-						: null,
-					summary: isToolName(msg.toolName)
-						? (summarizeToolDetails(msg.toolName, msg.details as ToolDetails) ?? null)
-						: null,
+					result: parsed,
+					summary: summarizeResult(parsed),
 				});
 				break;
+			}
 		}
 	}
 	return items;
