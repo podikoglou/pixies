@@ -1,66 +1,35 @@
-import { Type, type Static } from "typebox";
+import { z } from "zod";
 
-export const PixiesConfigSchema = Type.Object({
-	model: Type.String({
-		pattern: "^[^/]+/.+",
-		description: 'Model in "provider/model-id" format',
-	}),
-	apiKey: Type.String({ description: "API key for the AI provider" }),
-	contactEmail: Type.Optional(Type.String({ description: "Contact email for OSM usage policy" })),
-	overpassUrl: Type.Optional(
-		Type.String({
-			description: "Custom Overpass API URL",
-			default: "https://overpass-api.de/api/interpreter",
-		}),
-	),
-	nominatimUrl: Type.Optional(
-		Type.String({
-			description: "Custom Nominatim API URL",
-			default: "https://nominatim.openstreetmap.org",
-		}),
-	),
-	userAgent: Type.Optional(
-		Type.String({ description: "Custom User-Agent for OSM requests", default: "Pixies" }),
-	),
-	host: Type.Optional(Type.String({ description: "Server listen hostname", default: "127.0.0.1" })),
-	port: Type.Optional(Type.Number({ description: "Server listen port", default: 3000 })),
-	thinkingLevel: Type.Optional(
-		Type.Union(
-			[Type.Literal("off"), Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")],
-			{ description: "AI thinking level", default: "off" },
-		),
-	),
-	maxConversations: Type.Optional(
-		Type.Number({ description: "Maximum concurrent conversations", default: 100 }),
-	),
-	maxMessages: Type.Optional(
-		Type.Number({ description: "Maximum messages per conversation", default: 50 }),
-	),
-	logLevel: Type.Optional(
-		Type.Union(
-			[Type.Literal("debug"), Type.Literal("info"), Type.Literal("warn"), Type.Literal("error")],
-			{ description: "Logging level", default: "info" },
-		),
-	),
-	defaultLimit: Type.Optional(
-		Type.Number({ description: "Default result limit for geocode/tool calls", default: 10 }),
-	),
+export const PixiesConfigSchema = z.object({
+	model: z
+		.string()
+		.regex(/^[^/]+\/.+/)
+		.describe('Model in "provider/model-id" format'),
+	apiKey: z.string().describe("API key for the AI provider"),
+	contactEmail: z.string().optional().describe("Contact email for OSM usage policy"),
+	overpassUrl: z
+		.string()
+		.default("https://overpass-api.de/api/interpreter")
+		.describe("Custom Overpass API URL"),
+	nominatimUrl: z
+		.string()
+		.default("https://nominatim.openstreetmap.org")
+		.describe("Custom Nominatim API URL"),
+	userAgent: z.string().default("Pixies").describe("Custom User-Agent for OSM requests"),
+	host: z.string().default("127.0.0.1").describe("Server listen hostname"),
+	port: z.number().default(3000).describe("Server listen port"),
+	thinkingLevel: z
+		.enum(["off", "low", "medium", "high"] as const)
+		.default("off")
+		.describe("AI thinking level"),
+	maxConversations: z.number().default(100).describe("Maximum concurrent conversations"),
+	maxMessages: z.number().default(50).describe("Maximum messages per conversation"),
+	logLevel: z
+		.enum(["debug", "info", "warn", "error"] as const)
+		.default("info")
+		.describe("Logging level"),
+	defaultLimit: z.number().default(10).describe("Default result limit for geocode/tool calls"),
 });
 
-export type PixiesConfig = Static<typeof PixiesConfigSchema>;
-
-export interface ResolvedPixiesConfig {
-	model: string;
-	apiKey: string;
-	contactEmail?: string;
-	overpassUrl: string;
-	nominatimUrl: string;
-	userAgent: string;
-	host: string;
-	port: number;
-	thinkingLevel: "off" | "low" | "medium" | "high";
-	maxConversations: number;
-	maxMessages: number;
-	logLevel: "debug" | "info" | "warn" | "error";
-	defaultLimit: number;
-}
+export type PixiesConfig = z.input<typeof PixiesConfigSchema>;
+export type ResolvedPixiesConfig = z.output<typeof PixiesConfigSchema>;
