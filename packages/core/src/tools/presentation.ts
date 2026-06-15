@@ -1,4 +1,4 @@
-export type ToolName = "geocode" | "reverse_geocode" | "query_osm";
+export type ToolName = "geocode" | "reverse_geocode" | "query_osm" | "display_map";
 
 type ToolNameLabel = Record<ToolName, string>;
 
@@ -6,6 +6,7 @@ const TOOL_LABELS: ToolNameLabel = {
 	geocode: "Geocode",
 	reverse_geocode: "Reverse geocode",
 	query_osm: "Query OSM",
+	display_map: "Display Map",
 };
 
 /** Return a human-readable label for a tool name. Falls back to title-casing the snake_case name. */
@@ -25,6 +26,7 @@ const summarize: { [K in ToolName]: ToolDetailSummarizer<K> } = {
 	geocode: (d) => (typeof d.top === "string" ? d.top : undefined),
 	reverse_geocode: (d) => (d && typeof d.name === "string" ? d.name : undefined),
 	query_osm: (d) => (typeof d.count === "number" ? `${d.count} elements` : undefined),
+	display_map: (d) => `${d.markers.length} marker(s)`,
 };
 
 /** Summarize tool details into a human-readable string, or undefined if unavailable. */
