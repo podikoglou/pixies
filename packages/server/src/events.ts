@@ -1,17 +1,7 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { SSEEvent } from "@pixies/core";
 
-export type SseEvent =
-	| { event: "conversation_created"; data: { id: string } }
-	| { event: "message_start"; data: Record<string, never> }
-	| { event: "text_delta"; data: { delta: string } }
-	| { event: "message_end"; data: { message: unknown } }
-	| { event: "tool_execution_start"; data: { toolCallId: string; toolName: string; args: unknown } }
-	| { event: "tool_execution_update"; data: { toolCallId: string; details: unknown } }
-	| { event: "tool_execution_end"; data: { toolCallId: string; isError: boolean; result: unknown } }
-	| { event: "done"; data: Record<string, never> }
-	| { event: "error"; data: { message: string } };
-
-export function translateAgentEvent(event: AgentEvent): SseEvent[] {
+export function translateAgentEvent(event: AgentEvent): SSEEvent[] {
 	switch (event.type) {
 		case "message_start":
 			return event.message.role === "assistant" ? [{ event: "message_start", data: {} }] : [];
