@@ -156,3 +156,5 @@ export function createTools(clients: OsmClients): AgentTool[] {
 }
 
 export { toolLabel, summarizeToolDetails } from "./presentation.ts";
+export { parseToolResult, summarizeResult } from "./parse-result.ts";
+export type { ToolResult } from "./parse-result.ts";
