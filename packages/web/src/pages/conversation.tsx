@@ -1,15 +1,17 @@
 import { useEffect } from "react";
-import { useParams } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useChatContext } from "@/contexts/chat-context";
-import { MinimalChat } from "@/components/chat/minimal-chat";
+import { ChatView } from "@/components/chat/chat-view";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getConversation } from "@/api/conversations";
 import { transcriptToItems } from "@/state/chat-reducer";
 import { ApiError } from "@/sse/client";
 
 export function ConversationPage() {
 	const { conversationId } = useParams({ from: "/c/$conversationId", strict: true });
-	const { state, sendMessage, abort, loadTranscript } = useChatContext();
+	const { state, loadTranscript } = useChatContext();
 
 	const needsLoad = state.conversationId !== conversationId;
 
@@ -28,12 +30,39 @@ export function ConversationPage() {
 
 	if (needsLoad) {
 		if (error) {
-			if (error instanceof ApiError && error.status === 404)
-				return <div>conversation not found</div>;
-			return <div style={{ color: "red" }}>{error.message}</div>;
+			if (error instanceof ApiError && error.status === 404) {
+				return (
+					<div className="flex h-dvh items-center justify-center px-4">
+						<Card className="w-full max-w-sm">
+							<CardHeader>
+								<CardTitle>Conversation not found</CardTitle>
+								<CardDescription>
+									This conversation doesn't exist or has been deleted.
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								<Link to="/">
+									<Button variant="default" className="w-full">
+										Start a new conversation
+									</Button>
+								</Link>
+							</CardContent>
+						</Card>
+					</div>
+				);
+			}
+			return (
+				<div className="text-destructive flex h-dvh items-center justify-center px-4 text-sm">
+					{error.message}
+				</div>
+			);
 		}
-		return <div>loading…</div>;
+		return (
+			<div className="text-muted-foreground flex h-dvh items-center justify-center text-sm">
+				Loading…
+			</div>
+		);
 	}
 
-	return <MinimalChat state={state} sendMessage={sendMessage} abort={abort} />;
+	return <ChatView />;
 }

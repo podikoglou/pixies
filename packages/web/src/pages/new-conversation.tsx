@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useChatContext } from "@/contexts/chat-context";
-import { MinimalChat } from "@/components/chat/minimal-chat";
+import { ChatView } from "@/components/chat/chat-view";
 
 export function NewConversationPage() {
-	const { state, sendMessage, abort } = useChatContext();
+	const { state } = useChatContext();
 	const navigate = useNavigate();
 
 	useEffect(() => {
@@ -16,5 +16,5 @@ export function NewConversationPage() {
 		}
 	}, [state.conversationId, navigate]);
 
-	return <MinimalChat state={state} sendMessage={sendMessage} abort={abort} />;
+	return <ChatView />;
 }
