@@ -43,6 +43,8 @@ export {
 	isDisplayMapData,
 	DisplayMapToolDetailsSchema,
 	ToolDetailsDiscriminatedUnionSchema,
+	parseToolResult,
+	summarizeResult,
 } from "./tools/index.ts";
 export type {
 	GeocodeToolDetails,
@@ -57,6 +59,7 @@ export type {
 	ToolDetails,
 	ToolDetailVariant,
 	ToolDetailsDiscriminatedUnion,
+	ToolResult,
 	ToolResultData,
 	GeocodeResultEntry,
 	OverpassResultEntry,
