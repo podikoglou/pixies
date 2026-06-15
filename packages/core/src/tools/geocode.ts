@@ -2,6 +2,7 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import type { NominatimClient } from "../osm/nominatim.ts";
 import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
+import type { GeocodeToolDetails } from "./index.ts";
 import type { ToolProgress } from "./progress.ts";
 
 const schema = Type.Object({
@@ -10,12 +11,6 @@ const schema = Type.Object({
 	}),
 	limit: Type.Optional(Type.Number({ description: "Max results (Nominatim max 40, default 10)" })),
 });
-
-/** Final-result details for the geocode tool (progress travels as ToolProgress). */
-export type GeocodeToolDetails = {
-	top?: string;
-	data: import("../tools/index.ts").ToolResultData["geocode"];
-};
 
 export function createGeocodeTool(
 	nominatim: NominatimClient,

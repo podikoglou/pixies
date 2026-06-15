@@ -1,4 +1,6 @@
 import { readConfigFromEnv, type ResolvedPixiesConfig } from "@pixies/core";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 import path from "node:path";
 import { ConversationStore, type StreamPromptResult } from "./conversations.ts";
 import { translateAgentEvent } from "./events.ts";
@@ -15,6 +17,10 @@ export interface StartServerOptions {
 
 type MessageResult = { ok: true; message: string } | { ok: false; status: number; error: string };
 
+const MessageBodySchema = Type.Object({
+	message: Type.String({ minLength: 1 }),
+});
+
 async function readMessage(req: Request): Promise<MessageResult> {
 	let body: unknown;
 	try {
@@ -22,12 +28,9 @@ async function readMessage(req: Request): Promise<MessageResult> {
 	} catch {
 		return { ok: false, status: 400, error: "invalid JSON" };
 	}
-	if (typeof body !== "object" || body === null)
+	if (!Value.Check(MessageBodySchema, body))
 		return { ok: false, status: 400, error: "missing required field: message" };
-	const message = (body as { message?: unknown }).message;
-	if (typeof message !== "string" || !message.trim())
-		return { ok: false, status: 400, error: "missing required field: message" };
-	return { ok: true, message };
+	return { ok: true, message: body.message };
 }
 
 /**

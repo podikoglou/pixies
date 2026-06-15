@@ -25,10 +25,28 @@ export {
 	SSE_EVENT_DATA_SCHEMAS,
 } from "./sse-events.ts";
 export type { SSEEvent, SSEEventName } from "./sse-events.ts";
+export {
+	createToolRegistry,
+	createTools,
+	toolLabel,
+	summarizeToolDetails,
+	ToolProgressSchema,
+	isToolProgress,
+	ToolNameSchema,
+	isToolName,
+	GeocodeResultEntrySchema,
+	OverpassResultEntrySchema,
+	GeocodeToolDetailsSchema,
+	ReverseGeocodeToolDetailsSchema,
+	QueryOsmToolDetailsSchema,
+	DisplayMapToolDetailsSchema,
+	ToolDetailsDiscriminatedUnionSchema,
+} from "./tools/index.ts";
 export type {
 	GeocodeToolDetails,
 	ReverseGeocodeToolDetails,
 	QueryOsmToolDetails,
+	DisplayMapToolDetails,
 	ToolName,
 	ToolProgress,
 	ToolRegistry,
@@ -42,13 +60,17 @@ export type {
 	OsmClients,
 } from "./tools/index.ts";
 export {
-	createToolRegistry,
-	createTools,
-	toolLabel,
-	summarizeToolDetails,
-	ToolProgressSchema,
-	isToolProgress,
-} from "./tools/index.ts";
+	ConversationTranscriptSchema,
+	isConversationTranscript,
+} from "./transcript-schema.ts";
+export type {
+	ConversationTranscript,
+	TranscriptContentBlock,
+	TranscriptUserMessage,
+	TranscriptAssistantMessage,
+	TranscriptToolResultMessage,
+	TranscriptMessage,
+} from "./transcript-schema.ts";
 export { NominatimClient } from "./osm/nominatim.ts";
 export type { NominatimConfig, NominatimResult } from "./osm/nominatim.ts";
 export { OverpassClient } from "./osm/overpass.ts";

@@ -2,6 +2,7 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import type { OverpassClient } from "../osm/overpass.ts";
 import { formatElement, overpassElementToData } from "../osm/format.ts";
+import type { QueryOsmToolDetails } from "./index.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -9,11 +10,6 @@ const schema = Type.Object({
 			"Overpass QL query including [out:json] prefix, e.g. '[out:json][timeout:25];node[amenity=pub](52.5,13.3,52.6,13.4);out center;'",
 	}),
 });
-
-export interface QueryOsmToolDetails {
-	count: number;
-	data: import("../tools/index.ts").ToolResultData["query_osm"];
-}
 
 export function createQueryOsmTool(
 	overpass: OverpassClient,
