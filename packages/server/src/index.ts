@@ -1,7 +1,8 @@
-import { readConfigFromEnv, type ResolvedPixiesConfig } from "@pixies/core";
+import { readConfigFromEnv, createDb, type ResolvedPixiesConfig } from "@pixies/core";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import path from "node:path";
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { ConversationStore, type StreamPromptResult } from "./conversations.ts";
 import { translateAgentEvent } from "./events.ts";
 import { SseWriter } from "./sse.ts";
@@ -90,7 +91,9 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 		}
 		throw e;
 	}
-	const store = new ConversationStore(config);
+	const db = createDb(config.dbFile);
+	migrate(db, { migrationsFolder: "./drizzle" });
+	const store = new ConversationStore(config, db);
 	const hostname = opts.hostname ?? config.host;
 	const port = opts.port ?? config.port;
 
@@ -124,9 +127,9 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 				},
 			},
 			"/conversations/:id": {
-				GET: (req) => {
+				GET: async (req) => {
 					const id = req.params.id;
-					const conv = store.get(id);
+					const conv = await store.get(id);
 					if (!conv)
 						return Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
 					const messages = conv.agent.state.messages;
