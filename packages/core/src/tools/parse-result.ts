@@ -5,15 +5,7 @@ import {
 	QueryOsmToolDetailsSchema,
 	DisplayMapToolDetailsSchema,
 } from "./index.ts";
-import type {
-	GeocodeResultEntry,
-	OverpassResultEntry,
-	DisplayMapData,
-	GeocodeToolDetails,
-	ReverseGeocodeToolDetails,
-	QueryOsmToolDetails,
-	DisplayMapToolDetails,
-} from "./index.ts";
+import type { GeocodeResultEntry, OverpassResultEntry, DisplayMapData } from "./index.ts";
 
 /**
  * Typed, validated tool result. This is what downstream consumers
@@ -49,24 +41,22 @@ export function parseToolResult(toolName: string, details: unknown): ToolResult 
 	switch (toolName) {
 		case "geocode": {
 			if (!Value.Check(GeocodeToolDetailsSchema, details)) return { kind: "empty" };
-			const data: GeocodeResultEntry[] = (details as GeocodeToolDetails).data;
-			return { kind: "geocode", entries: data };
+			return { kind: "geocode", entries: details.data };
 		}
 		case "reverse_geocode": {
 			// The reverse_geocode tool returns `details: undefined` on no-result
 			// (reverse-geocode.ts:43). Value.Check fails for `undefined`, so this
 			// branch naturally falls through to `{ kind: "empty" }`.
 			if (!Value.Check(ReverseGeocodeToolDetailsSchema, details)) return { kind: "empty" };
-			return { kind: "reverse_geocode", entry: (details as ReverseGeocodeToolDetails).data };
+			return { kind: "reverse_geocode", entry: details.data };
 		}
 		case "query_osm": {
 			if (!Value.Check(QueryOsmToolDetailsSchema, details)) return { kind: "empty" };
-			const entries: OverpassResultEntry[] = (details as QueryOsmToolDetails).data;
-			return { kind: "query_osm", entries };
+			return { kind: "query_osm", entries: details.data };
 		}
 		case "display_map": {
 			if (!Value.Check(DisplayMapToolDetailsSchema, details)) return { kind: "empty" };
-			return { kind: "display_map", data: (details as DisplayMapToolDetails).data };
+			return { kind: "display_map", data: details.data };
 		}
 		default:
 			return { kind: "empty" };
