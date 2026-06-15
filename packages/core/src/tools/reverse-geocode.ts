@@ -2,6 +2,7 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import type { NominatimClient } from "../osm/nominatim.ts";
 import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
+import type { ReverseGeocodeToolDetails } from "./index.ts";
 import type { ToolProgress } from "./progress.ts";
 
 const schema = Type.Object({
@@ -14,12 +15,6 @@ const schema = Type.Object({
 		}),
 	),
 });
-
-/** Final-result details for the reverse_geocode tool (progress travels as ToolProgress). */
-export type ReverseGeocodeToolDetails = {
-	name?: string;
-	data: import("../tools/index.ts").ToolResultData["reverse_geocode"];
-};
 
 export function createReverseGeocodeTool(
 	nominatim: NominatimClient,

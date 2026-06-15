@@ -1,5 +1,6 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
+import type { DisplayMapToolDetails } from "./index.ts";
 
 const boundsSchema = Type.Object({
 	minlat: Type.Number({ description: "Minimum latitude" }),
@@ -18,13 +19,6 @@ const schema = Type.Object({
 	markers: Type.Array(markerSchema, { description: "Points to show on the map" }),
 	bounds: Type.Optional(boundsSchema),
 });
-
-export interface DisplayMapToolDetails {
-	data: {
-		markers: Array<{ lat: number; lon: number; label?: string }>;
-		bounds?: { minlat: number; minlon: number; maxlat: number; maxlon: number };
-	};
-}
 
 export function createDisplayMapTool(): AgentTool<typeof schema, DisplayMapToolDetails> {
 	return {

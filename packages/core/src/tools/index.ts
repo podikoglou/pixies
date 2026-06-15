@@ -1,58 +1,42 @@
+import { Type } from "typebox";
+import type { Static } from "typebox";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { NominatimClient } from "../osm/nominatim.ts";
 import type { OverpassClient } from "../osm/overpass.ts";
 import { createGeocodeTool } from "./geocode.ts";
-import type { GeocodeToolDetails } from "./geocode.ts";
 import { createQueryOsmTool } from "./query-osm.ts";
-import type { QueryOsmToolDetails } from "./query-osm.ts";
 import { createReverseGeocodeTool } from "./reverse-geocode.ts";
-import type { ReverseGeocodeToolDetails } from "./reverse-geocode.ts";
 import { createDisplayMapTool } from "./display-map.ts";
-import type { DisplayMapToolDetails } from "./display-map.ts";
-import type { ToolName } from "./presentation.ts";
+import { ToolNameSchema, isToolName } from "./presentation.ts";
+export type { ToolName } from "./presentation.ts";
+export { ToolNameSchema, isToolName } from "./presentation.ts";
 
-export type {
-	GeocodeToolDetails,
-	ReverseGeocodeToolDetails,
-	QueryOsmToolDetails,
-	DisplayMapToolDetails,
-	ToolName,
-};
 export type { ToolProgress } from "./progress.ts";
 export { ToolProgressSchema, isToolProgress } from "./progress.ts";
 
-/**
- * Structured, lossless representation of a single geocode or reverse-geocode
- * result. Unlike the model-facing pipe string, this preserves `class` and
- * `type` as separate fields and coerces `lat`/`lon` to numbers once, at the
- * source, instead of in every consumer.
- */
-export interface GeocodeResultEntry {
-	placeId: number;
-	lat: number;
-	lon: number;
-	name: string;
-	displayName?: string;
-	class?: string;
-	type?: string;
-	osmType?: "node" | "way" | "relation";
-	osmId?: number;
-}
+export const GeocodeResultEntrySchema = Type.Object({
+	placeId: Type.Number(),
+	lat: Type.Number(),
+	lon: Type.Number(),
+	name: Type.String(),
+	displayName: Type.Optional(Type.String()),
+	class: Type.Optional(Type.String()),
+	type: Type.Optional(Type.String()),
+	osmType: Type.Optional(Type.Union([Type.Literal("node"), Type.Literal("way"), Type.Literal("relation")])),
+	osmId: Type.Optional(Type.Number()),
+});
+export type GeocodeResultEntry = Static<typeof GeocodeResultEntrySchema>;
 
-/**
- * Structured, lossless representation of a single Overpass query element.
- * Tag values containing `, ` or `=` survive intact here (the pipe-string
- * parser could not recover them).
- */
-export interface OverpassResultEntry {
-	type: "node" | "way" | "relation";
-	id: number;
-	lat?: number;
-	lon?: number;
-	name?: string;
-	tags?: Record<string, string>;
-	geometryPoints?: number;
-}
+export const OverpassResultEntrySchema = Type.Object({
+	type: Type.Union([Type.Literal("node"), Type.Literal("way"), Type.Literal("relation")]),
+	id: Type.Number(),
+	lat: Type.Optional(Type.Number()),
+	lon: Type.Optional(Type.Number()),
+	name: Type.Optional(Type.String()),
+	tags: Type.Optional(Type.Record(Type.String(), Type.String())),
+	geometryPoints: Type.Optional(Type.Number()),
+});
+export type OverpassResultEntry = Static<typeof OverpassResultEntrySchema>;
 
 /**
  * Per-tool structured result data, keyed by tool name. Tools populate this
@@ -66,6 +50,41 @@ export type ToolResultData = {
 	query_osm: OverpassResultEntry[];
 	display_map: DisplayMapToolDetails["data"];
 };
+
+export const GeocodeToolDetailsSchema = Type.Object({
+	top: Type.Optional(Type.String()),
+	data: Type.Array(GeocodeResultEntrySchema),
+});
+export type GeocodeToolDetails = Static<typeof GeocodeToolDetailsSchema>;
+
+export const ReverseGeocodeToolDetailsSchema = Type.Object({
+	name: Type.Optional(Type.String()),
+	data: GeocodeResultEntrySchema,
+});
+export type ReverseGeocodeToolDetails = Static<typeof ReverseGeocodeToolDetailsSchema>;
+
+export const QueryOsmToolDetailsSchema = Type.Object({
+	count: Type.Number(),
+	data: Type.Array(OverpassResultEntrySchema),
+});
+export type QueryOsmToolDetails = Static<typeof QueryOsmToolDetailsSchema>;
+
+export const DisplayMapToolDetailsSchema = Type.Object({
+	data: Type.Object({
+		markers: Type.Array(Type.Object({
+			lat: Type.Number(),
+			lon: Type.Number(),
+			label: Type.Optional(Type.String()),
+		})),
+		bounds: Type.Optional(Type.Object({
+			minlat: Type.Number(),
+			minlon: Type.Number(),
+			maxlat: Type.Number(),
+			maxlon: Type.Number(),
+		})),
+	}),
+});
+export type DisplayMapToolDetails = Static<typeof DisplayMapToolDetailsSchema>;
 
 export interface OsmClients {
 	nominatim: NominatimClient;
@@ -96,6 +115,13 @@ export type ToolDetailVariant<T extends ToolName> = {
 export type ToolDetailsDiscriminatedUnion = {
 	[K in ToolName]: ToolDetailVariant<K>;
 }[ToolName];
+
+export const ToolDetailsDiscriminatedUnionSchema = Type.Union([
+	Type.Object({ name: Type.Literal("geocode"), details: GeocodeToolDetailsSchema }),
+	Type.Object({ name: Type.Literal("reverse_geocode"), details: Type.Optional(ReverseGeocodeToolDetailsSchema) }),
+	Type.Object({ name: Type.Literal("query_osm"), details: QueryOsmToolDetailsSchema }),
+	Type.Object({ name: Type.Literal("display_map"), details: DisplayMapToolDetailsSchema }),
+]);
 
 export function createToolRegistry(clients: OsmClients): ToolRegistry {
 	const geocode = createGeocodeTool(clients.nominatim);
