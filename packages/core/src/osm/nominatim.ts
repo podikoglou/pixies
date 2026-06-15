@@ -1,4 +1,5 @@
 import { osmFetch } from "./http.ts";
+import type { ToolProgress } from "../tools/progress.ts";
 
 export interface NominatimResult {
 	place_id: number;
@@ -22,9 +23,13 @@ export interface ReverseOptions {
 	zoom?: number;
 }
 
+/**
+ * Progress callbacks invoked by the rate limiter. Emits typed
+ * {@link ToolProgress} signals: `{ type: "queued" }` before waiting for a
+ * rate-limit slot, `{ type: "running" }` once the slot is acquired.
+ */
 export interface RateLimitCallbacks {
-	onQueued?: () => void;
-	onStart?: () => void;
+	onProgress?: (progress: ToolProgress) => void;
 }
 
 export interface NominatimConfig {
@@ -60,7 +65,7 @@ export class NominatimClient {
 			const elapsed = Date.now() - this.lastCallTime;
 			const wait = RATE_LIMIT_MS - elapsed;
 			if (wait > 0) {
-				opts.onQueued?.();
+				opts.onProgress?.({ type: "queued" });
 				await new Promise<void>((resolve, reject) => {
 					const timer = setTimeout(resolve, wait);
 					signal?.addEventListener(
@@ -74,7 +79,7 @@ export class NominatimClient {
 				});
 			}
 			this.lastCallTime = Date.now();
-			opts.onStart?.();
+			opts.onProgress?.({ type: "running" });
 			return fn();
 		});
 		this.chain = run.then(

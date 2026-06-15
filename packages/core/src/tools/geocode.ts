@@ -2,6 +2,7 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import type { NominatimClient } from "../osm/nominatim.ts";
 import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
+import type { ToolProgress } from "./progress.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -10,13 +11,15 @@ const schema = Type.Object({
 	limit: Type.Optional(Type.Number({ description: "Max results (Nominatim max 40, default 10)" })),
 });
 
-export type GeocodeToolDetails =
-	| { queued: boolean }
-	| { top?: string; data: import("../tools/index.ts").ToolResultData["geocode"] };
+/** Final-result details for the geocode tool (progress travels as ToolProgress). */
+export type GeocodeToolDetails = {
+	top?: string;
+	data: import("../tools/index.ts").ToolResultData["geocode"];
+};
 
 export function createGeocodeTool(
 	nominatim: NominatimClient,
-): AgentTool<typeof schema, GeocodeToolDetails> {
+): AgentTool<typeof schema, ToolProgress | GeocodeToolDetails> {
 	return {
 		name: "geocode",
 		label: "Geocode",
@@ -27,8 +30,7 @@ export function createGeocodeTool(
 		async execute(_toolCallId, params, signal, onUpdate) {
 			if (signal?.aborted) throw new Error("Operation aborted");
 			const results = await nominatim.search(params.query, { limit: params.limit }, signal, {
-				onQueued: () => onUpdate?.({ content: [], details: { queued: true } }),
-				onStart: () => onUpdate?.({ content: [], details: { queued: false } }),
+				onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
 			});
 			if (results.length === 0) {
 				return {

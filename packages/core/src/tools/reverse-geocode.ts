@@ -2,6 +2,7 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import type { NominatimClient } from "../osm/nominatim.ts";
 import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
+import type { ToolProgress } from "./progress.ts";
 
 const schema = Type.Object({
 	lat: Type.Number({ description: "Latitude" }),
@@ -14,13 +15,15 @@ const schema = Type.Object({
 	),
 });
 
-export type ReverseGeocodeToolDetails =
-	| { queued: boolean }
-	| { name?: string; data: import("../tools/index.ts").ToolResultData["reverse_geocode"] };
+/** Final-result details for the reverse_geocode tool (progress travels as ToolProgress). */
+export type ReverseGeocodeToolDetails = {
+	name?: string;
+	data: import("../tools/index.ts").ToolResultData["reverse_geocode"];
+};
 
 export function createReverseGeocodeTool(
 	nominatim: NominatimClient,
-): AgentTool<typeof schema, ReverseGeocodeToolDetails | undefined> {
+): AgentTool<typeof schema, ToolProgress | ReverseGeocodeToolDetails | undefined> {
 	return {
 		name: "reverse_geocode",
 		label: "Reverse geocode",
@@ -36,8 +39,7 @@ export function createReverseGeocodeTool(
 				{ zoom: params.zoom },
 				signal,
 				{
-					onQueued: () => onUpdate?.({ content: [], details: { queued: true } }),
-					onStart: () => onUpdate?.({ content: [], details: { queued: false } }),
+					onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
 				},
 			);
 			if (!result || !result.display_name) {
