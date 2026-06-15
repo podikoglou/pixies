@@ -1,23 +1,39 @@
 import { osmFetch } from "./http.ts";
+import { Type } from "typebox";
+import type { Static } from "typebox";
+import { Value } from "typebox/value";
 
-export interface OverpassElement {
-	type: "node" | "way" | "relation";
-	id: number;
-	lat?: number;
-	lon?: number;
-	center?: { lat: number; lon: number };
-	bounds?: { minlat: number; minlon: number; maxlat: number; maxlon: number };
-	nodes?: number[];
-	geometry?: Array<{ lat: number; lon: number }>;
-	tags?: Record<string, string>;
-}
+export const OverpassElementSchema = Type.Object({
+	type: Type.Union([Type.Literal("node"), Type.Literal("way"), Type.Literal("relation")]),
+	id: Type.Number(),
+	lat: Type.Optional(Type.Number()),
+	lon: Type.Optional(Type.Number()),
+	center: Type.Optional(Type.Object({
+		lat: Type.Number(),
+		lon: Type.Number(),
+	})),
+	bounds: Type.Optional(Type.Object({
+		minlat: Type.Number(),
+		minlon: Type.Number(),
+		maxlat: Type.Number(),
+		maxlon: Type.Number(),
+	})),
+	nodes: Type.Optional(Type.Array(Type.Number())),
+	geometry: Type.Optional(Type.Array(Type.Object({
+		lat: Type.Number(),
+		lon: Type.Number(),
+	}))),
+	tags: Type.Optional(Type.Record(Type.String(), Type.String())),
+});
+export type OverpassElement = Static<typeof OverpassElementSchema>;
 
-export interface OverpassResponse {
-	version?: number;
-	generator?: string;
-	elements?: OverpassElement[];
-	remark?: string;
-}
+export const OverpassResponseSchema = Type.Object({
+	version: Type.Optional(Type.Number()),
+	generator: Type.Optional(Type.String()),
+	elements: Type.Optional(Type.Array(OverpassElementSchema)),
+	remark: Type.Optional(Type.String()),
+});
+export type OverpassResponse = Static<typeof OverpassResponseSchema>;
 
 export interface OverpassConfig {
 	baseUrl: string;
@@ -51,7 +67,10 @@ export class OverpassClient {
 		if (!contentType.includes("application/json")) {
 			throw new Error("Only [out:json] is supported");
 		}
-		const json = (await res.json()) as OverpassResponse;
+		const json = await res.json();
+		if (!Value.Check(OverpassResponseSchema, json)) {
+			throw new Error("Overpass: invalid response shape");
+		}
 		if (json.remark) {
 			throw new Error(`Overpass: ${json.remark}`);
 		}
