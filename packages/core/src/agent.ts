@@ -2,13 +2,13 @@ import { Agent } from "@earendil-works/pi-agent-core";
 import { getModels } from "@earendil-works/pi-ai";
 import type { Api, KnownProvider, Model } from "@earendil-works/pi-ai";
 import { Default, Check, Errors } from "typebox/value";
-import { PixiesConfigSchema, type PixiesConfig } from "./config-schema.ts";
+import { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
 import { NominatimClient } from "./osm/nominatim.ts";
 import { OverpassClient } from "./osm/overpass.ts";
 import { createTools, type OsmClients } from "./tools/index.ts";
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 
-export type { PixiesConfig } from "./config-schema.ts";
+export type { PixiesConfig, ResolvedPixiesConfig } from "./config-schema.ts";
 
 function resolveModel(modelRef: string): Model<Api> {
 	const slashIndex = modelRef.indexOf("/");
@@ -28,7 +28,7 @@ function resolveModel(modelRef: string): Model<Api> {
 	return model;
 }
 
-export function readConfigFromEnv(): PixiesConfig {
+export function readConfigFromEnv(): ResolvedPixiesConfig {
 	const raw: Record<string, unknown> = {
 		model: process.env.PIXIES_MODEL,
 		apiKey: process.env.PIXIES_API_KEY,
@@ -62,11 +62,11 @@ export function readConfigFromEnv(): PixiesConfig {
 		throw new Error(`Invalid configuration: ${messages}`);
 	}
 
-	return raw as PixiesConfig;
+	return raw as ResolvedPixiesConfig;
 }
 
 export interface CreateAgentOptions {
-	config: PixiesConfig;
+	config: ResolvedPixiesConfig;
 	fetch?: typeof globalThis.fetch;
 }
 
@@ -98,10 +98,10 @@ export function createAgent(options: CreateAgentOptions): Agent {
 	const { config } = options;
 	const model = resolveModel(config.model);
 	const clients = createOsmClients({
-		overpassUrl: config.overpassUrl!,
-		nominatimUrl: config.nominatimUrl!,
+		overpassUrl: config.overpassUrl,
+		nominatimUrl: config.nominatimUrl,
 		contactEmail: config.contactEmail,
-		userAgent: config.userAgent!,
+		userAgent: config.userAgent,
 		fetch: options.fetch,
 	});
 	const tools = createTools(clients);

@@ -45,3 +45,19 @@ export const PixiesConfigSchema = Type.Object({
 });
 
 export type PixiesConfig = Static<typeof PixiesConfigSchema>;
+
+export interface ResolvedPixiesConfig {
+	model: string;
+	apiKey: string;
+	contactEmail?: string;
+	overpassUrl: string;
+	nominatimUrl: string;
+	userAgent: string;
+	host: string;
+	port: number;
+	thinkingLevel: "off" | "low" | "medium" | "high";
+	maxConversations: number;
+	maxMessages: number;
+	logLevel: "debug" | "info" | "warn" | "error";
+	defaultLimit: number;
+}

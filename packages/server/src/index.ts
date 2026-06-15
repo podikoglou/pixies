@@ -1,5 +1,5 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import { readConfigFromEnv, type PixiesConfig } from "@pixies/core";
+import { readConfigFromEnv, type ResolvedPixiesConfig } from "@pixies/core";
 import { ConversationStore, type Conversation } from "./conversations.ts";
 import { translateAgentEvent } from "./events.ts";
 import { SseWriter } from "./sse.ts";
@@ -7,7 +7,7 @@ import { SseWriter } from "./sse.ts";
 export interface StartServerOptions {
 	hostname?: string;
 	port?: number;
-	config?: PixiesConfig;
+	config?: ResolvedPixiesConfig;
 	onReady?: (url: string) => void;
 }
 
@@ -51,7 +51,7 @@ function streamPrompt(conv: Conversation, message: string, conversationId?: stri
 }
 
 export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined> {
-	let config: PixiesConfig;
+	let config: ResolvedPixiesConfig;
 	try {
 		config = opts.config ?? readConfigFromEnv();
 	} catch (e) {

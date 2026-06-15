@@ -1,5 +1,5 @@
 import { type Agent, uuidv7 } from "@earendil-works/pi-agent-core";
-import { createAgent, type PixiesConfig } from "@pixies/core";
+import { createAgent, type ResolvedPixiesConfig } from "@pixies/core";
 
 export interface Conversation {
 	readonly id: string;
@@ -14,9 +14,9 @@ const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 export class ConversationStore {
 	private readonly conversations = new Map<string, Conversation>();
 	private readonly sweeper: ReturnType<typeof setInterval>;
-	private readonly config: PixiesConfig;
+	private readonly config: ResolvedPixiesConfig;
 
-	constructor(config: PixiesConfig) {
+	constructor(config: ResolvedPixiesConfig) {
 		this.config = config;
 		this.sweeper = setInterval(() => this.sweep(), SWEEP_INTERVAL_MS);
 	}
