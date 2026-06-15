@@ -4,9 +4,21 @@ export const PixiesConfigSchema = Type.Object({
 	model: Type.String({ description: 'Model in "provider/model-id" format' }),
 	apiKey: Type.String({ description: "API key for the AI provider" }),
 	contactEmail: Type.Optional(Type.String({ description: "Contact email for OSM usage policy" })),
-	overpassUrl: Type.Optional(Type.String({ description: "Custom Overpass API URL" })),
-	nominatimUrl: Type.Optional(Type.String({ description: "Custom Nominatim API URL" })),
-	userAgent: Type.Optional(Type.String({ description: "Custom User-Agent for OSM requests" })),
+	overpassUrl: Type.Optional(
+		Type.String({
+			description: "Custom Overpass API URL",
+			default: "https://overpass-api.de/api/interpreter",
+		}),
+	),
+	nominatimUrl: Type.Optional(
+		Type.String({
+			description: "Custom Nominatim API URL",
+			default: "https://nominatim.openstreetmap.org",
+		}),
+	),
+	userAgent: Type.Optional(
+		Type.String({ description: "Custom User-Agent for OSM requests", default: "Pixies" }),
+	),
 	host: Type.Optional(Type.String({ description: "Server listen hostname", default: "127.0.0.1" })),
 	port: Type.Optional(Type.Number({ description: "Server listen port", default: 3000 })),
 	thinkingLevel: Type.Optional(

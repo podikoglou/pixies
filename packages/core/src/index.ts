@@ -1,5 +1,5 @@
 export { createAgent, createOsmClients, readConfigFromEnv } from "./agent.ts";
-export type { CreateAgentOptions } from "./agent.ts";
+export type { CreateAgentOptions, CreateOsmClientsOptions } from "./agent.ts";
 export { PixiesConfigSchema, type PixiesConfig } from "./config-schema.ts";
 export { SYSTEM_PROMPT } from "./system-prompt.ts";
 export type {
