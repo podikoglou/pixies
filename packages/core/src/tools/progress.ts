@@ -1,5 +1,6 @@
 import { Type } from "typebox";
 import type { Static } from "typebox";
+import { Value } from "typebox/value";
 
 /**
  * Tool-progress signals emitted during execution, before the final result.
@@ -23,7 +24,5 @@ export type ToolProgress = Static<typeof ToolProgressSchema>;
  * {@link ToolProgress}. Pure — exercisable without a terminal or HTTP.
  */
 export function isToolProgress(value: unknown): value is ToolProgress {
-	if (value === null || typeof value !== "object") return false;
-	const type = (value as { type?: unknown }).type;
-	return type === "queued" || type === "running";
+	return Value.Check(ToolProgressSchema, value);
 }
