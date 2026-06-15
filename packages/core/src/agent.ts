@@ -38,19 +38,6 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 		host: process.env.PIXIES_HOST,
 		port: process.env.PIXIES_PORT !== undefined ? Number(process.env.PIXIES_PORT) : undefined,
 		thinkingLevel: process.env.PIXIES_THINKING_LEVEL,
-		maxConversations:
-			process.env.PIXIES_MAX_CONVERSATIONS !== undefined
-				? Number(process.env.PIXIES_MAX_CONVERSATIONS)
-				: undefined,
-		maxMessages:
-			process.env.PIXIES_MAX_MESSAGES !== undefined
-				? Number(process.env.PIXIES_MAX_MESSAGES)
-				: undefined,
-		logLevel: process.env.PIXIES_LOG_LEVEL,
-		defaultLimit:
-			process.env.PIXIES_DEFAULT_LIMIT !== undefined
-				? Number(process.env.PIXIES_DEFAULT_LIMIT)
-				: undefined,
 	};
 
 	return PixiesConfigSchema.parse(raw);

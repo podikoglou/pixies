@@ -22,13 +22,6 @@ export const PixiesConfigSchema = z.object({
 		.enum(["off", "low", "medium", "high"] as const)
 		.default("off")
 		.describe("AI thinking level"),
-	maxConversations: z.number().default(100).describe("Maximum concurrent conversations"),
-	maxMessages: z.number().default(50).describe("Maximum messages per conversation"),
-	logLevel: z
-		.enum(["debug", "info", "warn", "error"] as const)
-		.default("info")
-		.describe("Logging level"),
-	defaultLimit: z.number().default(10).describe("Default result limit for geocode/tool calls"),
 });
 
 export type PixiesConfig = z.input<typeof PixiesConfigSchema>;
