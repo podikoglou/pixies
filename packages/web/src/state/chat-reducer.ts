@@ -12,6 +12,7 @@ export type TimelineItem =
 			status: "running" | "done" | "error";
 			queued: boolean;
 			resultText: string | null;
+			resultData: unknown;
 			summary: string | null;
 	  };
 
@@ -45,6 +46,7 @@ export type ChatAction =
 			toolCallId: string;
 			isError: boolean;
 			resultText: string | null;
+			resultData: unknown;
 			details: unknown;
 	  }
 	| { type: "STREAM_DONE" }
@@ -98,6 +100,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 						status: "running",
 						queued: false,
 						resultText: null,
+						resultData: null,
 						summary: null,
 					},
 				],
@@ -120,6 +123,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 								...it,
 								status: action.isError ? "error" : "done",
 								resultText: action.resultText,
+								resultData: action.resultData,
 								summary:
 									summarizeToolDetails(it.toolName as ToolName, action.details as ToolDetails) ??
 									null,
@@ -174,6 +178,7 @@ export function transcriptToItems(transcript: ConversationTranscript): TimelineI
 					status: msg.isError ? "error" : "done",
 					queued: false,
 					resultText: joinContentText(msg.content, "\n") || null,
+					resultData: (msg.details as { data?: unknown })?.data ?? null,
 					summary:
 						summarizeToolDetails(msg.toolName as ToolName, msg.details as ToolDetails) ?? null,
 				});

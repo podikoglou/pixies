@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
 	CheckIcon,
 	LoaderCircleIcon,
@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { formatToolName } from "@/lib/format-tool-name";
-import { parseToolResult } from "@/lib/parse-tool-result";
 import type { TimelineItem } from "@/state/chat-reducer";
 import { JsonTree } from "./json-tree";
 
@@ -49,10 +48,7 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 	const entries = argEntries(item.args);
 	const hasDetails = entries.length > 0 || item.resultText !== null;
 
-	const parsedResult = useMemo(() => {
-		if (!item.resultText || isError) return undefined;
-		return parseToolResult(item.toolName, item.resultText);
-	}, [item.resultText, item.toolName, isError]);
+	const parsedResult = item.resultData ?? undefined;
 
 	const hasParsedResult =
 		parsedResult !== null && parsedResult !== undefined && parsedResult !== item.resultText;
