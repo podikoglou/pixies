@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { router } from "./router";
+import "@fontsource/geist-sans";
 import "highlight.js/styles/github-dark.css";
 import "leaflet/dist/leaflet.css";
 import "./styles/globals.css";
