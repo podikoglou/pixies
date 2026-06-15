@@ -80,6 +80,8 @@ export const DisplayMapDataSchema = Type.Object({
 			label: Type.Optional(Type.String()),
 		}),
 	),
+	queryRef: Type.Optional(Type.String()),
+	elementIds: Type.Optional(Type.Array(Type.String())),
 	bounds: Type.Optional(
 		Type.Object({
 			minlat: Type.Number(),

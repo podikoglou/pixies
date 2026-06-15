@@ -12,6 +12,6 @@ When a compound query returns 0 or suspiciously few results, your query is too s
 
 Keep Overpass queries bounded: resolve the area with \`geocode\` first when you need a bbox or area ref, and avoid planet-wide unbounded queries.
 
-When presenting geographic results — a set of matching places, a distribution, or query results with coordinates — call \`display_map\` with the relevant markers and an optional bounding box so the user sees a map. Use it after \`query_osm\` or \`geocode\` when the results are spatial. The map IS the primary output — produce no text response when calling \`display_map\`. The map speaks for itself.
+When presenting geographic results, call \`display_map\` after \`query_osm\` or \`geocode\`. For results from \`query_osm\`, pass \`queryRef\` set to the tool call ID of that \`query_osm\` call — do NOT re-list every marker inline; the map resolves them automatically. To show a subset, add \`elementIds\` with the OSM IDs (e.g. "node/12345") of the entries you want. Use inline \`markers\` only for hand-picked points not from a query. The map IS the primary output — produce no text response when calling \`display_map\`. The map speaks for itself.
 
 Do not add disclaimers about OSM data freshness, accuracy, or completeness. The UI handles that.`;

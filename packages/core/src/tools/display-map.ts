@@ -16,7 +16,23 @@ const markerSchema = Type.Object({
 });
 
 const schema = Type.Object({
-	markers: Type.Array(markerSchema, { description: "Points to show on the map" }),
+	markers: Type.Optional(
+		Type.Array(markerSchema, {
+			description: "Inline marker points. Use for hand-picked points not from query_osm.",
+		}),
+	),
+	queryRef: Type.Optional(
+		Type.String({
+			description:
+				"Tool call ID of a prior query_osm call. The map resolves markers from that query automatically — do not re-list every marker inline.",
+		}),
+	),
+	elementIds: Type.Optional(
+		Type.Array(Type.String(), {
+			description:
+				'OSM element IDs (e.g. "node/12345") to show a subset of the referenced query results.',
+		}),
+	),
 	bounds: Type.Optional(boundsSchema),
 });
 
@@ -25,14 +41,50 @@ export function createDisplayMapTool(): AgentTool<typeof schema, DisplayMapToolD
 		name: "display_map",
 		label: "Display Map",
 		description:
-			"Display markers on a map in the UI. Call this after gathering geodata to present spatial results visually. Provide marker points and optionally a bounding box to fit the map viewport.",
+			"Display markers on a map in the UI. For query_osm results, pass queryRef (the tool call ID of that query) instead of re-listing markers. Add elementIds to show a subset. Use inline markers only for hand-picked points.",
 		parameters: schema,
 		async execute(_toolCallId, params) {
+			const hasMarkers = params.markers !== undefined;
+			const hasQueryRef = params.queryRef !== undefined;
+
+			if (hasMarkers && hasQueryRef) {
+				throw new Error(
+					"Provide either markers (inline) or queryRef (reference to a prior query_osm call), not both.",
+				);
+			}
+
+			if (!hasMarkers && !hasQueryRef) {
+				throw new Error(
+					"Provide either markers (inline) or queryRef (reference to a prior query_osm call).",
+				);
+			}
+
+			if (hasQueryRef) {
+				return {
+					content: [
+						{
+							type: "text",
+							text: `Displaying markers from query_osm call ${params.queryRef} on map.`,
+						},
+					],
+					details: {
+						data: {
+							markers: [],
+							queryRef: params.queryRef,
+							elementIds: params.elementIds,
+							bounds: params.bounds,
+						},
+					},
+				};
+			}
+
 			return {
-				content: [{ type: "text", text: `Displaying ${params.markers.length} marker(s) on map.` }],
+				content: [
+					{ type: "text", text: `Displaying ${params.markers!.length} marker(s) on map.` },
+				],
 				details: {
 					data: {
-						markers: params.markers,
+						markers: params.markers!,
 						bounds: params.bounds,
 					},
 				},
