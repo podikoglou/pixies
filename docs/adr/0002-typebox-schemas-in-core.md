@@ -1,6 +1,18 @@
 # ADR-0002: TypeBox schemas in core for shared type contracts
 
-**Status:** Accepted — 2026-06-15
+**Status:** Accepted — 2026-06-15; revised 2026-06-15 (config moved to Zod; see Revision below).
+
+## Revision — 2026-06-15
+
+The original decision below holds **for the domains it covered: tool parameter schemas and SSE event schemas.** A later change (commit `33689be` / merge `84852cf`) adopted **Zod** for a domain this ADR never addressed — **configuration validation** (`packages/core/src/config-schema.ts`). The library split is now per-domain, not global:
+
+| Domain | Library | Why |
+| --- | --- | --- |
+| Tool parameter schemas (`packages/core/src/tools/*.ts`) | TypeBox | Required by the `AgentTool` contract from `@earendil-works/pi-agent-core`, which expects TypeBox `TSchema` params. |
+| SSE event schemas (`packages/core/src/sse-events.ts`) | TypeBox | No input/output distinction needed; JSON Schema-derivable for the wire contract. Original rationale (single source of truth, `Value.Check()` runtime validation, inferred `Static<T>`) still applies. |
+| Config schema (`packages/core/src/config-schema.ts`) | Zod | Config needs **two** types — input (defaults not yet applied, `PixiesConfig`) and resolved (defaults filled, `ResolvedPixiesConfig`). Zod expresses this directly via `z.input<typeof Schema>` / `z.output<typeof Schema>`; TypeBox's `Static<T>` yields a single type and cannot model the defaults transform. |
+
+The "Zod instead of TypeBox (rejected)" alternative below is therefore retained for historical accuracy but is **superseded for the config domain** by this revision. The rejection still holds for tool params and SSE events — those domains have no input/output split and (for tool params) are constrained by the upstream `AgentTool` contract.
 
 ## Context
 
@@ -14,9 +26,11 @@ Two approaches for defining shared types:
 
 ## Decision
 
-We choose **A: TypeBox schemas in `@pixies/core`.**
+We choose **A: TypeBox schemas in `@pixies/core`** for tool parameter schemas, SSE event schemas, and any future cross-package wire contracts.
 
-SSE event schemas, tool parameter schemas, and any future cross-package type contracts live as TypeBox schema definitions in `@pixies/core`. Adapters import the schemas and use `Value.Check()` for runtime validation and the inferred `Static<T>` types for compile-time safety.
+These schemas live as TypeBox schema definitions in `@pixies/core`. Adapters import the schemas and use `Value.Check()` for runtime validation and the inferred `Static<T>` types for compile-time safety.
+
+> **Scope note (added 2026-06-15):** This decision does **not** cover configuration validation. Config uses Zod — see the Revision section above for the rationale. The split is per-domain, not "TypeBox everywhere in core."
 
 ## Rationale
 
@@ -47,6 +61,6 @@ SSE event schemas, tool parameter schemas, and any future cross-package type con
 
 **Per-package type definitions (rejected).** Duplicates type definitions across adapters. The server emits events the web client consumes — hand-syncing two independent type definitions invites drift. No runtime validation unless each adapter also duplicates a validation layer.
 
-**Zod instead of TypeBox (rejected).** Equally capable, but introduces a second validation library alongside the existing TypeBox usage. Inconsistent for marginal benefit.
+**Zod instead of TypeBox (rejected for tool params and SSE; adopted for config).** Equally capable, but introduces a second validation library alongside the existing TypeBox usage — inconsistent for marginal benefit **in the domains this ADR covers.** Tool params require TypeBox (the `AgentTool` contract), and SSE events gain nothing from Zod. **However, config validation later moved to Zod** (commit `33689be` / merge `84852cf`, 2026-06-15) because config needs distinct input and resolved types (`z.input` / `z.output`) that TypeBox's single `Static<T>` cannot express. See the Revision section above.
 
 **No runtime validation (rejected).** The SSE wire is `unknown` JSON. Trusting it without validation means a malformed payload causes a runtime error deep in rendering, not a clear parse error at the boundary.
