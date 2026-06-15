@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatInput } from "./chat-input";
 import { ChatTimeline } from "./chat-timeline";
+import { OsmDisclaimer } from "./osm-disclaimer";
 
 const WELCOME_EXAMPLES = [
 	"vegan cafés near camden",
@@ -97,6 +98,8 @@ export function ChatView() {
 					<ChatTimeline state={state} />
 				)}
 			</ScrollArea>
+
+			<OsmDisclaimer />
 
 			<ChatInput
 				value={text}
