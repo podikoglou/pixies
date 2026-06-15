@@ -26,7 +26,7 @@ const summarize: { [K in ToolName]: ToolDetailSummarizer<K> } = {
 	geocode: (d) => (typeof d.top === "string" ? d.top : undefined),
 	reverse_geocode: (d) => (d && typeof d.name === "string" ? d.name : undefined),
 	query_osm: (d) => (typeof d.count === "number" ? `${d.count} elements` : undefined),
-	display_map: (d) => `${d.markers.length} marker(s)`,
+	display_map: (d) => `${d.data.markers.length} marker(s)`,
 };
 
 /** Summarize tool details into a human-readable string, or undefined if unavailable. */
