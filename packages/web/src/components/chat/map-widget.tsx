@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import L from "leaflet";
 import { cn } from "@/lib/utils";
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 export interface MapWidgetProps {
 	markers?: Array<{ lat: number; lon: number; label?: string }>;
@@ -8,11 +11,12 @@ export interface MapWidgetProps {
 	className?: string;
 }
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+// @ts-expect-error _getIconUrl is private in Leaflet types
+delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-	iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-	iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-	shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+	iconRetinaUrl: markerIcon2x,
+	iconUrl: markerIcon,
+	shadowUrl: markerShadow,
 });
 
 const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
@@ -25,11 +29,6 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const mapRef = useRef<L.Map | null>(null);
 	const markersLayerRef = useRef<L.LayerGroup | null>(null);
-	const [mounted, setMounted] = useState(false);
-
-	useEffect(() => {
-		setMounted(true);
-	}, []);
 
 	useEffect(() => {
 		const container = containerRef.current;
@@ -91,8 +90,6 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 			marker.addTo(layer);
 		}
 	}, [markers]);
-
-	if (!mounted) return null;
 
 	return <div ref={containerRef} className={cn("h-[400px] w-full rounded-md border", className)} />;
 }
