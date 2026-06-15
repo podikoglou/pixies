@@ -22,6 +22,7 @@ export const UnknownContentBlock = Type.Object({
 });
 
 export const ContentBlock = Type.Union([TextContentBlock, UnknownContentBlock]);
+export type ContentBlockType = Static<typeof ContentBlock>;
 
 export const AssistantMessageSchema = Type.Object({
 	role: Type.Literal("assistant"),

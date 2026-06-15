@@ -1,7 +1,7 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { Container, Markdown, Spacer, TUI, Text } from "@earendil-works/pi-tui";
 import { isToolProgress, toolLabel, summarizeToolDetails } from "@pixies/core";
-import type { ToolName } from "@pixies/core";
+import type { ContentBlockType, ToolName } from "@pixies/core";
 import { c, markdownTheme } from "./theme.ts";
 import { AssistantMessageComponent } from "./ui/assistant-message.ts";
 import { ToolCall } from "./ui/tool-call.ts";
@@ -81,13 +81,18 @@ export function createAgentEventHandler(deps: AgentEventDeps): (event: AgentEven
 			case "tool_execution_end": {
 				const toolCall = toolCalls.get(event.toolCallId);
 				if (toolCall) {
-					const text = (event.result?.content ?? [])
-						.filter((block: any) => block.type === "text")
-						.map((block: any) => block.text)
+					const content = (event.result?.content as ContentBlockType[] | undefined) ?? [];
+					const text = content
+						.filter((block): block is { type: "text"; text: string } => block.type === "text")
+						.map((block) => block.text)
 						.join("\n");
 					toolCall.setResult(text || undefined);
 					if (event.isError) {
-						const errText = event.result?.content?.[0]?.text;
+						const errContent = (event.result?.content as ContentBlockType[] | undefined)?.[0];
+						const errText =
+							errContent?.type === "text"
+								? (errContent as { type: "text"; text: string }).text
+								: undefined;
 						toolCall.fail(typeof errText === "string" ? errText : "Error");
 					} else {
 						toolCall.finish(
