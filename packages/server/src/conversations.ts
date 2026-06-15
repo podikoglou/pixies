@@ -1,5 +1,10 @@
 import { type Agent, uuidv7 } from "@earendil-works/pi-agent-core";
-import { createAgent, type ResolvedPixiesConfig } from "@pixies/core";
+import {
+	createAgent,
+	createOsmClients,
+	type OsmClients,
+	type ResolvedPixiesConfig,
+} from "@pixies/core";
 
 export interface Conversation {
 	readonly id: string;
@@ -15,16 +20,29 @@ export class ConversationStore {
 	private readonly conversations = new Map<string, Conversation>();
 	private readonly sweeper: ReturnType<typeof setInterval>;
 	private readonly config: ResolvedPixiesConfig;
+	/**
+	 * Single OSM client pair per process. Shared across every conversation so
+	 * the Nominatim rate-limit chain serializes requests globally (Nominatim's
+	 * usage policy is 1 req/s per source IP, not per client instance). See
+	 * ADR-0004.
+	 */
+	private readonly osmClients: OsmClients;
 
 	constructor(config: ResolvedPixiesConfig) {
 		this.config = config;
+		this.osmClients = createOsmClients({
+			overpassUrl: config.overpassUrl,
+			nominatimUrl: config.nominatimUrl,
+			contactEmail: config.contactEmail,
+			userAgent: config.userAgent,
+		});
 		this.sweeper = setInterval(() => this.sweep(), SWEEP_INTERVAL_MS);
 	}
 
 	create(): Conversation {
 		const conv: Conversation = {
 			id: uuidv7(),
-			agent: createAgent({ config: this.config }),
+			agent: createAgent({ config: this.config, osmClients: this.osmClients }),
 			lastActivity: Date.now(),
 			inFlight: false,
 		};
