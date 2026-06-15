@@ -1,4 +1,5 @@
 import { Type } from "typebox";
+import { Value } from "typebox/value";
 import type { Static } from "typebox";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { NominatimClient } from "../osm/nominatim.ts";
@@ -22,7 +23,9 @@ export const GeocodeResultEntrySchema = Type.Object({
 	displayName: Type.Optional(Type.String()),
 	class: Type.Optional(Type.String()),
 	type: Type.Optional(Type.String()),
-	osmType: Type.Optional(Type.Union([Type.Literal("node"), Type.Literal("way"), Type.Literal("relation")])),
+	osmType: Type.Optional(
+		Type.Union([Type.Literal("node"), Type.Literal("way"), Type.Literal("relation")]),
+	),
 	osmId: Type.Optional(Type.Number()),
 });
 export type GeocodeResultEntry = Static<typeof GeocodeResultEntrySchema>;
@@ -69,20 +72,31 @@ export const QueryOsmToolDetailsSchema = Type.Object({
 });
 export type QueryOsmToolDetails = Static<typeof QueryOsmToolDetailsSchema>;
 
-export const DisplayMapToolDetailsSchema = Type.Object({
-	data: Type.Object({
-		markers: Type.Array(Type.Object({
+export const DisplayMapDataSchema = Type.Object({
+	markers: Type.Array(
+		Type.Object({
 			lat: Type.Number(),
 			lon: Type.Number(),
 			label: Type.Optional(Type.String()),
-		})),
-		bounds: Type.Optional(Type.Object({
+		}),
+	),
+	bounds: Type.Optional(
+		Type.Object({
 			minlat: Type.Number(),
 			minlon: Type.Number(),
 			maxlat: Type.Number(),
 			maxlon: Type.Number(),
-		})),
-	}),
+		}),
+	),
+});
+export type DisplayMapData = Static<typeof DisplayMapDataSchema>;
+
+export function isDisplayMapData(data: unknown): data is DisplayMapData {
+	return Value.Check(DisplayMapDataSchema, data);
+}
+
+export const DisplayMapToolDetailsSchema = Type.Object({
+	data: DisplayMapDataSchema,
 });
 export type DisplayMapToolDetails = Static<typeof DisplayMapToolDetailsSchema>;
 
@@ -118,7 +132,10 @@ export type ToolDetailsDiscriminatedUnion = {
 
 export const ToolDetailsDiscriminatedUnionSchema = Type.Union([
 	Type.Object({ name: Type.Literal("geocode"), details: GeocodeToolDetailsSchema }),
-	Type.Object({ name: Type.Literal("reverse_geocode"), details: Type.Optional(ReverseGeocodeToolDetailsSchema) }),
+	Type.Object({
+		name: Type.Literal("reverse_geocode"),
+		details: Type.Optional(ReverseGeocodeToolDetailsSchema),
+	}),
 	Type.Object({ name: Type.Literal("query_osm"), details: QueryOsmToolDetailsSchema }),
 	Type.Object({ name: Type.Literal("display_map"), details: DisplayMapToolDetailsSchema }),
 ]);

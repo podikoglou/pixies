@@ -1,7 +1,8 @@
 import { useRef } from "react";
 import type { ChatState } from "@/state/chat-reducer";
 import { AssistantMessage } from "./assistant-message";
-import { isDisplayMapData, ToolCallCard } from "./tool-call-card";
+import { isDisplayMapData } from "@pixies/core";
+import { ToolCallCard } from "./tool-call-card";
 import { MapWidget } from "./map-widget";
 import { UserMessage } from "./user-message";
 

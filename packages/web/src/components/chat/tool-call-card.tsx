@@ -17,26 +17,6 @@ import { cn } from "@/lib/utils";
 import { formatToolName } from "@/lib/format-tool-name";
 import type { TimelineItem } from "@/state/chat-reducer";
 import { JsonTree } from "./json-tree";
-import { Type } from "typebox";
-import { Value } from "typebox/value";
-
-const DisplayMapDataSchema = Type.Object({
-	markers: Type.Array(
-		Type.Object({
-			lat: Type.Number(),
-			lon: Type.Number(),
-			label: Type.Optional(Type.String()),
-		}),
-	),
-	bounds: Type.Optional(
-		Type.Object({
-			minlat: Type.Number(),
-			minlon: Type.Number(),
-			maxlat: Type.Number(),
-			maxlon: Type.Number(),
-		}),
-	),
-});
 
 type ToolCallItem = Extract<TimelineItem, { kind: "tool-call" }>;
 
@@ -60,10 +40,6 @@ function formatValue(value: unknown): string {
 
 function isLongValue(value: unknown): boolean {
 	return typeof value === "string" && value.length > 80;
-}
-
-export function isDisplayMapData(data: unknown) {
-	return Value.Check(DisplayMapDataSchema, data);
 }
 
 export function ToolCallCard({ item }: ToolCallCardProps) {

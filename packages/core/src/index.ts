@@ -39,6 +39,8 @@ export {
 	GeocodeToolDetailsSchema,
 	ReverseGeocodeToolDetailsSchema,
 	QueryOsmToolDetailsSchema,
+	DisplayMapDataSchema,
+	isDisplayMapData,
 	DisplayMapToolDetailsSchema,
 	ToolDetailsDiscriminatedUnionSchema,
 } from "./tools/index.ts";
@@ -46,6 +48,7 @@ export type {
 	GeocodeToolDetails,
 	ReverseGeocodeToolDetails,
 	QueryOsmToolDetails,
+	DisplayMapData,
 	DisplayMapToolDetails,
 	ToolName,
 	ToolProgress,
