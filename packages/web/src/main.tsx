@@ -4,6 +4,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { router } from "./router";
 import "highlight.js/styles/github-dark.css";
+import "leaflet/dist/leaflet.css";
 import "./styles/globals.css";
 
 const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
