@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRightIcon } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 interface JsonTreeProps {
@@ -107,9 +107,10 @@ function CollapsibleNode({
 				onClick={() => setExpanded((e) => !e)}
 				className="hover:bg-muted/50 flex w-full items-start gap-1 rounded px-0.5 py-0.5 text-left transition-colors"
 			>
-				<ChevronRight
+				<ChevronRightIcon
+					size={14}
 					className={cn(
-						"mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-transform",
+						"mt-0.5 shrink-0 text-muted-foreground transition-transform",
 						expanded && "rotate-90",
 					)}
 				/>

@@ -1,5 +1,5 @@
 import { type FormEvent, type KeyboardEvent } from "react";
-import { SendHorizontal, Square } from "lucide-react";
+import { PauseIcon, SendIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -56,15 +56,17 @@ export function ChatInput({ value, onChange, onSubmit, isStreaming, onAbort }: C
 								className="shrink-0"
 							>
 								<span className="relative flex size-4 items-center justify-center">
-									<SendHorizontal
+									<SendIcon
+										size={16}
 										className={cn(
-											"absolute size-4 transition-all duration-200 ease-out",
+											"absolute inset-0 flex items-center justify-center transition-all duration-200 ease-out",
 											isStreaming ? "scale-75 opacity-0 blur-sm" : "scale-100 opacity-100 blur-0",
 										)}
 									/>
-									<Square
+									<PauseIcon
+										size={16}
 										className={cn(
-											"absolute size-4 transition-all duration-200 ease-out",
+											"absolute inset-0 flex items-center justify-center transition-all duration-200 ease-out",
 											isStreaming ? "scale-100 opacity-100 blur-0" : "scale-75 opacity-0 blur-sm",
 										)}
 									/>

@@ -1,5 +1,10 @@
-import { useMemo, type ReactNode } from "react";
-import { Check, Loader2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import {
+	CheckIcon,
+	LoaderCircleIcon,
+	type LoaderCircleIconHandle,
+	XIcon,
+} from "@/components/icons";
 import {
 	Accordion,
 	AccordionContent,
@@ -129,23 +134,37 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 }
 
 function StatusIcon({ status }: { status: "running" | "done" | "error" }) {
+	const loaderRef = useRef<LoaderCircleIconHandle>(null);
+
+	useEffect(() => {
+		if (status === "running") {
+			loaderRef.current?.startAnimation();
+		} else {
+			loaderRef.current?.stopAnimation();
+		}
+	}, [status]);
+
 	return (
 		<span className="relative flex size-4 items-center justify-center">
-			<Loader2
+			<LoaderCircleIcon
+				ref={loaderRef}
+				size={16}
 				className={cn(
-					"text-muted-foreground absolute size-4 animate-spin transition-all duration-200 ease-out",
+					"text-muted-foreground absolute inset-0 flex items-center justify-center transition-all duration-200 ease-out",
 					status === "running" ? "scale-100 opacity-100" : "scale-75 opacity-0",
 				)}
 			/>
-			<Check
+			<CheckIcon
+				size={16}
 				className={cn(
-					"absolute size-4 text-emerald-500 transition-all duration-200 ease-out dark:text-emerald-400",
+					"absolute inset-0 flex items-center justify-center text-emerald-500 transition-all duration-200 ease-out dark:text-emerald-400",
 					status === "done" ? "scale-100 opacity-100" : "scale-75 opacity-0",
 				)}
 			/>
-			<X
+			<XIcon
+				size={16}
 				className={cn(
-					"text-destructive absolute size-4 transition-all duration-200 ease-out",
+					"text-destructive absolute inset-0 flex items-center justify-center transition-all duration-200 ease-out",
 					status === "error" ? "scale-100 opacity-100" : "scale-75 opacity-0",
 				)}
 			/>

@@ -1,7 +1,7 @@
 import Markdown, { type Components } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
-import { Sparkles } from "lucide-react";
+import { SparklesIcon } from "@/components/icons";
 import { Separator } from "@/components/ui/separator";
 import {
 	Table,
@@ -79,7 +79,7 @@ export function AssistantMessage({ text, streaming }: AssistantMessageProps) {
 	return (
 		<div className="text-foreground w-full min-w-0 break-words overflow-hidden text-sm">
 			<div className="text-muted-foreground mb-1.5 flex items-center gap-1 text-xs font-medium">
-				<Sparkles className="size-3" />
+				<SparklesIcon size={12} />
 				pixies
 			</div>
 			<Markdown

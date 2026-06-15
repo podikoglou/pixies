@@ -22,6 +22,7 @@
 		"clsx": "^2.1.0",
 		"highlight.js": "^11.0.0",
 		"lucide-react": "latest",
+		"motion": "^12.40.0",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",
 		"react-markdown": "^9.0.0",
