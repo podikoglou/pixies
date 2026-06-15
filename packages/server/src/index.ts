@@ -1,7 +1,6 @@
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { readConfigFromEnv, type ResolvedPixiesConfig } from "@pixies/core";
 import path from "node:path";
-import { ConversationStore, type Conversation } from "./conversations.ts";
+import { ConversationStore, type StreamPromptResult } from "./conversations.ts";
 import { translateAgentEvent } from "./events.ts";
 import { SseWriter } from "./sse.ts";
 
@@ -31,26 +30,51 @@ async function readMessage(req: Request): Promise<MessageResult> {
 	return { ok: true, message };
 }
 
-function streamPrompt(conv: Conversation, message: string, conversationId?: string): Response {
-	const writer = new SseWriter(() => conv.agent.abort());
-	if (conversationId) writer.write("conversation_created", { id: conversationId });
+/**
+ * Pipe a store-owned agent stream into an SSE response.
+ *
+ * The store owns `inFlight`, the `agent.prompt()` call, and the `.finally()`
+ * that clears state. This function owns only the HTTP concerns: building the
+ * `SseWriter`, translating agent events to SSE, writing the terminal
+ * `done`/`error` event, and forwarding client disconnect to
+ * `ConversationStore.abort`.
+ *
+ * @param onOpen   Optional preamble writer (e.g. `conversation_created`).
+ * @param abortId  Conversation id to abort on client disconnect.
+ */
+function pipeAgentStream(
+	store: ConversationStore,
+	result: Extract<StreamPromptResult, { ok: true }>,
+	abortId: string,
+	onOpen?: (writer: SseWriter) => void,
+): Response {
+	const writer = new SseWriter(() => store.abort(abortId));
+	if (onOpen) onOpen(writer);
 
-	const unsubscribe = conv.agent.subscribe((event: AgentEvent) => {
-		for (const sse of translateAgentEvent(event)) writer.write(sse.event, sse.data);
-	});
-	conv.inFlight = true;
-	conv.agent
-		.prompt(message)
-		.then(
-			() => writer.write("done", {}),
-			(err) => writer.write("error", { message: err instanceof Error ? err.message : String(err) }),
-		)
-		.finally(() => {
-			unsubscribe();
-			conv.inFlight = false;
+	void (async () => {
+		try {
+			for await (const event of result.stream) {
+				for (const sse of translateAgentEvent(event)) writer.write(sse.event, sse.data);
+			}
+			writer.write("done", {});
+		} catch (err) {
+			writer.write("error", { message: err instanceof Error ? err.message : String(err) });
+		} finally {
 			writer.close();
-		});
+		}
+	})();
+
 	return writer.response;
+}
+
+/** Map a non-ok {@link StreamPromptResult} to its HTTP response. */
+function rejectStream(result: Extract<StreamPromptResult, { ok: false }>): Response {
+	if (result.reason === "conflict")
+		return Response.json(
+			{ error: "conversation already has an in-flight prompt" },
+			{ status: 409 },
+		);
+	return Response.json({ error: "conversation not found" }, { status: 404 });
 }
 
 export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined> {
@@ -76,26 +100,24 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 				POST: async (req, server) => {
 					const parsed = await readMessage(req);
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
-					const conv = store.create();
+					const id = store.create();
 					server.timeout(req, 0);
-					return streamPrompt(conv, parsed.message, conv.id);
+					// Fresh conversation: not_found/conflict are impossible, but the
+					// type still asks us to handle them.
+					const result = store.streamPrompt(id, parsed.message);
+					if (!result.ok) return rejectStream(result);
+					return pipeAgentStream(store, result, id, (w) => w.write("conversation_created", { id }));
 				},
 			},
 			"/conversations/:id/messages": {
 				POST: async (req, server) => {
 					const id = req.params.id;
-					const conv = store.get(id);
-					if (!conv)
-						return Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
-					if (conv.inFlight)
-						return Response.json(
-							{ error: "conversation already has an in-flight prompt" },
-							{ status: 409 },
-						);
 					const parsed = await readMessage(req);
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
 					server.timeout(req, 0);
-					return streamPrompt(conv, parsed.message);
+					const result = store.streamPrompt(id, parsed.message);
+					if (!result.ok) return rejectStream(result);
+					return pipeAgentStream(store, result, id);
 				},
 			},
 			"/conversations/:id": {
