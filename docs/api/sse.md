@@ -210,13 +210,22 @@ Emitted when a tool begins executing. `args` is the validated tool input object.
 
 ### `tool_execution_update`
 
-Emitted for tool progress updates. Currently used only to surface the Nominatim rate-limit queue state — clients should display a "queued" indicator when `details.queued === true`.
+Emitted for tool progress updates. `details` is a typed discriminated union (`ToolProgress`) describing the tool's lifecycle before its final result:
+
+| `details.type` | Meaning |
+|---|---|
+| `"queued"` | The tool is waiting for a shared resource (e.g. the Nominatim rate-limit slot). Clients should display a "queued" indicator. |
+| `"running"` | The resource was acquired; the tool is executing. Clears a prior `"queued"` indicator. |
 
 ```json
-{ "toolCallId": "call_abc123", "details": { "queued": true } }
+{ "toolCallId": "call_abc123", "details": { "type": "queued" } }
 ```
 
-Future update shapes may be added; clients should ignore unknown `details` fields.
+```json
+{ "toolCallId": "call_abc123", "details": { "type": "running" } }
+```
+
+New progress variants may be added to the union; clients should narrow on `details.type` and ignore unknown variants. Final-result details travel separately on `tool_execution_end.result.details` (tool-specific, see below).
 
 ### `tool_execution_end`
 
@@ -277,8 +286,8 @@ Client                                 Server
   |<- - - - - - - - - - - - - - - - - - | text_delta { delta: "search..." }
   |<- - - - - - - - - - - - - - - - - - | message_end { message }
   |<- - - - - - - - - - - - - - - - - - | tool_execution_start { ... }
-  |<- - - - - - - - - - - - - - - - - - | tool_execution_update { queued: true }
-  |<- - - - - - - - - - - - - - - - - - | tool_execution_update { queued: false }
+  |<- - - - - - - - - - - - - - - - - - | tool_execution_update { details: { type: "queued" } }
+  |<- - - - - - - - - - - - - - - - - - | tool_execution_update { details: { type: "running" } }
   |<- - - - - - - - - - - - - - - - - - | tool_execution_end { ... }
   |<- - - - - - - - - - - - - - - - - - | message_start
   |<- - - - - - - - - - - - - - - - - - | text_delta { ... }
