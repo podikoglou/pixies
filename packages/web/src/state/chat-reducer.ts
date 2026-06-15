@@ -1,4 +1,5 @@
 import type { ConversationTranscript } from "../api/conversations.ts";
+import { summarizeToolDetails, type ToolName, type ToolDetails } from "@pixies/core";
 
 export type TimelineItem =
 	| { kind: "user-message"; text: string }
@@ -44,7 +45,7 @@ export type ChatAction =
 			toolCallId: string;
 			isError: boolean;
 			resultText: string | null;
-			summary: string | null;
+			details: unknown;
 	  }
 	| { type: "STREAM_DONE" }
 	| { type: "SET_ERROR"; message: string }
@@ -119,7 +120,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 								...it,
 								status: action.isError ? "error" : "done",
 								resultText: action.resultText,
-								summary: action.summary,
+								summary:
+									summarizeToolDetails(it.toolName as ToolName, action.details as ToolDetails) ??
+									null,
 							}
 						: it,
 				),
@@ -150,18 +153,6 @@ export function joinContentText(content: unknown, separator = ""): string {
 	return parts.join(separator);
 }
 
-export function summarizeDetails(details: unknown): string | null {
-	if (!details || typeof details !== "object") return null;
-	const d = details as Record<string, unknown>;
-	const top = d.top;
-	if (typeof top === "string") return top;
-	const name = d.name;
-	if (typeof name === "string") return name;
-	const count = d.count;
-	if (typeof count === "number") return `${count} elements`;
-	return null;
-}
-
 export function transcriptToItems(transcript: ConversationTranscript): TimelineItem[] {
 	const items: TimelineItem[] = [];
 	for (const msg of transcript.messages) {
@@ -183,7 +174,8 @@ export function transcriptToItems(transcript: ConversationTranscript): TimelineI
 					status: msg.isError ? "error" : "done",
 					queued: false,
 					resultText: joinContentText(msg.content, "\n") || null,
-					summary: summarizeDetails(msg.details),
+					summary:
+						summarizeToolDetails(msg.toolName as ToolName, msg.details as ToolDetails) ?? null,
 				});
 				break;
 		}
