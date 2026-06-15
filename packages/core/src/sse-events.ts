@@ -1,5 +1,6 @@
 import { Type } from "typebox";
 import type { Static, TSchema } from "typebox";
+import { ToolProgressSchema } from "./tools/progress.ts";
 
 export const ConversationCreatedData = Type.Object({
 	id: Type.String(),
@@ -40,7 +41,7 @@ export const ToolExecutionStartData = Type.Object({
 
 export const ToolExecutionUpdateData = Type.Object({
 	toolCallId: Type.String(),
-	details: Type.Unknown(),
+	details: ToolProgressSchema,
 });
 
 /**
