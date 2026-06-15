@@ -99,9 +99,32 @@ export class ConversationStore {
 		return conv;
 	}
 
-	streamPrompt(id: string, message: string): StreamPromptResult {
-		const conv = this.map.get(id);
-		if (!conv) return { ok: false, reason: "not_found" };
+	async streamPrompt(id: string, message: string): Promise<StreamPromptResult> {
+		let conv = this.map.get(id);
+		if (!conv) {
+			const rows = await this.db
+				.select()
+				.from(conversationsTable)
+				.where(eq(conversationsTable.id, id))
+				.limit(1);
+
+			if (rows.length === 0) return { ok: false, reason: "not_found" };
+
+			const row = rows[0]!;
+			conv = {
+				id,
+				agent: createAgent({ config: this.config, osmClients: this.osmClients }),
+				lastActivity: Date.now(),
+				inFlight: false,
+			};
+
+			if (row.transcript && row.transcript.length > 0) {
+				conv.agent.state.messages = row.transcript as AgentMessage[];
+			}
+
+			this.map.set(id, conv);
+			this.evictIfNeeded();
+		}
 		if (conv.inFlight) return { ok: false, reason: "conflict" };
 		conv.inFlight = true;
 		conv.lastActivity = Date.now();

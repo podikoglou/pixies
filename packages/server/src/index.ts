@@ -110,7 +110,7 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 					server.timeout(req, 0);
 					// Fresh conversation: not_found/conflict are impossible, but the
 					// type still asks us to handle them.
-					const result = store.streamPrompt(id, parsed.message);
+					const result = await store.streamPrompt(id, parsed.message);
 					if (!result.ok) return rejectStream(result);
 					return pipeAgentStream(store, result, id, (w) => w.write("conversation_created", { id }));
 				},
@@ -121,7 +121,7 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 					const parsed = await readMessage(req);
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
 					server.timeout(req, 0);
-					const result = store.streamPrompt(id, parsed.message);
+					const result = await store.streamPrompt(id, parsed.message);
 					if (!result.ok) return rejectStream(result);
 					return pipeAgentStream(store, result, id);
 				},
