@@ -31,16 +31,14 @@ or unnecessary container elements. Prefer inline flex with minimal padding/margi
 
 ## Animations
 
-Animations use the `motion` package (not `framer-motion`).
+For animation principles (interruptible, enter/exit, stagger, contextual icon
+animations, scale on press, etc.), use the `make-interfaces-feel-better` skill.
 
-- **Icon animations** — `useAnimation` + `Variants`, triggered on hover by default
-  (or programmatically via the icon's `*Handle` ref). See pqoqubbw/icons pattern.
-- **Entry animations** — `animate-timeline-enter` CSS class (defined in `globals.css`)
-  for chat message entry. Extend with `@keyframes` in `globals.css` if needed.
-- **Micro-interactions** — shadcn components use Tailwind `transition-*` utilities
-  (e.g. button scale on active, tooltip opacity, accordion height). Don't add custom
-  animation wrappers for these — they're built into the shadcn components.
-- **Pulse/loading** — `animate-pulse` from Tailwind for cursors and loading states.
-- **`tw-animate-css`** — imported in `globals.css`, provides additional utilities.
-
-Do NOT add `framer-motion` as a dependency.
+Project-specific notes not covered by the skill:
+- `animate-timeline-enter` CSS class (defined in `globals.css`) for chat message
+  entry — extends with `@keyframes` in `globals.css`.
+- shadcn components have built-in `transition-*` micro-interactions (button
+  scale on active, tooltip opacity, accordion height) — don't add custom wrappers.
+- `animate-pulse` from Tailwind for cursor/loading states.
+- `tw-animate-css` imported in `globals.css` for additional utilities.
+- Use `motion` (not `framer-motion`). Do NOT add `framer-motion`.
