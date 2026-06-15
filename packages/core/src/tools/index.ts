@@ -10,6 +10,8 @@ import type { ReverseGeocodeToolDetails } from "./reverse-geocode.ts";
 import type { ToolName } from "./presentation.ts";
 
 export type { GeocodeToolDetails, ReverseGeocodeToolDetails, QueryOsmToolDetails, ToolName };
+export type { ToolProgress } from "./progress.ts";
+export { ToolProgressSchema, isToolProgress } from "./progress.ts";
 
 /**
  * Structured, lossless representation of a single geocode or reverse-geocode

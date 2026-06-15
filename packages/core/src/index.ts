@@ -30,6 +30,7 @@ export type {
 	ReverseGeocodeToolDetails,
 	QueryOsmToolDetails,
 	ToolName,
+	ToolProgress,
 	ToolRegistry,
 	ToolDetailsMap,
 	ToolDetails,
@@ -40,7 +41,14 @@ export type {
 	OverpassResultEntry,
 	OsmClients,
 } from "./tools/index.ts";
-export { createToolRegistry, createTools, toolLabel, summarizeToolDetails } from "./tools/index.ts";
+export {
+	createToolRegistry,
+	createTools,
+	toolLabel,
+	summarizeToolDetails,
+	ToolProgressSchema,
+	isToolProgress,
+} from "./tools/index.ts";
 export { NominatimClient } from "./osm/nominatim.ts";
 export type { NominatimConfig, NominatimResult } from "./osm/nominatim.ts";
 export { OverpassClient } from "./osm/overpass.ts";
