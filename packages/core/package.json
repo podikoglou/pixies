@@ -19,10 +19,12 @@
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.79.3",
     "@earendil-works/pi-ai": "0.79.3",
+    "drizzle-orm": "^0.45.2",
     "typebox": "1.1.38",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "better-sqlite3": "^12.11.1",
     "oxfmt": "^0.54.0",
     "oxlint": "^1.69.0"
   }

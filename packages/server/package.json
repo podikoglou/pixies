@@ -18,8 +18,9 @@
     "lint:fix": "oxlint --fix src"
   },
   "dependencies": {
-    "@pixies/core": "workspace:*",
     "@earendil-works/pi-agent-core": "0.79.3",
+    "@pixies/core": "workspace:*",
+    "drizzle-orm": "^0.45.2",
     "typebox": "1.1.38"
   },
   "devDependencies": {
