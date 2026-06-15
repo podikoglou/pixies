@@ -2,6 +2,7 @@ import { Outlet, createRootRoute, createRoute, createRouter } from "@tanstack/re
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query-client";
 import { ChatProvider } from "@/contexts/chat-context";
+import { Toaster } from "@/components/ui/sonner";
 import { NewConversationPage } from "@/pages/new-conversation";
 import { ConversationPage } from "@/pages/conversation";
 
@@ -10,6 +11,7 @@ const rootRoute = createRootRoute({
 		<QueryClientProvider client={queryClient}>
 			<ChatProvider>
 				<Outlet />
+				<Toaster />
 			</ChatProvider>
 		</QueryClientProvider>
 	),
