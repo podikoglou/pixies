@@ -1,45 +1,25 @@
 import type { SSEEvent } from "@pixies/core";
+import {
+	isConversationTranscript,
+	type ConversationTranscript,
+} from "@pixies/core";
 import { buildApiError, streamSSE } from "../sse/client.ts";
 
-export interface TranscriptContentBlock {
-	type: string;
-	text?: string;
-}
-
-export interface TranscriptUserMessage {
-	role: "user";
-	content: string | TranscriptContentBlock[];
-}
-
-export interface TranscriptAssistantMessage {
-	role: "assistant";
-	content: TranscriptContentBlock[];
-	stopReason?: string;
-}
-
-export interface TranscriptToolResultMessage {
-	role: "toolResult";
-	toolCallId: string;
-	toolName: string;
-	content: TranscriptContentBlock[];
-	details?: unknown;
-	isError: boolean;
-}
-
-export type TranscriptMessage =
-	| TranscriptUserMessage
-	| TranscriptAssistantMessage
-	| TranscriptToolResultMessage;
-
-export interface ConversationTranscript {
-	id: string;
-	messages: TranscriptMessage[];
-}
+export type {
+	ConversationTranscript,
+	TranscriptContentBlock,
+	TranscriptUserMessage,
+	TranscriptAssistantMessage,
+	TranscriptToolResultMessage,
+	TranscriptMessage,
+} from "@pixies/core";
 
 export async function getConversation(id: string): Promise<ConversationTranscript> {
 	const res = await fetch(`/conversations/${encodeURIComponent(id)}`);
 	if (!res.ok) throw await buildApiError(res);
-	return (await res.json()) as ConversationTranscript;
+	const data = await res.json();
+	if (!isConversationTranscript(data)) throw new Error("invalid transcript");
+	return data;
 }
 
 export async function deleteConversation(id: string): Promise<void> {
