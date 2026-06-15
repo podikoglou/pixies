@@ -13,7 +13,8 @@ export function resolveMapMarkers(
 	items: TimelineItem[],
 ): MapMarker[] | null {
 	const queryItem = items.find(
-		(it) => it.kind === "tool-call" && it.toolCallId === queryRef,
+		(it): it is Extract<TimelineItem, { kind: "tool-call" }> =>
+			it.kind === "tool-call" && it.toolCallId === queryRef,
 	);
 	if (!queryItem || queryItem.toolName !== "query_osm" || !Array.isArray(queryItem.resultData))
 		return null;
