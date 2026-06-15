@@ -1,6 +1,7 @@
 import type { Dispatch } from "react";
 import { useCallback, useReducer, useRef } from "react";
 import type { SSEEvent } from "@pixies/core";
+import { isToolProgress } from "@pixies/core";
 import { createConversationStream, sendMessageStream } from "../api/conversations.ts";
 import {
 	chatReducer,
@@ -40,9 +41,12 @@ function dispatchSseEvent(evt: SSEEvent, dispatch: Dispatch<ChatAction>): void {
 			});
 			break;
 		case "tool_execution_update": {
-			const queued = extractQueued(evt.data.details);
-			if (queued !== null)
-				dispatch({ type: "TOOL_UPDATE", toolCallId: evt.data.toolCallId, queued });
+			if (isToolProgress(evt.data.details))
+				dispatch({
+					type: "TOOL_UPDATE",
+					toolCallId: evt.data.toolCallId,
+					progress: evt.data.details,
+				});
 			break;
 		}
 		case "tool_execution_end":
@@ -62,17 +66,6 @@ function dispatchSseEvent(evt: SSEEvent, dispatch: Dispatch<ChatAction>): void {
 			dispatch({ type: "SET_ERROR", message: evt.data.message });
 			break;
 	}
-}
-
-function extractQueued(details: unknown): boolean | null {
-	if (
-		details &&
-		typeof details === "object" &&
-		typeof (details as { queued?: unknown }).queued === "boolean"
-	) {
-		return (details as { queued: boolean }).queued;
-	}
-	return null;
 }
 
 export function useChat() {

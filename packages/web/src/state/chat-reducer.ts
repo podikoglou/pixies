@@ -1,5 +1,10 @@
 import type { ConversationTranscript } from "../api/conversations.ts";
-import { summarizeToolDetails, type ToolName, type ToolDetails } from "@pixies/core";
+import {
+	summarizeToolDetails,
+	type ToolDetails,
+	type ToolName,
+	type ToolProgress,
+} from "@pixies/core";
 
 export type TimelineItem =
 	| { kind: "user-message"; text: string }
@@ -40,7 +45,7 @@ export type ChatAction =
 	| { type: "TEXT_DELTA"; delta: string }
 	| { type: "MESSAGE_END"; text: string }
 	| { type: "TOOL_START"; toolCallId: string; toolName: string; args: unknown }
-	| { type: "TOOL_UPDATE"; toolCallId: string; queued: boolean }
+	| { type: "TOOL_UPDATE"; toolCallId: string; progress: ToolProgress }
 	| {
 			type: "TOOL_END";
 			toolCallId: string;
@@ -110,7 +115,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 				...state,
 				items: state.items.map((it) =>
 					it.kind === "tool-call" && it.toolCallId === action.toolCallId
-						? { ...it, queued: action.queued }
+						? { ...it, queued: action.progress.type === "queued" }
 						: it,
 				),
 			};
@@ -122,6 +127,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 						? {
 								...it,
 								status: action.isError ? "error" : "done",
+								queued: false,
 								resultText: action.resultText,
 								resultData: action.resultData,
 								summary:
