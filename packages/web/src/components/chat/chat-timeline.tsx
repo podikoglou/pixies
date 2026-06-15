@@ -1,7 +1,9 @@
 import { useRef } from "react";
 import type { ChatState } from "@/state/chat-reducer";
 import { AssistantMessage } from "./assistant-message";
+import { isDisplayMapData } from "@pixies/core";
 import { ToolCallCard } from "./tool-call-card";
+import { MapWidget } from "./map-widget";
 import { UserMessage } from "./user-message";
 
 interface ChatTimelineProps {
@@ -21,6 +23,10 @@ export function ChatTimeline({ state }: ChatTimelineProps) {
 						<UserMessage text={item.text} />
 					) : item.kind === "assistant-message" ? (
 						<AssistantMessage text={item.text} />
+					) : item.toolName === "display_map" &&
+					  item.status === "done" &&
+					  isDisplayMapData(item.resultData) ? (
+						<MapWidget markers={item.resultData.markers} bounds={item.resultData.bounds} />
 					) : (
 						<ToolCallCard item={item} />
 					);
