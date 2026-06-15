@@ -1,10 +1,17 @@
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 import type { ConversationTranscript } from "../api/conversations.ts";
 import {
 	summarizeToolDetails,
+	isToolName,
 	type ToolDetails,
 	type ToolName,
 	type ToolProgress,
 } from "@pixies/core";
+
+const DataContainerSchema = Type.Object({
+	data: Type.Optional(Type.Unknown()),
+});
 
 export type TimelineItem =
 	| { kind: "user-message"; text: string }
@@ -131,8 +138,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 								resultText: action.resultText,
 								resultData: action.resultData,
 								summary:
-									summarizeToolDetails(it.toolName as ToolName, action.details as ToolDetails) ??
-									null,
+									isToolName(it.toolName)
+										? summarizeToolDetails(it.toolName, action.details as ToolDetails) ?? null
+										: null,
 							}
 						: it,
 				),
@@ -184,9 +192,13 @@ export function transcriptToItems(transcript: ConversationTranscript): TimelineI
 					status: msg.isError ? "error" : "done",
 					queued: false,
 					resultText: joinContentText(msg.content, "\n") || null,
-					resultData: (msg.details as { data?: unknown })?.data ?? null,
+					resultData: Value.Check(DataContainerSchema, msg.details)
+						? msg.details.data ?? null
+						: null,
 					summary:
-						summarizeToolDetails(msg.toolName as ToolName, msg.details as ToolDetails) ?? null,
+						isToolName(msg.toolName)
+							? summarizeToolDetails(msg.toolName, msg.details as ToolDetails) ?? null
+							: null,
 				});
 				break;
 		}
