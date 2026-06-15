@@ -1,13 +1,12 @@
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { InfoIcon } from "@/components/icons";
 
 export function OsmDisclaimer() {
 	return (
-		<Alert variant="info" className="mx-auto max-w-3xl rounded-none border-x-0 border-b-0">
-			<InfoIcon />
-			<AlertDescription>
+		<div className="mx-auto flex max-w-3xl items-center gap-1.5 px-4 py-1.5">
+			<InfoIcon size={12} className="text-muted-foreground shrink-0" />
+			<p className="text-muted-foreground text-xs">
 				OpenStreetMap data is community-maintained and may not always be up to date.
-			</AlertDescription>
-		</Alert>
+			</p>
+		</div>
 	);
 }
