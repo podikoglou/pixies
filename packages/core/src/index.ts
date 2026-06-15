@@ -35,6 +35,9 @@ export type {
 	ToolDetails,
 	ToolDetailVariant,
 	ToolDetailsDiscriminatedUnion,
+	ToolResultData,
+	GeocodeResultEntry,
+	OverpassResultEntry,
 	OsmClients,
 } from "./tools/index.ts";
 export { createToolRegistry, createTools, toolLabel, summarizeToolDetails } from "./tools/index.ts";

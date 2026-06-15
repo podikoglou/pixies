@@ -43,6 +43,15 @@ export const ToolExecutionUpdateData = Type.Object({
 	details: Type.Unknown(),
 });
 
+/**
+ * Shape of a tool result on the wire. `content` is the model-facing text (the
+ * pipe-delimited serialization produced by `format.ts`). `details` is the
+ * structured, tool-specific payload; for the OSM tools it now carries a `data`
+ * subfield with the lossless structured result (see `ToolResultData` in
+ * `tools/index.ts`) that adapters render directly instead of reverse-parsing
+ * the pipe string (issue #15). `details` remains `Unknown` here so the schema
+ * stays a permissive wire contract; per-tool shapes live with the tools.
+ */
 export const ToolResultSchema = Type.Object({
 	content: Type.Array(ContentBlock),
 	details: Type.Optional(Type.Unknown()),

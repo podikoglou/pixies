@@ -1,7 +1,7 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import type { NominatimClient } from "../osm/nominatim.ts";
-import { formatNominatimResult } from "../osm/format.ts";
+import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
 
 const schema = Type.Object({
 	lat: Type.Number({ description: "Latitude" }),
@@ -14,7 +14,9 @@ const schema = Type.Object({
 	),
 });
 
-export type ReverseGeocodeToolDetails = { name?: string } | { queued: boolean };
+export type ReverseGeocodeToolDetails =
+	| { queued: boolean }
+	| { name?: string; data: import("../tools/index.ts").ToolResultData["reverse_geocode"] };
 
 export function createReverseGeocodeTool(
 	nominatim: NominatimClient,
@@ -47,7 +49,7 @@ export function createReverseGeocodeTool(
 			const name = result.name || result.display_name.split(",")[0] || "unknown";
 			return {
 				content: [{ type: "text", text: formatNominatimResult(result) }],
-				details: { name: name.slice(0, 50) },
+				details: { name: name.slice(0, 50), data: nominatimResultToData(result) },
 			};
 		},
 	};

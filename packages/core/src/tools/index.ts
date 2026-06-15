@@ -11,6 +11,52 @@ import type { ToolName } from "./presentation.ts";
 
 export type { GeocodeToolDetails, ReverseGeocodeToolDetails, QueryOsmToolDetails, ToolName };
 
+/**
+ * Structured, lossless representation of a single geocode or reverse-geocode
+ * result. Unlike the model-facing pipe string, this preserves `class` and
+ * `type` as separate fields and coerces `lat`/`lon` to numbers once, at the
+ * source, instead of in every consumer.
+ */
+export interface GeocodeResultEntry {
+	placeId: number;
+	lat: number;
+	lon: number;
+	name: string;
+	displayName?: string;
+	class?: string;
+	type?: string;
+	osmType?: "node" | "way" | "relation";
+	osmId?: number;
+}
+
+/**
+ * Structured, lossless representation of a single Overpass query element.
+ * Tag values containing `, ` or `=` survive intact here (the pipe-string
+ * parser could not recover them).
+ */
+export interface OverpassResultEntry {
+	type: "node" | "way" | "relation";
+	id: number;
+	lat?: number;
+	lon?: number;
+	name?: string;
+	tags?: Record<string, string>;
+	geometryPoints?: number;
+}
+
+/**
+ * Per-tool structured result data, keyed by tool name. Parallels
+ * {@link ToolFinalDetailsMap}. Tools populate this alongside the model-facing
+ * `content` text; adapters that want structure (e.g. the web `JsonTree`)
+ * consume it directly via `result.details.data` instead of reverse-parsing the
+ * pipe string. See issue #15.
+ */
+export type ToolResultData = {
+	geocode: GeocodeResultEntry[];
+	reverse_geocode: GeocodeResultEntry;
+	query_osm: OverpassResultEntry[];
+};
+
 export interface OsmClients {
 	nominatim: NominatimClient;
 	overpass: OverpassClient;
@@ -30,8 +76,8 @@ export type ToolDetailsMap = {
 
 /** Extracts only the final-result shape from each tool's details union (excludes queued state). */
 export type ToolFinalDetailsMap = {
-	geocode: { top?: string };
-	reverse_geocode: { name?: string } | undefined;
+	geocode: { top?: string; data: ToolResultData["geocode"] };
+	reverse_geocode: { name?: string; data: ToolResultData["reverse_geocode"] } | undefined;
 	query_osm: QueryOsmToolDetails;
 };
 

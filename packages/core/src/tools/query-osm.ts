@@ -1,7 +1,7 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import type { OverpassClient } from "../osm/overpass.ts";
-import { formatElement } from "../osm/format.ts";
+import { formatElement, overpassElementToData } from "../osm/format.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -12,6 +12,7 @@ const schema = Type.Object({
 
 export interface QueryOsmToolDetails {
 	count: number;
+	data: import("../tools/index.ts").ToolResultData["query_osm"];
 }
 
 export function createQueryOsmTool(
@@ -30,13 +31,14 @@ export function createQueryOsmTool(
 			if (elements.length === 0) {
 				return {
 					content: [{ type: "text", text: "No results." }],
-					details: { count: 0 },
+					details: { count: 0, data: [] },
 				};
 			}
 			const lines = elements.map(formatElement);
+			const data = elements.map(overpassElementToData);
 			return {
 				content: [{ type: "text", text: lines.join("\n") }],
-				details: { count: elements.length },
+				details: { count: elements.length, data },
 			};
 		},
 	};

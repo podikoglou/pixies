@@ -1,7 +1,7 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import type { NominatimClient } from "../osm/nominatim.ts";
-import { formatNominatimResult } from "../osm/format.ts";
+import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -10,7 +10,9 @@ const schema = Type.Object({
 	limit: Type.Optional(Type.Number({ description: "Max results (Nominatim max 40, default 10)" })),
 });
 
-export type GeocodeToolDetails = { top?: string } | { queued: boolean };
+export type GeocodeToolDetails =
+	| { queued: boolean }
+	| { top?: string; data: import("../tools/index.ts").ToolResultData["geocode"] };
 
 export function createGeocodeTool(
 	nominatim: NominatimClient,
@@ -31,16 +33,17 @@ export function createGeocodeTool(
 			if (results.length === 0) {
 				return {
 					content: [{ type: "text", text: "No results." }],
-					details: { top: "no results" },
+					details: { top: "no results", data: [] },
 				};
 			}
 			const lines = results.map(formatNominatimResult);
+			const data = results.map(nominatimResultToData);
 			const top = results[0];
 			if (!top) throw new Error("No top result");
 			const topName = top.name || top.display_name?.split(",")[0] || "unknown";
 			return {
 				content: [{ type: "text", text: lines.join("\n") }],
-				details: { top: `${topName} (${top.lat},${top.lon})` },
+				details: { top: `${topName} (${top.lat},${top.lon})`, data },
 			};
 		},
 	};
