@@ -8,21 +8,29 @@ export const OverpassElementSchema = Type.Object({
 	id: Type.Number(),
 	lat: Type.Optional(Type.Number()),
 	lon: Type.Optional(Type.Number()),
-	center: Type.Optional(Type.Object({
-		lat: Type.Number(),
-		lon: Type.Number(),
-	})),
-	bounds: Type.Optional(Type.Object({
-		minlat: Type.Number(),
-		minlon: Type.Number(),
-		maxlat: Type.Number(),
-		maxlon: Type.Number(),
-	})),
+	center: Type.Optional(
+		Type.Object({
+			lat: Type.Number(),
+			lon: Type.Number(),
+		}),
+	),
+	bounds: Type.Optional(
+		Type.Object({
+			minlat: Type.Number(),
+			minlon: Type.Number(),
+			maxlat: Type.Number(),
+			maxlon: Type.Number(),
+		}),
+	),
 	nodes: Type.Optional(Type.Array(Type.Number())),
-	geometry: Type.Optional(Type.Array(Type.Object({
-		lat: Type.Number(),
-		lon: Type.Number(),
-	}))),
+	geometry: Type.Optional(
+		Type.Array(
+			Type.Object({
+				lat: Type.Number(),
+				lon: Type.Number(),
+			}),
+		),
+	),
 	tags: Type.Optional(Type.Record(Type.String(), Type.String())),
 });
 export type OverpassElement = Static<typeof OverpassElementSchema>;

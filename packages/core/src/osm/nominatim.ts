@@ -13,9 +13,13 @@ export const NominatimResultSchema = Type.Object({
 	type: Type.Optional(Type.String()),
 	class: Type.Optional(Type.String()),
 	addresstype: Type.Optional(Type.String()),
-	osm_type: Type.Optional(Type.Union([Type.Literal("node"), Type.Literal("way"), Type.Literal("relation")])),
+	osm_type: Type.Optional(
+		Type.Union([Type.Literal("node"), Type.Literal("way"), Type.Literal("relation")]),
+	),
 	osm_id: Type.Optional(Type.Number()),
-	boundingbox: Type.Optional(Type.Tuple([Type.String(), Type.String(), Type.String(), Type.String()])),
+	boundingbox: Type.Optional(
+		Type.Tuple([Type.String(), Type.String(), Type.String(), Type.String()]),
+	),
 });
 export type NominatimResult = Static<typeof NominatimResultSchema>;
 
@@ -134,7 +138,7 @@ export class NominatimClient {
 			addressdetails: 1,
 		});
 		const json = await this.fetchJson(url, signal, callbacks);
-		if (!Array.isArray(json) || !json.every(item => Value.Check(NominatimResultSchema, item))) {
+		if (!Array.isArray(json) || !json.every((item) => Value.Check(NominatimResultSchema, item))) {
 			throw new Error("Nominatim: invalid search response shape");
 		}
 		return json as NominatimResult[];

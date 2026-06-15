@@ -1,8 +1,5 @@
 import type { SSEEvent } from "@pixies/core";
-import {
-	isConversationTranscript,
-	type ConversationTranscript,
-} from "@pixies/core";
+import { isConversationTranscript, type ConversationTranscript } from "@pixies/core";
 import { buildApiError, streamSSE } from "../sse/client.ts";
 
 export type {

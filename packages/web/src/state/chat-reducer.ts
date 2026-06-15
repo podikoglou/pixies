@@ -136,10 +136,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 								queued: false,
 								resultText: action.resultText,
 								resultData: action.resultData,
-								summary:
-									isToolName(it.toolName)
-										? summarizeToolDetails(it.toolName, action.details as ToolDetails) ?? null
-										: null,
+								summary: isToolName(it.toolName)
+									? (summarizeToolDetails(it.toolName, action.details as ToolDetails) ?? null)
+									: null,
 							}
 						: it,
 				),
@@ -192,12 +191,11 @@ export function transcriptToItems(transcript: ConversationTranscript): TimelineI
 					queued: false,
 					resultText: joinContentText(msg.content, "\n") || null,
 					resultData: Value.Check(DataContainerSchema, msg.details)
-						? msg.details.data ?? null
+						? (msg.details.data ?? null)
 						: null,
-					summary:
-						isToolName(msg.toolName)
-							? summarizeToolDetails(msg.toolName, msg.details as ToolDetails) ?? null
-							: null,
+					summary: isToolName(msg.toolName)
+						? (summarizeToolDetails(msg.toolName, msg.details as ToolDetails) ?? null)
+						: null,
 				});
 				break;
 		}
