@@ -20,8 +20,10 @@ const schema = Type.Object({
 });
 
 export interface DisplayMapToolDetails {
-	markers: Array<{ lat: number; lon: number; label?: string }>;
-	bounds?: { minlat: number; minlon: number; maxlat: number; maxlon: number };
+	data: {
+		markers: Array<{ lat: number; lon: number; label?: string }>;
+		bounds?: { minlat: number; minlon: number; maxlat: number; maxlon: number };
+	};
 }
 
 export function createDisplayMapTool(): AgentTool<typeof schema, DisplayMapToolDetails> {
@@ -35,8 +37,10 @@ export function createDisplayMapTool(): AgentTool<typeof schema, DisplayMapToolD
 			return {
 				content: [{ type: "text", text: `Displaying ${params.markers.length} marker(s) on map.` }],
 				details: {
-					markers: params.markers,
-					bounds: params.bounds,
+					data: {
+						markers: params.markers,
+						bounds: params.bounds,
+					},
 				},
 			};
 		},
