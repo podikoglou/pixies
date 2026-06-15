@@ -1,6 +1,5 @@
 import { useRef } from "react";
 import type { ChatState } from "@/state/chat-reducer";
-import { AssistantMessage } from "./assistant-message";
 import { isDisplayMapData } from "@pixies/core";
 import { ToolCallCard } from "./tool-call-card";
 import { MapWidget } from "./map-widget";
@@ -22,7 +21,7 @@ export function ChatTimeline({ state }: ChatTimelineProps) {
 					item.kind === "user-message" ? (
 						<UserMessage text={item.text} />
 					) : item.kind === "assistant-message" ? (
-						<AssistantMessage text={item.text} />
+						<></>
 					) : item.toolName === "display_map" &&
 					  item.status === "done" &&
 					  isDisplayMapData(item.resultData) ? (
@@ -36,11 +35,6 @@ export function ChatTimeline({ state }: ChatTimelineProps) {
 					</div>
 				);
 			})}
-			{state.streamingText.length > 0 && (
-				<div className="animate-timeline-enter">
-					<AssistantMessage text={state.streamingText} streaming />
-				</div>
-			)}
 		</div>
 	);
 }
