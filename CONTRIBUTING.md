@@ -14,10 +14,6 @@ This project uses `bun`.
 - **Format:** `bun run format`
 - **Lint:** `bun run lint`
 
-A `lefthook` pre-commit hook runs format → typecheck → lint, stopping on the
-first failure. Formatting uses `stage_fixed` so changes are re-staged automatically.
-Skip with `--no-verify` or `LEFTHOOK=0`.
-
 ## Filing issues
 
 Use the provided issue templates:
@@ -39,4 +35,4 @@ refactoring, reorganising modules, or making code testable, use that one.
 
 ## Architecture
 
-See `AGENTS.md` for project overview and `docs/` for detailed architecture decisions.
+See `docs/adr/` for architecture decisions.

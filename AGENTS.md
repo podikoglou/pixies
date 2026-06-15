@@ -1,19 +1,20 @@
 # pixies (https://github.com/podikoglou/pixies)
 
-Pixies is an OSM-querying AI agent built on `@earendil-works/pi-tui`:
-a terminal chat that answers natural-language place questions via OpenStreetMap
-data.
+Pixies is a web chat app that answers natural-language place questions via
+OpenStreetMap data. The original TUI interface (`@pixies/tui`) is kept for
+legacy reference only.
 
-This project uses `bun`.
+This is a `bun` workspace monorepo with four packages:
+
+| Package          | Purpose                                                                    |
+| ---------------- | -------------------------------------------------------------------------- |
+| `@pixies/core`   | Shared kernel — config, agent factory, SSE event types, OSM clients, tools |
+| `@pixies/server` | Bun HTTP server — conversation API, SSE streaming, static web serving      |
+| `@pixies/web`    | React SPA — the primary chat interface                                     |
+| `@pixies/tui`    | Legacy terminal interface (unmaintained)                                   |
 
 Build: `bun run typecheck` / Format: `bun run format` / Lint: `bun run lint`
 
-A `lefthook` pre-commit hook runs format → typecheck → lint, stopping on the
-first failure. Formatting uses `stage_fixed` so changes are re-staged automatically.
-Skip with `--no-verify` or `LEFTHOOK=0`.
-
-For the TUI framework contract, see docs/PI-TUI.md
-For contributing guidelines, see CONTRIBUTING.md
-
-The web frontend (`@pixies/web`) is a Vite + React SPA served by the server
-package. Build it with `bun run build:web`. See docs/adr/0002 and 0003.
+For code conventions, see docs/CONVENTIONS.md.
+For contributing guidelines, see CONTRIBUTING.md.
+For the legacy TUI framework contract, see docs/PI-TUI.md.
