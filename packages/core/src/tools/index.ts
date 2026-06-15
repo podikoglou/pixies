@@ -7,9 +7,17 @@ import { createQueryOsmTool } from "./query-osm.ts";
 import type { QueryOsmToolDetails } from "./query-osm.ts";
 import { createReverseGeocodeTool } from "./reverse-geocode.ts";
 import type { ReverseGeocodeToolDetails } from "./reverse-geocode.ts";
+import { createDisplayMapTool } from "./display-map.ts";
+import type { DisplayMapToolDetails } from "./display-map.ts";
 import type { ToolName } from "./presentation.ts";
 
-export type { GeocodeToolDetails, ReverseGeocodeToolDetails, QueryOsmToolDetails, ToolName };
+export type {
+	GeocodeToolDetails,
+	ReverseGeocodeToolDetails,
+	QueryOsmToolDetails,
+	DisplayMapToolDetails,
+	ToolName,
+};
 export type { ToolProgress } from "./progress.ts";
 export { ToolProgressSchema, isToolProgress } from "./progress.ts";
 
@@ -56,6 +64,7 @@ export type ToolResultData = {
 	geocode: GeocodeResultEntry[];
 	reverse_geocode: GeocodeResultEntry;
 	query_osm: OverpassResultEntry[];
+	display_map: DisplayMapToolDetails;
 };
 
 export interface OsmClients {
@@ -67,12 +76,14 @@ export type ToolRegistry = {
 	geocode: AgentTool;
 	reverse_geocode: AgentTool;
 	query_osm: AgentTool;
+	display_map: AgentTool;
 };
 
 export type ToolDetailsMap = {
 	geocode: GeocodeToolDetails;
 	reverse_geocode: ReverseGeocodeToolDetails | undefined;
 	query_osm: QueryOsmToolDetails;
+	display_map: DisplayMapToolDetails;
 };
 
 export type ToolDetails = ToolDetailsMap[ToolName];
@@ -90,12 +101,13 @@ export function createToolRegistry(clients: OsmClients): ToolRegistry {
 	const geocode = createGeocodeTool(clients.nominatim);
 	const reverseGeocode = createReverseGeocodeTool(clients.nominatim);
 	const queryOsm = createQueryOsmTool(clients.overpass);
-	return { geocode, reverse_geocode: reverseGeocode, query_osm: queryOsm };
+	const displayMap = createDisplayMapTool();
+	return { geocode, reverse_geocode: reverseGeocode, query_osm: queryOsm, display_map: displayMap };
 }
 
 export function createTools(clients: OsmClients): AgentTool[] {
 	const registry = createToolRegistry(clients);
-	return [registry.geocode, registry.reverse_geocode, registry.query_osm];
+	return [registry.geocode, registry.reverse_geocode, registry.query_osm, registry.display_map];
 }
 
 export { toolLabel, summarizeToolDetails } from "./presentation.ts";
