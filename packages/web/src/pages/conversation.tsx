@@ -5,6 +5,7 @@ import { useChatContext } from "@/contexts/chat-context";
 import { ChatView } from "@/components/chat/chat-view";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getConversation } from "@/api/conversations";
 import { transcriptToItems } from "@/state/chat-reducer";
 import { ApiError } from "@/sse/client";
@@ -15,7 +16,7 @@ export function ConversationPage() {
 
 	const needsLoad = state.conversationId !== conversationId;
 
-	const { data, error } = useQuery({
+	const { data, error, refetch } = useQuery({
 		queryKey: ["conversation", conversationId],
 		queryFn: () => getConversation(conversationId),
 		enabled: needsLoad,
@@ -52,14 +53,33 @@ export function ConversationPage() {
 				);
 			}
 			return (
-				<div className="text-destructive flex h-dvh items-center justify-center px-4 text-sm">
-					{error.message}
+				<div className="flex h-dvh items-center justify-center px-4">
+					<Card className="w-full max-w-sm">
+						<CardHeader>
+							<CardTitle>Something went wrong</CardTitle>
+							<CardDescription>{error.message}</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<Button variant="default" className="w-full" onClick={() => void refetch()}>
+								Retry
+							</Button>
+						</CardContent>
+					</Card>
 				</div>
 			);
 		}
 		return (
-			<div className="text-muted-foreground flex h-dvh items-center justify-center text-sm">
-				Loading…
+			<div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-6">
+				<div className="flex justify-end">
+					<Skeleton className="h-10 w-2/3 rounded-2xl sm:w-2/5" />
+				</div>
+				<div className="flex flex-col gap-2">
+					<Skeleton className="h-3 w-16" />
+					<Skeleton className="h-4 w-full" />
+					<Skeleton className="h-4 w-5/6" />
+					<Skeleton className="h-4 w-2/3" />
+				</div>
+				<Skeleton className="h-16 w-full rounded-xl" />
 			</div>
 		);
 	}

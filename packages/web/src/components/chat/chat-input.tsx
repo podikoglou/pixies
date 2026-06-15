@@ -1,4 +1,4 @@
-import { type KeyboardEvent } from "react";
+import { type FormEvent, type KeyboardEvent } from "react";
 import { SendHorizontal, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,21 +21,31 @@ export function ChatInput({ value, onChange, onSubmit, isStreaming, onAbort }: C
 		}
 	};
 
+	const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+		e.preventDefault();
+		if (canSend) onSubmit();
+	};
+
 	return (
 		<div className="border-border bg-background/80 border-t backdrop-blur">
-			<div className="mx-auto flex max-w-3xl items-end gap-2 px-4 py-3">
+			<form
+				onSubmit={handleSubmit}
+				className="mx-auto flex max-w-3xl items-end gap-2 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3"
+			>
 				<Textarea
 					value={value}
 					onChange={(e) => onChange(e.target.value)}
 					onKeyDown={onKeyDown}
 					placeholder="Ask about places…"
 					rows={1}
+					aria-label="Message pixies"
 					className="max-h-48 min-h-11 resize-none py-3 leading-5"
 				/>
 				{isStreaming ? (
 					<Button
 						variant="outline"
 						size="icon"
+						type="button"
 						onClick={onAbort}
 						aria-label="Stop"
 						className="shrink-0"
@@ -46,7 +56,7 @@ export function ChatInput({ value, onChange, onSubmit, isStreaming, onAbort }: C
 					<Button
 						variant="default"
 						size="icon"
-						onClick={onSubmit}
+						type="submit"
 						disabled={!canSend}
 						aria-label="Send"
 						className="shrink-0"
@@ -54,7 +64,7 @@ export function ChatInput({ value, onChange, onSubmit, isStreaming, onAbort }: C
 						<SendHorizontal className="size-4" />
 					</Button>
 				)}
-			</div>
+			</form>
 		</div>
 	);
 }
