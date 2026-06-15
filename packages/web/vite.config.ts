@@ -15,6 +15,7 @@ export default defineConfig({
 			"/conversations": "http://localhost:3000",
 			"/health": "http://localhost:3000",
 		},
+		allowedHosts: ["osaka.tarpon-ghost.ts.net"],
 	},
 	build: {
 		outDir: "dist",
