@@ -1,19 +1,23 @@
 import { osmFetch } from "./http.ts";
 import type { ToolProgress } from "../tools/progress.ts";
+import { Type } from "typebox";
+import type { Static } from "typebox";
+import { Value } from "typebox/value";
 
-export interface NominatimResult {
-	place_id: number;
-	lat: string;
-	lon: string;
-	display_name: string;
-	name?: string;
-	type?: string;
-	class?: string;
-	addresstype?: string;
-	osm_type?: "node" | "way" | "relation";
-	osm_id?: number;
-	boundingbox?: [string, string, string, string];
-}
+export const NominatimResultSchema = Type.Object({
+	place_id: Type.Number(),
+	lat: Type.String(),
+	lon: Type.String(),
+	display_name: Type.String(),
+	name: Type.Optional(Type.String()),
+	type: Type.Optional(Type.String()),
+	class: Type.Optional(Type.String()),
+	addresstype: Type.Optional(Type.String()),
+	osm_type: Type.Optional(Type.Union([Type.Literal("node"), Type.Literal("way"), Type.Literal("relation")])),
+	osm_id: Type.Optional(Type.Number()),
+	boundingbox: Type.Optional(Type.Tuple([Type.String(), Type.String(), Type.String(), Type.String()])),
+});
+export type NominatimResult = Static<typeof NominatimResultSchema>;
 
 export interface SearchOptions {
 	limit?: number;
@@ -130,6 +134,9 @@ export class NominatimClient {
 			addressdetails: 1,
 		});
 		const json = await this.fetchJson(url, signal, callbacks);
+		if (!Array.isArray(json) || !json.every(item => Value.Check(NominatimResultSchema, item))) {
+			throw new Error("Nominatim: invalid search response shape");
+		}
 		return json as NominatimResult[];
 	}
 
@@ -148,10 +155,16 @@ export class NominatimClient {
 			addressdetails: 1,
 		});
 		const json = await this.fetchJson(url, signal, callbacks);
+		if (typeof json !== "object" || json === null) {
+			throw new Error("Nominatim: invalid reverse response");
+		}
 		const result = json as NominatimResult | { error?: string };
 		if ("error" in result && result.error) {
 			throw new Error(`Nominatim: ${result.error}`);
 		}
-		return result as NominatimResult;
+		if (!Value.Check(NominatimResultSchema, result)) {
+			throw new Error("Nominatim: invalid reverse response shape");
+		}
+		return result;
 	}
 }
