@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useChatContext } from "@/contexts/chat-context";
 import { SparklesIcon } from "@/components/icons";
@@ -69,7 +70,7 @@ export function ChatView() {
 		<div className="flex h-dvh flex-col">
 			<header className="border-border border-b">
 				<div className="mx-auto max-w-3xl px-4 py-2.5">
-					<span className="text-muted-foreground text-sm font-medium tracking-tight">pixies</span>
+					<Link to="/" className="text-muted-foreground text-sm font-medium tracking-tight">pixies</Link>
 				</div>
 			</header>
 
