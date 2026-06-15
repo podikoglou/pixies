@@ -4,10 +4,7 @@ import type { OverpassResultEntry } from "@pixies/core";
 import { resolveMapMarkers } from "./resolve-map-markers.ts";
 import type { TimelineItem } from "@/state/chat-reducer.ts";
 
-function osmItem(
-	toolCallId: string,
-	data: OverpassResultEntry[],
-): TimelineItem {
+function osmItem(toolCallId: string, data: OverpassResultEntry[]): TimelineItem {
 	return {
 		kind: "tool-call",
 		toolCallId,

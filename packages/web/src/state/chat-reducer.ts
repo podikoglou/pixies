@@ -1,10 +1,5 @@
 import type { ConversationTranscript } from "../api/conversations.ts";
-import {
-	parseToolResult,
-	summarizeResult,
-	type ToolProgress,
-	type ToolResult,
-} from "@pixies/core";
+import { parseToolResult, summarizeResult, type ToolProgress, type ToolResult } from "@pixies/core";
 
 export type TimelineItem =
 	| { kind: "user-message"; text: string }
