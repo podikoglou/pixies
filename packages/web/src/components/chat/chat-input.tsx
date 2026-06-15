@@ -30,7 +30,7 @@ export function ChatInput({ value, onChange, onSubmit, isStreaming, onAbort }: C
 					onKeyDown={onKeyDown}
 					placeholder="Ask about places…"
 					rows={1}
-					className="max-h-48 min-h-11 resize-none"
+					className="max-h-48 min-h-11 resize-none py-3 leading-5"
 				/>
 				{isStreaming ? (
 					<Button

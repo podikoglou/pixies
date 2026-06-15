@@ -1,5 +1,6 @@
 import Markdown, { type Components } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 
 interface AssistantMessageProps {
@@ -50,6 +51,7 @@ const components: Components = {
 		</div>
 	),
 	thead: ({ children }) => <thead className="bg-muted">{children}</thead>,
+	tbody: ({ children }) => <tbody>{children}</tbody>,
 	th: ({ children }) => (
 		<th className="border-border border px-3 py-1.5 text-left font-semibold">{children}</th>
 	),
@@ -59,7 +61,11 @@ const components: Components = {
 export function AssistantMessage({ text, streaming }: AssistantMessageProps) {
 	return (
 		<div className="text-foreground w-full text-sm">
-			<Markdown components={components} rehypePlugins={[rehypeHighlight]}>
+			<Markdown
+				components={components}
+				rehypePlugins={[rehypeHighlight]}
+				remarkPlugins={[remarkGfm]}
+			>
 				{text}
 			</Markdown>
 			{streaming && (
