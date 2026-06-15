@@ -1,7 +1,6 @@
 import { Agent } from "@earendil-works/pi-agent-core";
 import { getModels } from "@earendil-works/pi-ai";
 import type { Api, KnownProvider, Model } from "@earendil-works/pi-ai";
-import { Default, Check, Errors } from "typebox/value";
 import { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
 import { NominatimClient } from "./osm/nominatim.ts";
 import { OverpassClient } from "./osm/overpass.ts";
@@ -29,7 +28,7 @@ function resolveModel(modelRef: string): Model<Api> {
 }
 
 export function readConfigFromEnv(): ResolvedPixiesConfig {
-	const raw: Record<string, unknown> = {
+	const raw = {
 		model: process.env.PIXIES_MODEL,
 		apiKey: process.env.PIXIES_API_KEY,
 		contactEmail: process.env.PIXIES_CONTACT_EMAIL,
@@ -54,15 +53,7 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 				: undefined,
 	};
 
-	Default(PixiesConfigSchema, raw);
-
-	if (!Check(PixiesConfigSchema, raw)) {
-		const errors = Errors(PixiesConfigSchema, raw);
-		const messages = errors.map((e) => e.message).join("; ");
-		throw new Error(`Invalid configuration: ${messages}`);
-	}
-
-	return raw as ResolvedPixiesConfig;
+	return PixiesConfigSchema.parse(raw);
 }
 
 export interface CreateAgentOptions {
