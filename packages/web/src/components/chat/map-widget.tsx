@@ -75,8 +75,9 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 	}, [bounds]);
 
 	useEffect(() => {
+		const map = mapRef.current;
 		const layer = markersLayerRef.current;
-		if (!layer) return;
+		if (!layer || !map) return;
 
 		layer.clearLayers();
 
@@ -88,6 +89,16 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 				marker.bindPopup(label);
 			}
 			marker.addTo(layer);
+		}
+
+		if (bounds === undefined && markers.length > 0) {
+			if (markers.length === 1) {
+				const m = markers[0]!;
+				map.setView([m.lat, m.lon], 13);
+			} else {
+				const latLngs = markers.map((m) => L.latLng(m.lat, m.lon));
+				map.fitBounds(L.latLngBounds(latLngs), { padding: [30, 30] });
+			}
 		}
 	}, [markers]);
 
