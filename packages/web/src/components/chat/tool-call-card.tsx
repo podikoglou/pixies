@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import { formatToolName } from "@/lib/format-tool-name";
 import { parseToolResult } from "@/lib/parse-tool-result";
 import type { TimelineItem } from "@/state/chat-reducer";
@@ -73,7 +74,7 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 	);
 
 	return (
-		<div className="rounded-xl border">
+		<div className="rounded-xl shadow-[var(--shadow-border)] transition-[box-shadow] hover:shadow-[var(--shadow-border-hover)]">
 			{hasDetails ? (
 				<Accordion>
 					<AccordionItem value="details" className="border-b-0">
@@ -128,8 +129,26 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 }
 
 function StatusIcon({ status }: { status: "running" | "done" | "error" }) {
-	if (status === "running")
-		return <Loader2 className="text-muted-foreground size-4 animate-spin" />;
-	if (status === "error") return <X className="text-destructive size-4" />;
-	return <Check className="text-success-foreground size-4" />;
+	return (
+		<span className="relative flex size-4 items-center justify-center">
+			<Loader2
+				className={cn(
+					"text-muted-foreground absolute size-4 animate-spin transition-all duration-200 ease-out",
+					status === "running" ? "scale-100 opacity-100" : "scale-75 opacity-0",
+				)}
+			/>
+			<Check
+				className={cn(
+					"absolute size-4 text-emerald-500 transition-all duration-200 ease-out dark:text-emerald-400",
+					status === "done" ? "scale-100 opacity-100" : "scale-75 opacity-0",
+				)}
+			/>
+			<X
+				className={cn(
+					"text-destructive absolute size-4 transition-all duration-200 ease-out",
+					status === "error" ? "scale-100 opacity-100" : "scale-75 opacity-0",
+				)}
+			/>
+		</span>
+	);
 }

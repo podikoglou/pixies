@@ -6,7 +6,10 @@ interface JsonTreeProps {
 	data: unknown;
 	label?: string;
 	maxPreviewLength?: number;
+	maxDepth?: number;
 }
+
+const DEFAULT_MAX_DEPTH = 10;
 
 function typeOf(value: unknown): "object" | "array" | "string" | "number" | "boolean" | "null" {
 	if (value === null) return "null";
@@ -82,17 +85,20 @@ function CollapsibleNode({
 	nested,
 	defaultExpanded,
 	maxPreviewLength,
+	maxDepth,
 }: {
 	label?: string;
 	value: Record<string, unknown> | unknown[];
 	nested: number;
 	defaultExpanded?: boolean;
 	maxPreviewLength: number;
+	maxDepth: number;
 }) {
 	const [expanded, setExpanded] = useState(defaultExpanded ?? nested < 1);
 	const isArr = Array.isArray(value);
 	const count = isArr ? value.length : Object.keys(value).length;
-	const typeLabel = isArr ? `(${count})` : `(${count})`;
+	const typeLabel = `(${count})`;
+	const tooDeep = nested >= maxDepth;
 
 	return (
 		<div className="min-w-0">
@@ -121,7 +127,7 @@ function CollapsibleNode({
 					)}
 				</div>
 			</button>
-			{expanded && (
+			{expanded && !tooDeep && (
 				<div className="ml-[18px] border-l border-border/60 pl-2">
 					{isArr
 						? value.map((v, i) => (
@@ -131,6 +137,7 @@ function CollapsibleNode({
 									data={v}
 									nested={nested + 1}
 									maxPreviewLength={maxPreviewLength}
+									maxDepth={maxDepth}
 								/>
 							))
 						: Object.entries(value).map(([k, v]) => (
@@ -140,8 +147,14 @@ function CollapsibleNode({
 									data={v}
 									nested={nested + 1}
 									maxPreviewLength={maxPreviewLength}
+									maxDepth={maxDepth}
 								/>
 							))}
+				</div>
+			)}
+			{expanded && tooDeep && (
+				<div className="text-muted-foreground ml-[18px] border-l border-border/60 pl-2 font-mono text-xs">
+					…
 				</div>
 			)}
 		</div>
@@ -153,11 +166,13 @@ function JsonNode({
 	data,
 	nested,
 	maxPreviewLength,
+	maxDepth,
 }: {
 	label?: string;
 	data: unknown;
 	nested: number;
 	maxPreviewLength: number;
+	maxDepth: number;
 }) {
 	const t = typeOf(data);
 
@@ -181,6 +196,7 @@ function JsonNode({
 				value={obj}
 				nested={nested}
 				maxPreviewLength={maxPreviewLength}
+				maxDepth={maxDepth}
 			/>
 		);
 	}
@@ -196,7 +212,12 @@ function JsonNode({
 	);
 }
 
-export function JsonTree({ data, label, maxPreviewLength = 200 }: JsonTreeProps) {
+export function JsonTree({
+	data,
+	label,
+	maxPreviewLength = 200,
+	maxDepth = DEFAULT_MAX_DEPTH,
+}: JsonTreeProps) {
 	const t = typeOf(data);
 
 	if (t === "object" || t === "array") {
@@ -209,7 +230,15 @@ export function JsonTree({ data, label, maxPreviewLength = 200 }: JsonTreeProps)
 				</span>
 			);
 		}
-		return <JsonNode label={label} data={data} nested={0} maxPreviewLength={maxPreviewLength} />;
+		return (
+			<JsonNode
+				label={label}
+				data={data}
+				nested={0}
+				maxPreviewLength={maxPreviewLength}
+				maxDepth={maxDepth}
+			/>
+		);
 	}
 
 	return (

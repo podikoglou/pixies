@@ -3,6 +3,7 @@ import { SendHorizontal, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface ChatInputProps {
 	value: string;
@@ -54,11 +55,20 @@ export function ChatInput({ value, onChange, onSubmit, isStreaming, onAbort }: C
 								aria-label={isStreaming ? "Stop" : "Send"}
 								className="shrink-0"
 							>
-								{isStreaming ? (
-									<Square className="size-4" />
-								) : (
-									<SendHorizontal className="size-4" />
-								)}
+								<span className="relative flex size-4 items-center justify-center">
+									<SendHorizontal
+										className={cn(
+											"absolute size-4 transition-all duration-200 ease-out",
+											isStreaming ? "scale-75 opacity-0 blur-sm" : "scale-100 opacity-100 blur-0",
+										)}
+									/>
+									<Square
+										className={cn(
+											"absolute size-4 transition-all duration-200 ease-out",
+											isStreaming ? "scale-100 opacity-100 blur-0" : "scale-75 opacity-0 blur-sm",
+										)}
+									/>
+								</span>
 							</Button>
 						}
 					/>

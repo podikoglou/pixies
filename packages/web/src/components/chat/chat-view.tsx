@@ -76,7 +76,9 @@ export function ChatView() {
 				{isEmpty ? (
 					<div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-16 text-center">
 						<Sparkles className="text-muted-foreground size-8" />
-						<p className="text-muted-foreground text-sm">Ask me anything about places. Try:</p>
+						<p className="text-muted-foreground text-pretty text-sm">
+							Ask me anything about places. Try:
+						</p>
 						<div className="flex w-full flex-col gap-2">
 							{WELCOME_EXAMPLES.map((example) => (
 								<Button

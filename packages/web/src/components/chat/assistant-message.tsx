@@ -19,13 +19,19 @@ interface AssistantMessageProps {
 }
 
 const components: Components = {
-	h1: ({ children }) => <h1 className="mt-4 mb-2 first:mt-0 text-2xl font-semibold">{children}</h1>,
-	h2: ({ children }) => <h2 className="mt-4 mb-2 first:mt-0 text-xl font-semibold">{children}</h2>,
-	h3: ({ children }) => <h3 className="mt-3 mb-2 first:mt-0 text-lg font-semibold">{children}</h3>,
-	h4: ({ children }) => (
-		<h4 className="mt-3 mb-2 first:mt-0 text-base font-semibold">{children}</h4>
+	h1: ({ children }) => (
+		<h1 className="mt-4 mb-2 first:mt-0 text-balance text-2xl font-semibold">{children}</h1>
 	),
-	p: ({ children }) => <p className="mb-3 leading-relaxed last:mb-0">{children}</p>,
+	h2: ({ children }) => (
+		<h2 className="mt-4 mb-2 first:mt-0 text-balance text-xl font-semibold">{children}</h2>
+	),
+	h3: ({ children }) => (
+		<h3 className="mt-3 mb-2 first:mt-0 text-balance text-lg font-semibold">{children}</h3>
+	),
+	h4: ({ children }) => (
+		<h4 className="mt-3 mb-2 first:mt-0 text-balance text-base font-semibold">{children}</h4>
+	),
+	p: ({ children }) => <p className="text-pretty mb-3 leading-relaxed last:mb-0">{children}</p>,
 	ul: ({ children }) => <ul className="mb-3 ml-6 list-disc space-y-1">{children}</ul>,
 	ol: ({ children }) => <ol className="mb-3 ml-6 list-decimal space-y-1">{children}</ol>,
 	li: ({ children }) => <li className="mb-1">{children}</li>,
