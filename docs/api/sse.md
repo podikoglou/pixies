@@ -307,7 +307,7 @@ There is no abort endpoint. Closing the connection IS the abort.
 
 ## Conversation TTL
 
-Conversations are evicted from server memory after **1 hour** of inactivity (no POST messages). A sweeper runs every 5 minutes.
+Conversations are evicted from server memory after **24 hours** of inactivity (no POST messages). A sweeper runs every 5 minutes.
 
 Server restart evicts all conversations immediately.
 
