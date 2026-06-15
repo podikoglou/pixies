@@ -64,7 +64,7 @@ export type ToolResultData = {
 	geocode: GeocodeResultEntry[];
 	reverse_geocode: GeocodeResultEntry;
 	query_osm: OverpassResultEntry[];
-	display_map: DisplayMapToolDetails;
+	display_map: DisplayMapToolDetails["data"];
 };
 
 export interface OsmClients {
