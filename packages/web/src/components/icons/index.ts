@@ -18,3 +18,5 @@ export type { SparklesIconHandle } from "./sparkles";
 
 export { ChevronRightIcon } from "./chevron-right";
 export type { ChevronRightIconHandle } from "./chevron-right";
+
+export { InfoIcon } from "./info";
