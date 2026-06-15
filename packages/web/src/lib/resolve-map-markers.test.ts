@@ -4,10 +4,7 @@ import type { OverpassResultEntry } from "@pixies/core";
 import { resolveMapMarkers } from "./resolve-map-markers.ts";
 import type { TimelineItem } from "@/state/chat-reducer.ts";
 
-function osmItem(
-	toolCallId: string,
-	data: OverpassResultEntry[],
-): TimelineItem {
+function osmItem(toolCallId: string, data: OverpassResultEntry[]): TimelineItem {
 	return {
 		kind: "tool-call",
 		toolCallId,
@@ -16,7 +13,7 @@ function osmItem(
 		status: "done",
 		queued: false,
 		resultText: null,
-		resultData: data,
+		result: { kind: "query_osm", entries: data },
 		summary: null,
 	};
 }
@@ -59,7 +56,7 @@ test("queryRef not found in items → null", () => {
 	expect(result).toBeNull();
 });
 
-test("referenced toolCallId is not query_osm → null", () => {
+test("referenced item has non-query_osm result → null", () => {
 	const items: TimelineItem[] = [
 		{
 			kind: "tool-call",
@@ -69,25 +66,7 @@ test("referenced toolCallId is not query_osm → null", () => {
 			status: "done",
 			queued: false,
 			resultText: null,
-			resultData: [],
-			summary: null,
-		},
-	];
-	const result = resolveMapMarkers("call-1", undefined, items);
-	expect(result).toBeNull();
-});
-
-test("resultData is not an array → null", () => {
-	const items: TimelineItem[] = [
-		{
-			kind: "tool-call",
-			toolCallId: "call-1",
-			toolName: "query_osm",
-			args: {},
-			status: "done",
-			queued: false,
-			resultText: null,
-			resultData: { not: "an array" },
+			result: { kind: "geocode", entries: [] },
 			summary: null,
 		},
 	];

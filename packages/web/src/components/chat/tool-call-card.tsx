@@ -48,10 +48,14 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 	const entries = argEntries(item.args);
 	const hasDetails = entries.length > 0 || item.resultText !== null;
 
-	const parsedResult = item.resultData ?? undefined;
+	const parsedResult =
+		item.result.kind === "query_osm" || item.result.kind === "geocode"
+			? item.result.entries
+			: item.result.kind === "reverse_geocode"
+				? item.result.entry
+				: null;
 
-	const hasParsedResult =
-		parsedResult !== null && parsedResult !== undefined && parsedResult !== item.resultText;
+	const hasParsedResult = parsedResult !== null;
 
 	const header: ReactNode = (
 		<div className="flex min-w-0 items-center gap-2">

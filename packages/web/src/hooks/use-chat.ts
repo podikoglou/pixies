@@ -55,7 +55,6 @@ function dispatchSseEvent(evt: SSEEvent, dispatch: Dispatch<ChatAction>): void {
 				toolCallId: evt.data.toolCallId,
 				isError: evt.data.isError,
 				resultText: joinContentText(evt.data.result.content, "\n") || null,
-				resultData: (evt.data.result.details as { data?: unknown })?.data ?? null,
 				details: evt.data.result.details,
 			});
 			break;

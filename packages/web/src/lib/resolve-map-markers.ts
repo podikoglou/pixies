@@ -16,10 +16,9 @@ export function resolveMapMarkers(
 		(it): it is Extract<TimelineItem, { kind: "tool-call" }> =>
 			it.kind === "tool-call" && it.toolCallId === queryRef,
 	);
-	if (!queryItem || queryItem.toolName !== "query_osm" || !Array.isArray(queryItem.resultData))
-		return null;
+	if (!queryItem || queryItem.result.kind !== "query_osm") return null;
 
-	let entries = queryItem.resultData as OverpassResultEntry[];
+	let entries: OverpassResultEntry[] = queryItem.result.entries;
 
 	if (elementIds) {
 		const idSet = new Set(elementIds);
