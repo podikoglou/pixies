@@ -24,7 +24,7 @@ export {
 	SSEEventSchema,
 	SSE_EVENT_DATA_SCHEMAS,
 } from "./sse-events.ts";
-export type { SSEEvent, SSEEventName } from "./sse-events.ts";
+export type { ContentBlockType, SSEEvent, SSEEventName } from "./sse-events.ts";
 export {
 	createToolRegistry,
 	createTools,
@@ -59,10 +59,7 @@ export type {
 	OverpassResultEntry,
 	OsmClients,
 } from "./tools/index.ts";
-export {
-	ConversationTranscriptSchema,
-	isConversationTranscript,
-} from "./transcript-schema.ts";
+export { ConversationTranscriptSchema, isConversationTranscript } from "./transcript-schema.ts";
 export type {
 	ConversationTranscript,
 	TranscriptContentBlock,
