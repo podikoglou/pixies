@@ -1,6 +1,6 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { Container, Markdown, Spacer, TUI, Text } from "@earendil-works/pi-tui";
-import { toolLabel, summarizeToolDetails } from "@pixies/core";
+import { isToolProgress, toolLabel, summarizeToolDetails } from "@pixies/core";
 import type { ToolName } from "@pixies/core";
 import { c, markdownTheme } from "./theme.ts";
 import { AssistantMessageComponent } from "./ui/assistant-message.ts";
@@ -73,8 +73,8 @@ export function createAgentEventHandler(deps: AgentEventDeps): (event: AgentEven
 			case "tool_execution_update": {
 				const toolCall = toolCalls.get(event.toolCallId);
 				if (!toolCall) break;
-				const queued = (event.partialResult as any)?.details?.queued;
-				if (typeof queued === "boolean") toolCall.setQueued(queued);
+				const progress = event.partialResult?.details;
+				if (isToolProgress(progress)) toolCall.setQueued(progress.type === "queued");
 				break;
 			}
 

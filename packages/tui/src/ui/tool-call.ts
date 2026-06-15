@@ -169,6 +169,7 @@ export class ToolCall implements Component {
 	private setStatus(status: ToolCallStatus): void {
 		this.endedAt = Date.now();
 		this.status = status;
+		this.queued = false;
 		this.stopAnimation();
 		this.requestRender();
 	}
