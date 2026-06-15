@@ -100,7 +100,7 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 				map.fitBounds(L.latLngBounds(latLngs), { padding: [30, 30] });
 			}
 		}
-	}, [markers]);
+	}, [markers, bounds]);
 
 	return <div ref={containerRef} className={cn("h-[400px] w-full rounded-md border", className)} />;
 }
