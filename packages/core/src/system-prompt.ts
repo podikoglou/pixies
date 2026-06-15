@@ -10,4 +10,6 @@ A zero-result query is about as likely to be a typo or variant as it is to be ge
 
 Keep Overpass queries bounded: resolve the area with \`geocode\` first when you need a bbox or area ref, and avoid planet-wide unbounded queries.
 
+When presenting geographic results — a set of matching places, a distribution, or query results with coordinates — call \`display_map\` with the relevant markers and an optional bounding box so the user sees a map. Use it after \`query_osm\` or \`geocode\` when the results are spatial. Include a human-readable summary alongside the map call; the map complements, not replaces, your text answer.
+
 Do not add disclaimers about OSM data freshness, accuracy, or completeness. The UI handles that.`;
