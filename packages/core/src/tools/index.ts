@@ -47,11 +47,10 @@ export interface OverpassResultEntry {
 }
 
 /**
- * Per-tool structured result data, keyed by tool name. Parallels
- * {@link ToolFinalDetailsMap}. Tools populate this alongside the model-facing
- * `content` text; adapters that want structure (e.g. the web `JsonTree`)
- * consume it directly via `result.details.data` instead of reverse-parsing the
- * pipe string. See issue #15.
+ * Per-tool structured result data, keyed by tool name. Tools populate this
+ * alongside the model-facing `content` text; adapters that want structure
+ * (e.g. the web `JsonTree`) consume it directly via `result.details.data`
+ * instead of reverse-parsing the pipe string. See issue #15.
  */
 export type ToolResultData = {
 	geocode: GeocodeResultEntry[];
@@ -73,13 +72,6 @@ export type ToolRegistry = {
 export type ToolDetailsMap = {
 	geocode: GeocodeToolDetails;
 	reverse_geocode: ReverseGeocodeToolDetails | undefined;
-	query_osm: QueryOsmToolDetails;
-};
-
-/** Extracts only the final-result shape from each tool's details union (excludes queued state). */
-export type ToolFinalDetailsMap = {
-	geocode: { top?: string; data: ToolResultData["geocode"] };
-	reverse_geocode: { name?: string; data: ToolResultData["reverse_geocode"] } | undefined;
 	query_osm: QueryOsmToolDetails;
 };
 

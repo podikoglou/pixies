@@ -18,7 +18,7 @@ export function toolLabel(name: string): string {
 }
 
 type ToolDetailSummarizer<T extends ToolName> = (
-	details: import("./index.ts").ToolFinalDetailsMap[T],
+	details: import("./index.ts").ToolDetailsMap[T],
 ) => string | undefined;
 
 const summarize: { [K in ToolName]: ToolDetailSummarizer<K> } = {
@@ -33,6 +33,5 @@ export function summarizeToolDetails<K extends ToolName>(
 	details: import("./index.ts").ToolDetailsMap[K],
 ): string | undefined {
 	if (!details || typeof details !== "object") return undefined;
-	const final_ = details as import("./index.ts").ToolFinalDetailsMap[K];
-	return summarize[name](final_);
+	return summarize[name](details);
 }
