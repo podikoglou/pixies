@@ -43,19 +43,28 @@ function isLongValue(value: unknown): boolean {
 	return typeof value === "string" && value.length > 80;
 }
 
-function isDisplayMapData(
-	data: unknown,
-): data is {
+function isDisplayMapData(data: unknown): data is {
 	markers: Array<{ lat: number; lon: number; label?: string }>;
 	bounds?: { minlat: number; minlon: number; maxlat: number; maxlon: number };
 } {
 	if (typeof data !== "object" || data === null) return false;
 	const d = data as Record<string, unknown>;
-	if (!Array.isArray(d.markers)) return false;
+	if (!Array.isArray(d.markers) || d.markers.length === 0) return false;
 	for (const m of d.markers) {
 		if (typeof m !== "object" || m === null) return false;
 		const marker = m as Record<string, unknown>;
 		if (typeof marker.lat !== "number" || typeof marker.lon !== "number") return false;
+	}
+	if (d.bounds !== undefined) {
+		if (typeof d.bounds !== "object" || d.bounds === null) return false;
+		const b = d.bounds as Record<string, unknown>;
+		if (
+			typeof b.minlat !== "number" ||
+			typeof b.minlon !== "number" ||
+			typeof b.maxlat !== "number" ||
+			typeof b.maxlon !== "number"
+		)
+			return false;
 	}
 	return true;
 }
