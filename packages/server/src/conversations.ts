@@ -8,11 +8,10 @@ import { eq } from "drizzle-orm";
 import {
 	createAgent,
 	createOsmClients,
-	conversations as conversationsTable,
-	type DbClient,
 	type OsmClients,
 	type ResolvedPixiesConfig,
 } from "@pixies/core";
+import { conversations as conversationsTable, type DbClient } from "@pixies/core/db";
 
 interface Conversation {
 	readonly id: string;

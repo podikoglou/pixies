@@ -1,4 +1,5 @@
-import { readConfigFromEnv, createDb, type ResolvedPixiesConfig } from "@pixies/core";
+import { readConfigFromEnv, type ResolvedPixiesConfig } from "@pixies/core";
+import { createDb } from "@pixies/core/db";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import path from "node:path";
