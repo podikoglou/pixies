@@ -22,6 +22,8 @@ export const PixiesConfigSchema = z.object({
 		.enum(["off", "low", "medium", "high"] as const)
 		.default("off")
 		.describe("AI thinking level"),
+	dbFile: z.string().default("pixies.db").describe("Path to SQLite database file"),
+	cacheSize: z.number().default(50).describe("Max number of in-memory conversations"),
 });
 
 export type PixiesConfig = z.input<typeof PixiesConfigSchema>;

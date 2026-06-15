@@ -1,7 +1,8 @@
-import { readConfigFromEnv, type ResolvedPixiesConfig } from "@pixies/core";
+import { readConfigFromEnv, createDb, type ResolvedPixiesConfig } from "@pixies/core";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import path from "node:path";
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { ConversationStore, type StreamPromptResult } from "./conversations.ts";
 import { translateAgentEvent } from "./events.ts";
 import { SseWriter } from "./sse.ts";
@@ -90,7 +91,9 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 		}
 		throw e;
 	}
-	const store = new ConversationStore(config);
+	const db = createDb(config.dbFile);
+	migrate(db, { migrationsFolder: "./drizzle" });
+	const store = new ConversationStore(config, db);
 	const hostname = opts.hostname ?? config.host;
 	const port = opts.port ?? config.port;
 
@@ -107,7 +110,7 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 					server.timeout(req, 0);
 					// Fresh conversation: not_found/conflict are impossible, but the
 					// type still asks us to handle them.
-					const result = store.streamPrompt(id, parsed.message);
+					const result = await store.streamPrompt(id, parsed.message);
 					if (!result.ok) return rejectStream(result);
 					return pipeAgentStream(store, result, id, (w) => w.write("conversation_created", { id }));
 				},
@@ -118,15 +121,15 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 					const parsed = await readMessage(req);
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
 					server.timeout(req, 0);
-					const result = store.streamPrompt(id, parsed.message);
+					const result = await store.streamPrompt(id, parsed.message);
 					if (!result.ok) return rejectStream(result);
 					return pipeAgentStream(store, result, id);
 				},
 			},
 			"/conversations/:id": {
-				GET: (req) => {
+				GET: async (req) => {
 					const id = req.params.id;
-					const conv = store.get(id);
+					const conv = await store.get(id);
 					if (!conv)
 						return Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
 					const messages = conv.agent.state.messages;

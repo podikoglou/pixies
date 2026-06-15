@@ -12,20 +12,23 @@
     "start": "bun run --filter '@pixies/tui' start",
     "dev": "bun run --filter '@pixies/tui' start",
     "dev:tui": "bun run --watch packages/tui/src/index.ts",
-		"dev:server": "bun run --watch packages/server/src/index.ts",
+    "dev:server": "bun run --watch packages/server/src/index.ts",
     "dev:web": "bun run --filter '@pixies/web' dev",
     "build:web": "bun run --filter '@pixies/web' build",
     "typecheck": "bun run --filter '@pixies/*' typecheck",
     "format": "bun run --filter '@pixies/*' format",
     "format:check": "bun run --filter '@pixies/*' format:check",
     "lint": "bun run --filter '@pixies/*' lint",
-    "lint:fix": "bun run --filter '@pixies/*' lint:fix"
+    "lint:fix": "bun run --filter '@pixies/*' lint:fix",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
+    "@typescript/native-preview": "^7.0.0-dev.20260423.1",
+    "drizzle-kit": "^0.31.10",
     "lefthook": "^2.1.9",
     "oxfmt": "^0.54.0",
-    "oxlint": "^1.69.0",
-    "@typescript/native-preview": "^7.0.0-dev.20260423.1"
+    "oxlint": "^1.69.0"
   }
 }
