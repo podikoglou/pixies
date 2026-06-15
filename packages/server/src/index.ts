@@ -77,6 +77,11 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 					const parsed = await readMessage(req);
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
 					const conv = store.create();
+					if (!conv)
+						return Response.json(
+							{ error: "conversation limit reached, try again later" },
+							{ status: 503 },
+						);
 					server.timeout(req, 0);
 					return streamPrompt(conv, parsed.message, conv.id);
 				},

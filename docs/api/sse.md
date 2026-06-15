@@ -26,6 +26,7 @@ Server configuration via env vars:
 | `PIXIES_CONTACT_EMAIL` | (optional) | Passed to Nominatim/Overpass as `email=` per OSM usage policy |
 | `PIXIES_OVERPASS_URL` | (optional) | Override Overpass endpoint |
 | `PIXIES_NOMINATIM_URL` | (optional) | Override Nominatim endpoint |
+| `PIXIES_MAX_CONVERSATIONS` | `100` | Max concurrent in-memory conversations; further `POST /conversations` returns 503 |
 
 ## Authentication
 
@@ -75,6 +76,14 @@ The first event is always `conversation_created`, containing the new conversatio
 ```json
 { "error": "missing required field: message" }
 ```
+
+**Response (503):** `application/json`
+
+```json
+{ "error": "conversation limit reached, try again later" }
+```
+
+Returned when the server is at capacity (`PIXIES_MAX_CONVERSATIONS` concurrent conversations, default 100). Clients should inform the user; retrying after an existing conversation is deleted or expires (24h TTL) will succeed.
 
 **Response (500):** `application/json`
 

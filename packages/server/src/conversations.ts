@@ -21,7 +21,8 @@ export class ConversationStore {
 		this.sweeper = setInterval(() => this.sweep(), SWEEP_INTERVAL_MS);
 	}
 
-	create(): Conversation {
+	create(): Conversation | null {
+		if (this.conversations.size >= this.config.maxConversations) return null;
 		const conv: Conversation = {
 			id: uuidv7(),
 			agent: createAgent({ config: this.config }),
