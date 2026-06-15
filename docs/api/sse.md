@@ -26,6 +26,8 @@ Server configuration via env vars:
 | `PIXIES_CONTACT_EMAIL` | (optional) | Passed to Nominatim/Overpass as `email=` per OSM usage policy |
 | `PIXIES_OVERPASS_URL` | (optional) | Override Overpass endpoint |
 | `PIXIES_NOMINATIM_URL` | (optional) | Override Nominatim endpoint |
+| `PIXIES_USER_AGENT` | `Pixies` | `User-Agent` header sent to OSM APIs |
+| `PIXIES_THINKING_LEVEL` | `off` | LLM reasoning level: `off` \| `low` \| `medium` \| `high` |
 
 ## Authentication
 
