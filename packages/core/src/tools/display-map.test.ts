@@ -52,9 +52,9 @@ test("queryRef mode — forwards bounds", async () => {
 });
 
 test("XOR guard — both markers and queryRef throws", async () => {
-	expect(
-		execute({ markers: [{ lat: 1, lon: 2 }], queryRef: "toolu_abc" }),
-	).rejects.toThrow("not both");
+	expect(execute({ markers: [{ lat: 1, lon: 2 }], queryRef: "toolu_abc" })).rejects.toThrow(
+		"not both",
+	);
 });
 
 test("XOR guard — neither markers nor queryRef throws", async () => {
