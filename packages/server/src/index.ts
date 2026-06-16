@@ -59,6 +59,7 @@ function pipeAgentStream(
 	store: ConversationStore,
 	result: Extract<StreamPromptResult, { ok: true }>,
 	abortId: string,
+	logger: Logger,
 	onOpen?: (writer: SseWriter) => void,
 ): Response {
 	const writer = new SseWriter(() => store.abort(abortId));
@@ -71,6 +72,10 @@ function pipeAgentStream(
 			}
 			writer.write("done", {});
 		} catch (err) {
+			logger.error(
+				{ conversationId: abortId, err: err instanceof Error ? err : new Error(String(err)) },
+				"agent stream error",
+			);
 			writer.write("error", { message: err instanceof Error ? err.message : String(err) });
 		} finally {
 			writer.close();
@@ -133,7 +138,9 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 					// type still asks us to handle them.
 					const result = await store.streamPrompt(id, parsed.message);
 					if (!result.ok) return rejectStream(result);
-					return pipeAgentStream(store, result, id, (w) => w.write("conversation_created", { id }));
+					return pipeAgentStream(store, result, id, logger, (w) =>
+						w.write("conversation_created", { id }),
+					);
 				},
 			},
 			"/conversations/:id/messages": {
@@ -146,7 +153,7 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 					server.timeout(req, 0);
 					const result = await store.streamPrompt(id, parsed.message);
 					if (!result.ok) return rejectStream(result);
-					return pipeAgentStream(store, result, id);
+					return pipeAgentStream(store, result, id, logger);
 				},
 			},
 			"/conversations/:id": {
