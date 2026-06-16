@@ -11,6 +11,7 @@ import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { ConversationStore, type StreamPromptResult } from "./conversations.ts";
 import { translateAgentEvent } from "./events.ts";
 import { SseWriter } from "./sse.ts";
+import { IpRateLimiter, checkRateLimit } from "./rate-limit.ts";
 
 const WEB_DIST = process.env.PIXIES_WEB_DIST ?? path.resolve(import.meta.dir, "../../web/dist");
 
@@ -99,6 +100,14 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 	const db = createDb(config.dbFile);
 	migrate(db, { migrationsFolder: "./drizzle" });
 	const store = new ConversationStore(config, db);
+	// In-process per-IP limiter for the two LLM-cost POST endpoints. Works in
+	// dev and prod; Caddy-side limiting remains an optional future
+	// defense-in-depth (stock Caddy has no rate-limit plugin). See #91.
+	const rateLimiter = new IpRateLimiter({
+		maxRequests: config.httpRateLimit,
+		windowMs: config.httpRateLimitWindowMs,
+		trustProxy: config.trustProxy,
+	});
 	const hostname = opts.hostname ?? config.host;
 	const port = opts.port ?? config.port;
 
@@ -109,6 +118,8 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 			"/health": () => Response.json({ status: "ok", conversations: store.size() }),
 			"/conversations": {
 				POST: async (req, server) => {
+					const denied = checkRateLimit(req, server, rateLimiter);
+					if (denied) return denied;
 					const parsed = await readMessage(req);
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
 					const id = store.create();
@@ -122,6 +133,8 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 			},
 			"/conversations/:id/messages": {
 				POST: async (req, server) => {
+					const denied = checkRateLimit(req, server, rateLimiter);
+					if (denied) return denied;
 					const id = req.params.id;
 					const parsed = await readMessage(req);
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
