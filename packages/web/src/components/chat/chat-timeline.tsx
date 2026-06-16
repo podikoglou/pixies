@@ -10,18 +10,9 @@ interface ChatTimelineProps {
 	state: ChatState;
 }
 
-function renderDisplayMap(
-	data: DisplayMapData,
-	items: TimelineItem[],
-	currentIndex: number,
-) {
+function renderDisplayMap(data: DisplayMapData, items: TimelineItem[], currentIndex: number) {
 	if (data.queryRef) {
-		const markers = resolveMapMarkers(
-			data.queryRef,
-			data.elementIds,
-			items,
-			currentIndex,
-		);
+		const markers = resolveMapMarkers(data.queryRef, data.elementIds, items, currentIndex);
 		if (markers === null || markers.length === 0) {
 			return (
 				<div className="text-muted-foreground flex h-[400px] w-full items-center justify-center rounded-md border text-sm">

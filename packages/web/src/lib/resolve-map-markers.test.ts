@@ -149,9 +149,7 @@ test("fallback — exact match still preferred over positional fallback", () => 
 	const nearEntries: OverpassResultEntry[] = [
 		{ type: "node", id: 1, lat: 1, lon: 1, name: "near" },
 	];
-	const farEntries: OverpassResultEntry[] = [
-		{ type: "node", id: 2, lat: 2, lon: 2, name: "far" },
-	];
+	const farEntries: OverpassResultEntry[] = [{ type: "node", id: 2, lat: 2, lon: 2, name: "far" }];
 	const items: TimelineItem[] = [
 		osmItem("call-fallback", farEntries),
 		osmItem("call-exact", nearEntries),
