@@ -1,11 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import {
-	IpRateLimiter,
-	getClientIp,
-	rateLimitResponse,
-	checkRateLimit,
-} from "./rate-limit.ts";
+import { IpRateLimiter, getClientIp, rateLimitResponse, checkRateLimit } from "./rate-limit.ts";
 
 /** Minimal Bun.Server stand-in exposing only `requestIP`. */
 function fakeServer(address: string | null) {
