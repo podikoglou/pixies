@@ -18,7 +18,7 @@ function isAbortError(err: unknown): boolean {
 	);
 }
 
-function dispatchSseEvent(evt: SSEEvent, dispatch: Dispatch<ChatAction>): void {
+export function dispatchSseEvent(evt: SSEEvent, dispatch: Dispatch<ChatAction>): void {
 	switch (evt.event) {
 		case "conversation_created":
 			dispatch({ type: "CONVERSATION_CREATED", id: evt.data.id });
