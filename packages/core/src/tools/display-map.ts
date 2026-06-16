@@ -79,9 +79,7 @@ export function createDisplayMapTool(): AgentTool<typeof schema, DisplayMapToolD
 			}
 
 			return {
-				content: [
-					{ type: "text", text: `Displaying ${params.markers!.length} marker(s) on map.` },
-				],
+				content: [{ type: "text", text: `Displaying ${params.markers!.length} marker(s) on map.` }],
 				details: {
 					data: {
 						markers: params.markers!,
