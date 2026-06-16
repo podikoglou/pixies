@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same branch/PR to keep CI fast.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    name: format / typecheck / lint / test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Bun is the workspace's runtime and toolchain. No version is pinned in
+      # package.json (no `packageManager` / `engines.bun`), so this installs the
+      # latest stable Bun.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Gates run sequentially; the first failure fails the job (and the PR
+      # check). See #66.
+      - name: Format check
+        run: bun run format:check
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Lint
+        run: bun run lint
+
+      # Only @pixies/core and @pixies/web have `test` scripts; @pixies/server
+      # and @pixies/tui do not, so tests are filtered explicitly.
+      - name: Test @pixies/core
+        run: bun run --filter '@pixies/core' test
+
+      - name: Test @pixies/web
+        run: bun run --filter '@pixies/web' test
