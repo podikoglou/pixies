@@ -94,7 +94,7 @@ test("tool_execution_end does not fire callback and dispatches TOOL_END", () => 
 	]);
 });
 
-test("done does not fire callback and dispatches STREAM_DONE", () => {
+test("done without durationMs dispatches STREAM_DONE with undefined responseTimeMs", () => {
 	const { dispatch, actions } = capture();
 	const evt: SSEEvent = { event: "done", data: {} };
 
@@ -102,7 +102,18 @@ test("done does not fire callback and dispatches STREAM_DONE", () => {
 		throw new Error("should not fire");
 	});
 
-	expect(actions).toEqual([{ type: "STREAM_DONE" }]);
+	expect(actions).toEqual([{ type: "STREAM_DONE", responseTimeMs: undefined }]);
+});
+
+test("done with durationMs dispatches STREAM_DONE with responseTimeMs", () => {
+	const { dispatch, actions } = capture();
+	const evt: SSEEvent = { event: "done", data: { durationMs: 1234 } };
+
+	dispatchSseEvent(evt, dispatch, () => {
+		throw new Error("should not fire");
+	});
+
+	expect(actions).toEqual([{ type: "STREAM_DONE", responseTimeMs: 1234 }]);
 });
 
 test("error does not fire callback and dispatches SET_ERROR", () => {
