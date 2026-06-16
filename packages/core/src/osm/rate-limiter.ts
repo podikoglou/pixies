@@ -51,8 +51,14 @@ export interface RateLimiter {
  */
 export function createRateLimiter(opts: RateLimiterOptions): RateLimiter {
 	// Only pass defined optional fields — p-queue's spread treats an explicit
-	// `undefined` as overriding its own Infinity defaults, throwing.
-	const queueOpts: ConstructorParameters<typeof PQueue>[0] = { concurrency: opts.concurrency };
+	// `undefined` as overriding its own Infinity defaults, throwing. Declare a
+	// mutable shape (PQueue's `Options` marks these readonly).
+	const queueOpts: {
+		concurrency: number;
+		intervalCap?: number;
+		interval?: number;
+		strict?: boolean;
+	} = { concurrency: opts.concurrency };
 	if (opts.intervalCap !== undefined) queueOpts.intervalCap = opts.intervalCap;
 	if (opts.interval !== undefined) queueOpts.interval = opts.interval;
 	if (opts.strict !== undefined) queueOpts.strict = opts.strict;
