@@ -16,9 +16,7 @@ COPY --from=install /app/node_modules ./node_modules
 COPY packages/web ./packages/web
 COPY packages/core ./packages/core
 COPY tsconfig.base.json tsconfig.json ./
-WORKDIR /app/packages/web
-RUN bun run ../../node_modules/.bin/vite build
-WORKDIR /app
+RUN bun --bun vite build --config packages/web/vite.config.ts --root packages/web
 
 FROM base AS runner
 WORKDIR /app
