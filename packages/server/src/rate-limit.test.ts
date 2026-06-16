@@ -1,5 +1,6 @@
 /// <reference types="bun" />
-import { test, expect } from "bun:test";
+import { test, expect, mock } from "bun:test";
+import { type Logger } from "@pixies/core/logging";
 import { IpRateLimiter, getClientIp, rateLimitResponse, checkRateLimit } from "./rate-limit.ts";
 
 /** Minimal Bun.Server stand-in exposing only `requestIP`. */
@@ -7,6 +8,12 @@ function fakeServer(address: string | null) {
 	return {
 		requestIP: () => (address ? { address, family: "IPv4", port: 1 } : null),
 	} as unknown as Parameters<typeof getClientIp>[1];
+}
+
+/** A Logger stub capturing only `warn` calls for assertion. */
+function warnLogger() {
+	const warn = mock((_obj: unknown, _msg?: string) => {});
+	return { warn, logger: { warn } as unknown as Logger };
 }
 
 // ---- IpRateLimiter.consume --------------------------------------------------
@@ -109,11 +116,31 @@ test("checkRateLimit: returns 429 once over the limit", () => {
 	expect(denied!.status).toBe(429);
 });
 
-test("checkRateLimit: unknown IP is allowed (null requestIP)", () => {
+test("checkRateLimit: warns with diagnostic fields when a request is denied", () => {
+	const { warn, logger } = warnLogger();
+	const server = fakeServer("1.2.3.4");
+	const req = new Request("https://x.example/", { method: "POST" });
+	const limiter = new IpRateLimiter({ maxRequests: 1, windowMs: 1000, trustProxy: false, logger });
+	expect(checkRateLimit(req, server, limiter)).toBeNull(); // allowed (count 1)
+	const denied = checkRateLimit(req, server, limiter);
+	expect(denied).toBeInstanceOf(Response);
+	expect(denied!.status).toBe(429);
+	expect(warn).toHaveBeenCalledTimes(1);
+	const [obj, msg] = warn.mock.calls[0]!;
+	expect(msg).toBe("rate limit denied");
+	expect(obj).toMatchObject({ ip: "1.2.3.4", requestCount: 2, maxRequests: 1 });
+});
+
+test("checkRateLimit: unknown IP is allowed and warns (null requestIP)", () => {
+	const { warn, logger } = warnLogger();
 	const server = fakeServer(null);
 	const req = new Request("https://x.example/", { method: "POST" });
-	const limiter = new IpRateLimiter({ maxRequests: 1, windowMs: 1000, trustProxy: false });
-	// Repeated requests with no resolvable IP must never be denied.
+	const limiter = new IpRateLimiter({ maxRequests: 1, windowMs: 1000, trustProxy: false, logger });
+	// Repeated requests with no resolvable IP must never be denied, and each
+	// emits a no-IP warning so operators can spot a misconfigured proxy.
 	expect(checkRateLimit(req, server, limiter)).toBeNull();
 	expect(checkRateLimit(req, server, limiter)).toBeNull();
+	expect(warn).toHaveBeenCalledTimes(2);
+	expect(warn.mock.calls[0]![1]).toBe("could not determine client IP; allowing request");
+	expect(warn.mock.calls[0]![0]).toMatchObject({ event: "rate_limit_no_ip" });
 });

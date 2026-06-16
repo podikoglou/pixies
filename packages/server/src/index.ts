@@ -111,6 +111,7 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 		maxRequests: config.httpRateLimit,
 		windowMs: config.httpRateLimitWindowMs,
 		trustProxy: config.trustProxy,
+		logger,
 	});
 	const hostname = opts.hostname ?? config.host;
 	const port = opts.port ?? config.port;
