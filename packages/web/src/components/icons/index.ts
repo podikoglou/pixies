@@ -16,6 +16,9 @@ export type { XIconHandle } from "./x";
 export { SparklesIcon } from "./sparkles";
 export type { SparklesIconHandle } from "./sparkles";
 
+export { CompassIcon } from "./compass";
+export type { CompassIconHandle } from "./compass";
+
 export { ChevronRightIcon } from "./chevron-right";
 export type { ChevronRightIconHandle } from "./chevron-right";
 
