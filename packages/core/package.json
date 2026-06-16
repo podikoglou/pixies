@@ -17,14 +17,15 @@
     "typecheck": "tsgo",
     "format": "oxfmt src",
     "format:check": "oxfmt --check src",
-		"lint": "oxlint src",
-		"lint:fix": "oxlint --fix src",
-		"test": "bun test"
+    "lint": "oxlint src",
+    "lint:fix": "oxlint --fix src",
+    "test": "bun test"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.79.3",
     "@earendil-works/pi-ai": "0.79.3",
     "drizzle-orm": "^0.45.2",
+    "p-queue": "^9.3.0",
     "typebox": "1.1.38",
     "zod": "^4.4.3"
   },
