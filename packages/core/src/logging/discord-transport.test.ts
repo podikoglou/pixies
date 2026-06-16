@@ -45,7 +45,7 @@ test("error-level entry POSTs to Discord with an embed body", async () => {
 	expect(init?.method).toBe("POST");
 	const body = JSON.parse(init?.body as string);
 	expect(body.username).toBe("pixies");
-	expect(body.embeds[0].title).toBe("🚨 pixies — error");
+	expect(body.embeds[0].title).toBe("pixies — error");
 	expect(body.embeds[0].description).toBe("something failed");
 	expect(body.embeds[0].color).toBe(0xed4245);
 });
@@ -135,7 +135,7 @@ test("fatal-level (60) entry gets fatal title and black color", async () => {
 	expect(fetchFn).toHaveBeenCalledTimes(1);
 	const [, init] = fetchFn.mock.calls[0]!;
 	const body = JSON.parse(init?.body as string);
-	expect(body.embeds[0].title).toBe("🚨 pixies — fatal");
+	expect(body.embeds[0].title).toBe("pixies — fatal");
 	expect(body.embeds[0].color).toBe(0x000000);
 	expect(body.embeds[0].timestamp).toBe(new Date(time).toISOString());
 });

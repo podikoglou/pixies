@@ -132,7 +132,7 @@ export function formatDiscordPayload(entry: PinoLogEntry): {
 	const severity = isFatal ? "fatal" : "error";
 
 	const embed: Record<string, unknown> = {
-		title: `🚨 pixies — ${severity}`,
+		title: `pixies — ${severity}`,
 		description: truncate(String(entry.msg ?? "(no message)"), MAX_DESCRIPTION),
 		color: isFatal ? COLOR_FATAL : COLOR_ERROR,
 	};
