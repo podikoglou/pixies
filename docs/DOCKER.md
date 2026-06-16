@@ -29,14 +29,7 @@ automatically provisions Let's Encrypt certificates for your domain.
 Caddy listens on ports 80 and 443 and proxies to `pixies:3000`. No ports need
 to be exposed directly for the pixies service in production.
 
-### Deploy script
 
-A template `deploy.sh` (gitignored) is included. It uses `rsync` to push code
-to a server and runs `docker compose up -d --build` remotely:
-
-```sh
-./deploy.sh user@yourserver.com pixies
-```
 
 ## Environment variables
 
@@ -50,7 +43,7 @@ to a server and runs `docker compose up -d --build` remotely:
 | `PIXIES_PORT` | no | `3000` | Listen port |
 | `PIXIES_DB_FILE` | no | `pixies.db` | SQLite database path (set to `/app/data/pixies.db` in compose to persist via volume) |
 | `PIXIES_CACHE_SIZE` | no | `50` | Max in-memory conversation cache |
-| `PIXIES_THINKING_LEVEL` | no | `off` | AI thinking level |
+| `PIXIES_THINKING_LEVEL` | no | `off` | AI thinking level: `off`, `low`, `medium`, `high` |
 | `PIXIES_CONTACT_EMAIL` | no | — | Contact email sent in OSM API requests |
 | `PIXIES_OVERPASS_URL` | no | `https://overpass-api.de/api/interpreter` | Custom Overpass API endpoint |
 | `PIXIES_NOMINATIM_URL` | no | `https://nominatim.openstreetmap.org` | Custom Nominatim endpoint |
