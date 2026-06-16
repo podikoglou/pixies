@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 interface AssistantMessageProps {
 	text: string;
 	streaming?: boolean;
+	responseTimeMs?: number;
 }
 
 const components: Components = {
@@ -74,7 +75,15 @@ const components: Components = {
 	td: ({ children }) => <TableCell>{children}</TableCell>,
 };
 
-export function AssistantMessage({ text, streaming }: AssistantMessageProps) {
+function formatTime(ms: number): string {
+	if (ms < 1000) return `${Math.round(ms)}ms`;
+	if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+	const minutes = Math.floor(ms / 60000);
+	const seconds = Math.round((ms % 60000) / 1000);
+	return `${minutes}m ${seconds}s`;
+}
+
+export function AssistantMessage({ text, streaming, responseTimeMs }: AssistantMessageProps) {
 	return (
 		<div className="text-foreground w-full min-w-0 break-words overflow-hidden text-sm">
 			<Markdown
@@ -84,6 +93,9 @@ export function AssistantMessage({ text, streaming }: AssistantMessageProps) {
 			>
 				{text}
 			</Markdown>
+			{responseTimeMs !== undefined && (
+				<p className="text-muted-foreground mt-1 text-xs">{formatTime(responseTimeMs)}</p>
+			)}
 			{streaming && (
 				<span className="bg-foreground ml-0.5 inline-block h-4 w-2 animate-pulse rounded-sm align-text-bottom" />
 			)}

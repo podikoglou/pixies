@@ -5,6 +5,7 @@ import { resolveMapMarkers } from "@/lib/resolve-map-markers";
 import { ToolCallCard } from "./tool-call-card";
 import { MapWidget } from "./map-widget";
 import { UserMessage } from "./user-message";
+import { AssistantMessage } from "./assistant-message";
 
 interface ChatTimelineProps {
 	state: ChatState;
@@ -37,7 +38,7 @@ export function ChatTimeline({ state }: ChatTimelineProps) {
 				if (item.kind === "user-message") {
 					content = <UserMessage text={item.text} />;
 				} else if (item.kind === "assistant-message") {
-					content = <></>;
+					content = <AssistantMessage text={item.text} responseTimeMs={item.responseTimeMs} />;
 				} else if (
 					item.toolName === "display_map" &&
 					item.status === "done" &&
