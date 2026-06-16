@@ -1,5 +1,6 @@
-import { osmFetch } from "./http.ts";
+import { osmFetch, OsmServerBusyError } from "./http.ts";
 import { createRateLimiter, type RateLimitCallbacks } from "./rate-limiter.ts";
+import { silentLogger, type Logger } from "../logging/index.ts";
 import { Type } from "typebox";
 import type { Static } from "typebox";
 import { Value } from "typebox/value";
@@ -52,6 +53,8 @@ export interface NominatimConfig {
 	 * self-hosted mirrors and fast tests.
 	 */
 	intervalMs?: number;
+	/** Structured logger; defaults to silent. */
+	logger?: Logger;
 }
 
 export class NominatimClient {
@@ -59,6 +62,7 @@ export class NominatimClient {
 	private readonly contactEmail?: string;
 	private readonly userAgent: string;
 	private readonly fetchFn: typeof globalThis.fetch;
+	private readonly logger: Logger;
 	/**
 	 * Shared p-queue limiter enforcing Nominatim's per-IP policy:
 	 * concurrency 1, at most 1 request per `intervalMs` (strict sliding
@@ -74,6 +78,7 @@ export class NominatimClient {
 		this.contactEmail = config.contactEmail;
 		this.userAgent = config.userAgent;
 		this.fetchFn = config.fetch ?? globalThis.fetch;
+		this.logger = config.logger ?? silentLogger;
 		// Build the limiter from the three per-instance knobs (defaults equal
 		// the public instance policy: 1/1/1100ms). `strict` stays an internal
 		// Nominatim default — useful for self-hosted mirrors and tests.
@@ -82,6 +87,8 @@ export class NominatimClient {
 			intervalCap: config.intervalCap ?? 1,
 			interval: config.intervalMs ?? 1100,
 			strict: true,
+			service: "Nominatim",
+			logger: this.logger,
 		});
 	}
 
@@ -98,15 +105,35 @@ export class NominatimClient {
 		url: URL,
 		signal?: AbortSignal,
 		opts: RateLimitCallbacks = {},
-	): Promise<unknown> {
+	): Promise<{ json: unknown; statusCode: number; contentType: string }> {
+		const service = "Nominatim";
 		return this.limiter.withRateLimit(
 			async () => {
-				const res = await osmFetch(url, this.fetchFn, {
-					service: "Nominatim",
-					headers: { "User-Agent": this.userAgent },
-					signal,
-				});
-				return res.json();
+				this.logger.debug({ service, url: url.toString() }, "request");
+				const start = Date.now();
+				let res: Response;
+				try {
+					res = await osmFetch(url, this.fetchFn, {
+						service,
+						headers: { "User-Agent": this.userAgent },
+						signal,
+					});
+				} catch (err) {
+					if (err instanceof OsmServerBusyError) {
+						this.logger.warn(
+							{ service, statusCode: err.status, event: "server_busy" },
+							"OSM server busy",
+						);
+					}
+					throw err;
+				}
+				this.logger.debug(
+					{ service, statusCode: res.status, durationMs: Date.now() - start },
+					"response",
+				);
+				const contentType = res.headers.get("content-type") ?? "";
+				const json = await res.json();
+				return { json, statusCode: res.status, contentType };
 			},
 			signal,
 			opts,
@@ -125,8 +152,12 @@ export class NominatimClient {
 			limit: opts.limit,
 			addressdetails: 1,
 		});
-		const json = await this.fetchJson(url, signal, callbacks);
+		const { json, statusCode, contentType } = await this.fetchJson(url, signal, callbacks);
 		if (!Array.isArray(json) || !json.every((item) => Value.Check(NominatimResultSchema, item))) {
+			this.logger.warn(
+				{ service: "Nominatim", statusCode, contentType },
+				"invalid search response shape",
+			);
 			throw new Error("Nominatim: invalid search response shape");
 		}
 		return json as NominatimResult[];
@@ -146,15 +177,24 @@ export class NominatimClient {
 			zoom: opts.zoom,
 			addressdetails: 1,
 		});
-		const json = await this.fetchJson(url, signal, callbacks);
+		const { json, statusCode, contentType } = await this.fetchJson(url, signal, callbacks);
 		if (typeof json !== "object" || json === null) {
+			this.logger.warn(
+				{ service: "Nominatim", statusCode, contentType },
+				"invalid reverse response",
+			);
 			throw new Error("Nominatim: invalid reverse response");
 		}
 		const result = json as NominatimResult | { error?: string };
 		if ("error" in result && result.error) {
+			this.logger.warn({ service: "Nominatim", statusCode, contentType }, "reverse error response");
 			throw new Error(`Nominatim: ${result.error}`);
 		}
 		if (!Value.Check(NominatimResultSchema, result)) {
+			this.logger.warn(
+				{ service: "Nominatim", statusCode, contentType },
+				"invalid reverse response shape",
+			);
 			throw new Error("Nominatim: invalid reverse response shape");
 		}
 		return result;

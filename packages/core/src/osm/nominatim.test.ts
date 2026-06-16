@@ -3,6 +3,7 @@ import { test, expect, mock } from "bun:test";
 import { NominatimClient } from "./nominatim.ts";
 import { OsmServerBusyError } from "./http.ts";
 import { createOsmClients } from "../agent.ts";
+import { type Logger } from "../logging/index.ts";
 
 /** Build a JSON `Response`-like object osmFetch treats as a success. */
 function jsonResponse(data: unknown): Response {
@@ -21,13 +22,21 @@ function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
 	return { promise, resolve };
 }
 
-function makeClient(fetch: typeof globalThis.fetch, intervalMs = 40) {
+function makeClient(fetch: typeof globalThis.fetch, intervalMs = 40, logger?: Logger) {
 	return new NominatimClient({
 		baseUrl: "https://nominatim.example.com",
 		userAgent: "pixies-test",
 		fetch,
 		intervalMs,
+		logger,
 	});
+}
+
+/** A Logger stub capturing `debug` + `warn` calls for assertion. */
+function mockLogger() {
+	const debug = mock((_obj: unknown, _msg?: string) => {});
+	const warn = mock((_obj: unknown, _msg?: string) => {});
+	return { debug, warn, logger: { debug, warn } as unknown as Logger };
 }
 
 // ---- ADR-0004 invariant: one client serializes its requests ------------------
@@ -148,4 +157,53 @@ test("reverse() returns the parsed result", async () => {
 
 	const result = await client.reverse(52.5, 13.4);
 	expect(result?.display_name).toBe("Berlin");
+});
+
+// ---- request / busy / invalid-response logging -------------------------------
+
+test("logs request and response at debug on a successful search", async () => {
+	const { debug, logger } = mockLogger();
+	const fetchMock = mock(() => Promise.resolve(jsonResponse([]))) as unknown as typeof fetch;
+	const client = makeClient(fetchMock, 40, logger);
+
+	await client.search("Berlin");
+
+	const reqLog = debug.mock.calls.find((c) => c[1] === "request")![0] as Record<string, unknown>;
+	expect(reqLog).toMatchObject({ service: "Nominatim" });
+	expect(String(reqLog.url)).toContain("/search");
+	const resLog = debug.mock.calls.find((c) => c[1] === "response")![0] as Record<string, unknown>;
+	expect(resLog).toMatchObject({ service: "Nominatim", statusCode: 200 });
+	expect(typeof resLog.durationMs).toBe("number");
+});
+
+test("logs server_busy at warn when OSM returns 429", async () => {
+	const { warn, logger } = mockLogger();
+	const fetchMock = mock(() =>
+		Promise.resolve(new Response("too busy", { status: 429 })),
+	) as unknown as typeof fetch;
+	const client = makeClient(fetchMock, 40, logger);
+
+	await expect(client.search("Berlin")).rejects.toBeInstanceOf(OsmServerBusyError);
+	expect(warn).toHaveBeenCalledTimes(1);
+	const [obj, msg] = warn.mock.calls[0]!;
+	expect(msg).toBe("OSM server busy");
+	expect(obj).toMatchObject({ service: "Nominatim", statusCode: 429, event: "server_busy" });
+});
+
+test("logs invalid search response shape at warn before throwing", async () => {
+	const { warn, logger } = mockLogger();
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse({ not: "an array" })),
+	) as unknown as typeof fetch;
+	const client = makeClient(fetchMock, 40, logger);
+
+	await expect(client.search("Berlin")).rejects.toThrow("invalid search response shape");
+	expect(warn).toHaveBeenCalledTimes(1);
+	const [obj, msg] = warn.mock.calls[0]!;
+	expect(msg).toBe("invalid search response shape");
+	expect(obj).toMatchObject({
+		service: "Nominatim",
+		statusCode: 200,
+		contentType: "application/json",
+	});
 });

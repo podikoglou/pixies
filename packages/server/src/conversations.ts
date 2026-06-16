@@ -60,6 +60,7 @@ export class ConversationStore {
 			overpassConcurrency: config.overpassConcurrency,
 			overpassIntervalCap: config.overpassIntervalCap,
 			overpassIntervalMs: config.overpassIntervalMs,
+			logger: this.logger,
 		});
 		this.sweeper = setInterval(() => this.sweep(), SWEEP_INTERVAL_MS);
 	}
