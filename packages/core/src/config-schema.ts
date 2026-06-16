@@ -60,6 +60,11 @@ export const PixiesConfigSchema = z.object({
 		.number()
 		.default(1000)
 		.describe("Overpass interval window length in ms (default-instance policy: 1000)"),
+	discordWebhookUrl: z
+		.string()
+		.url()
+		.optional()
+		.describe("Discord webhook URL to receive error/fatal log alerts"),
 });
 
 export type PixiesConfig = z.input<typeof PixiesConfigSchema>;

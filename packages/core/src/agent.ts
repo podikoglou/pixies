@@ -76,6 +76,7 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 			process.env.PIXIES_OVERPASS_INTERVAL_MS !== undefined
 				? Number(process.env.PIXIES_OVERPASS_INTERVAL_MS)
 				: undefined,
+		discordWebhookUrl: process.env.PIXIES_DISCORD_WEBHOOK_URL,
 	};
 
 	return PixiesConfigSchema.parse(raw);
