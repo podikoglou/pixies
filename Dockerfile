@@ -6,6 +6,7 @@ COPY package.json bun.lock ./
 COPY packages/core/package.json ./packages/core/
 COPY packages/server/package.json ./packages/server/
 COPY packages/web/package.json ./packages/web/
+COPY packages/tui/package.json ./packages/tui/
 RUN bun install --frozen-lockfile
 
 FROM base AS build-web
