@@ -6,16 +6,6 @@
  * `error` or above (the multistream already filters by level, but this guards
  * against accidental misconfiguration), and fires a **non-blocking** POST to a
  * Discord webhook formatted as an embed.
- *
- * Design notes (see handoff for #90):
- * - Uses pino's `multistream`, NOT worker-thread `pino.transport()`. Worker
- *   transports add Bun-compat risk and complicate `fetch` injection; this
- *   `_write` is already fire-and-forget so it never blocks pino on the network.
- * - `maxConcurrent` caps in-flight POSTs to prevent fetch storms under error
- *   loops (e.g. DB down → every request logs). Dropped entries are still on
- *   stdout. v1 does not retry on 429/5xx — rely on stdout for completeness.
- * - `fetch` is injectable so tests never hit the network (mirrors the OSM
- *   client fetch-injection pattern from ADR-0004).
  */
 import { Writable } from "node:stream";
 

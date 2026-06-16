@@ -31,8 +31,7 @@ export interface CreateLoggerOptions {
 
 /**
  * Silent no-op logger — safe default for tests / opt-out. Immutable and
- * stateless, so a module-level constant is fine (unlike the process-wide OSM
- * rate-limit chain that ADR-0004 moved off module scope).
+ * stateless, so a module-level constant is fine.
  */
 export const silentLogger: Logger = pino({ level: "silent" });
 
