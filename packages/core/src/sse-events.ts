@@ -90,7 +90,9 @@ export const ToolExecutionEndData = Type.Object({
 	result: ToolResultSchema,
 });
 
-export const DoneData = Type.Object({});
+export const DoneData = Type.Object({
+	durationMs: Type.Optional(Type.Number()),
+});
 
 export const ErrorData = Type.Object({
 	message: Type.String(),

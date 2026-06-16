@@ -2,7 +2,7 @@ import type { ConversationTranscript } from "../api/conversations.ts";
 import { parseToolResult, summarizeResult, type ToolProgress, type ToolResult } from "@pixies/core";
 
 export type TimelineItem =
-	| { kind: "user-message"; text: string }
+	| { kind: "user-message"; text: string; responseTimeMs?: number }
 	| { kind: "assistant-message"; text: string; responseTimeMs?: number }
 	| {
 			kind: "tool-call";
@@ -14,6 +14,7 @@ export type TimelineItem =
 			resultText: string | null;
 			result: ToolResult;
 			summary: string | null;
+			responseTimeMs?: number;
 	  };
 
 export interface ChatState {
@@ -48,7 +49,7 @@ export type ChatAction =
 			resultText: string | null;
 			details: unknown;
 	  }
-	| { type: "STREAM_DONE" }
+	| { type: "STREAM_DONE"; responseTimeMs?: number }
 	| { type: "SET_ERROR"; message: string }
 	| { type: "RESET" };
 
@@ -122,8 +123,15 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 					};
 				}),
 			};
-		case "STREAM_DONE":
-			return { ...state, isStreaming: false };
+		case "STREAM_DONE": {
+			const { responseTimeMs } = action;
+			if (responseTimeMs === undefined || state.items.length === 0)
+				return { ...state, isStreaming: false };
+			const items = [...state.items];
+			const last = items[items.length - 1];
+			items[items.length - 1] = { ...last, responseTimeMs } as TimelineItem;
+			return { ...state, isStreaming: false, items };
+		}
 		case "SET_ERROR":
 			return { ...state, isStreaming: false, error: action.message };
 		case "RESET":

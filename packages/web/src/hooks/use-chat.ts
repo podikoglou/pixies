@@ -73,7 +73,7 @@ export function dispatchSseEvent(
 			});
 			break;
 		case "done":
-			dispatch({ type: "STREAM_DONE" });
+			dispatch({ type: "STREAM_DONE", responseTimeMs: evt.data.durationMs });
 			break;
 		case "error":
 			dispatch({ type: "SET_ERROR", message: evt.data.message });
