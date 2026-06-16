@@ -18,10 +18,17 @@ function isAbortError(err: unknown): boolean {
 	);
 }
 
-export function dispatchSseEvent(evt: SSEEvent, dispatch: Dispatch<ChatAction>): void {
+export function dispatchSseEvent(
+	evt: SSEEvent,
+	dispatch: Dispatch<ChatAction>,
+	onConversationCreated?: (id: string) => void,
+): void {
 	switch (evt.event) {
 		case "conversation_created":
 			dispatch({ type: "CONVERSATION_CREATED", id: evt.data.id });
+			// Fire navigation intent here, from the event that produces the state
+			// change — not via a state-watching useEffect downstream (issue #51).
+			onConversationCreated?.(evt.data.id);
 			break;
 		case "message_start":
 			dispatch({ type: "MESSAGE_START" });
