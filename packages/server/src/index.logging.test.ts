@@ -7,7 +7,7 @@ import { conversations as conversationsTable, type DbClient } from "@pixies/core
 import { type Logger, silentLogger } from "@pixies/core/logging";
 import { type ResolvedPixiesConfig } from "@pixies/core";
 import { ConversationStore } from "./conversations.ts";
-import { pipeAgentStream, withRequestLogging } from "./index.ts";
+import { pipeAgentStream, withRequestLogging, registerGlobalHandlers } from "./index.ts";
 
 const testConfig: ResolvedPixiesConfig = {
 	model: "anthropic/claude-3-5-sonnet",
@@ -140,4 +140,44 @@ test("withRequestLogging logs method, path, statusCode, durationMs and no sensit
 	expect(obj.cookie).toBeUndefined();
 	expect(obj.query).toBeUndefined();
 	expect(obj.authorization).toBeUndefined();
+});
+
+// Task 3: registerGlobalHandlers fires logger.fatal on unhandled rejection
+test("registerGlobalHandlers fires logger.fatal on unhandled rejection", async () => {
+	let fatalCalled = false;
+	let capturedErr: unknown;
+	const countingLogger = {
+		fatal: (obj: unknown, _msg?: string) => {
+			fatalCalled = true;
+			capturedErr = (obj as Record<string, unknown>).err;
+		},
+		error: () => {},
+	} as unknown as Logger;
+
+	registerGlobalHandlers(countingLogger);
+	(process as any).emit("unhandledRejection", new Error("test rejection"));
+	await Bun.sleep(10);
+
+	expect(fatalCalled).toBe(true);
+	expect(capturedErr).toBeInstanceOf(Error);
+});
+
+// Task 3: duplicate registerGlobalHandlers calls are no-ops
+test("registerGlobalHandlers prevents duplicate handler registration", () => {
+	// The handler was already registered by the previous test.
+	// This call should be a no-op — if it registered again, emitting
+	// would increment callCount from both handlers.
+	let callCount = 0;
+	const countingLogger = {
+		fatal: () => {
+			callCount++;
+		},
+		error: () => {},
+	} as unknown as Logger;
+
+	registerGlobalHandlers(countingLogger);
+	(process as any).emit("unhandledRejection", new Error("dup test"));
+	// callCount is 0 because the flag prevented re-registration; the
+	// previous test's logger is still the one that fires.
+	expect(callCount).toBe(0);
 });
