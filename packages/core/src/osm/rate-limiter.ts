@@ -1,5 +1,6 @@
 import PQueue from "p-queue";
 import type { ToolProgress } from "../tools/progress.ts";
+import { silentLogger, type Logger } from "../logging/index.ts";
 
 /**
  * Progress callbacks invoked by {@link createRateLimiter}. Emits typed
@@ -23,6 +24,10 @@ export interface RateLimiterOptions {
 	 * boundaries. Used by Nominatim to stay strictly under 1 req/s.
 	 */
 	strict?: boolean;
+	/** Service name embedded in queue-depth/wait log lines (e.g. "Nominatim"). */
+	service?: string;
+	/** Structured logger; defaults to silent. */
+	logger?: Logger;
 }
 
 export interface RateLimiter {
@@ -64,6 +69,8 @@ export function createRateLimiter(opts: RateLimiterOptions): RateLimiter {
 	if (opts.strict !== undefined) queueOpts.strict = opts.strict;
 	const queue = new PQueue(queueOpts);
 	const concurrency = opts.concurrency;
+	const service = opts.service ?? "osm";
+	const logger = opts.logger ?? silentLogger;
 
 	return {
 		queue,
@@ -78,10 +85,26 @@ export function createRateLimiter(opts: RateLimiterOptions): RateLimiter {
 			// case; the multi-tenant contention case (ADR-0004 invariant)
 			// always has a slot occupied and emits correctly.
 			if (queue.pending >= concurrency) cb.onProgress?.({ type: "queued" });
+			if (queue.size > 0) {
+				logger.debug(
+					{ service, queueSize: queue.size, pending: queue.pending },
+					"queue backpressure",
+				);
+			}
 
+			const enqueuedAt = Date.now();
 			return queue
 				.add(
 					async () => {
+						logger.debug(
+							{
+								service,
+								waitMs: Date.now() - enqueuedAt,
+								queueSize: queue.size,
+								pending: queue.pending,
+							},
+							"rate-limit slot acquired",
+						);
 						cb.onProgress?.({ type: "running" });
 						return fn();
 					},

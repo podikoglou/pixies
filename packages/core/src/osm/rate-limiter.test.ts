@@ -2,6 +2,7 @@
 import { test, expect, mock } from "bun:test";
 import { createRateLimiter } from "./rate-limiter.ts";
 import { OsmServerBusyError } from "./http.ts";
+import { type Logger } from "../logging/index.ts";
 
 /** A deferred promise the test resolves manually to gate a running task. */
 function blocker<T = string>(): { promise: Promise<T>; resolve: (v: T) => void } {
@@ -143,4 +144,50 @@ test("exposes the underlying p-queue instance", () => {
 	const limiter = createRateLimiter({ concurrency: 2, intervalCap: 2, interval: 1000 });
 	expect(limiter.queue).toBeDefined();
 	expect(limiter.queue.concurrency).toBe(2);
+});
+
+// ---- queue-depth / wait-time debug logging ----------------------------------
+
+/** A Logger stub capturing only `debug` calls for assertion. */
+function debugLogger() {
+	const debug = mock((_obj: unknown, _msg?: string) => {});
+	return { debug, logger: { debug } as unknown as Logger };
+}
+
+test("logs queue backpressure at debug when a task is enqueued behind others", async () => {
+	const { debug, logger } = debugLogger();
+	const limiter = createRateLimiter({ concurrency: 1, service: "Test", logger });
+	const a = blocker<string>();
+
+	// A occupies the single concurrency slot.
+	const pA = limiter.withRateLimit(() => a.promise);
+	await Promise.resolve();
+	// B queues behind A.
+	limiter.withRateLimit(async () => "b");
+	// C is enqueued while B is already waiting → queue.size > 0 at enqueue.
+	limiter.withRateLimit(async () => "c");
+
+	const backpressure = debug.mock.calls.filter((c) => c[1] === "queue backpressure");
+	expect(backpressure).toHaveLength(1);
+	expect(backpressure[0]![0]).toMatchObject({ service: "Test", queueSize: 1, pending: 1 });
+
+	a.resolve("a");
+	await pA;
+});
+
+test("logs slot acquisition at debug with wait fields when a task starts", async () => {
+	const { debug, logger } = debugLogger();
+	const limiter = createRateLimiter({ concurrency: 1, service: "Test", logger });
+	const a = blocker<string>();
+
+	const pA = limiter.withRateLimit(() => a.promise);
+	await Promise.resolve();
+
+	const acquired = debug.mock.calls.filter((c) => c[1] === "rate-limit slot acquired");
+	expect(acquired).toHaveLength(1);
+	expect(acquired[0]![0]).toMatchObject({ service: "Test", queueSize: 0, pending: 1 });
+	expect(typeof (acquired[0]![0] as { waitMs: unknown }).waitMs).toBe("number");
+
+	a.resolve("a");
+	await pA;
 });
