@@ -24,6 +24,18 @@ export const PixiesConfigSchema = z.object({
 		.describe("AI thinking level"),
 	dbFile: z.string().default("pixies.db").describe("Path to SQLite database file"),
 	cacheSize: z.number().default(50).describe("Max number of in-memory conversations"),
+	httpRateLimit: z
+		.number()
+		.default(30)
+		.describe("Max POST requests per IP per rate-limit window (0 disables)"),
+	httpRateLimitWindowMs: z
+		.number()
+		.default(60_000)
+		.describe("Per-IP HTTP rate-limit window length (ms)"),
+	trustProxy: z
+		.boolean()
+		.default(false)
+		.describe("Honor X-Forwarded-For for client IP (set true behind Caddy/Nginx)"),
 });
 
 export type PixiesConfig = z.input<typeof PixiesConfigSchema>;
