@@ -43,6 +43,39 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 			process.env.PIXIES_CACHE_SIZE !== undefined
 				? Number(process.env.PIXIES_CACHE_SIZE)
 				: undefined,
+		httpRateLimit:
+			process.env.PIXIES_HTTP_RATE_LIMIT !== undefined
+				? Number(process.env.PIXIES_HTTP_RATE_LIMIT)
+				: undefined,
+		httpRateLimitWindowMs:
+			process.env.PIXIES_HTTP_RATE_LIMIT_WINDOW_MS !== undefined
+				? Number(process.env.PIXIES_HTTP_RATE_LIMIT_WINDOW_MS)
+				: undefined,
+		trustProxy: process.env.PIXIES_TRUST_PROXY === "true",
+		nominatimConcurrency:
+			process.env.PIXIES_NOMINATIM_CONCURRENCY !== undefined
+				? Number(process.env.PIXIES_NOMINATIM_CONCURRENCY)
+				: undefined,
+		nominatimIntervalCap:
+			process.env.PIXIES_NOMINATIM_INTERVAL_CAP !== undefined
+				? Number(process.env.PIXIES_NOMINATIM_INTERVAL_CAP)
+				: undefined,
+		nominatimIntervalMs:
+			process.env.PIXIES_NOMINATIM_INTERVAL_MS !== undefined
+				? Number(process.env.PIXIES_NOMINATIM_INTERVAL_MS)
+				: undefined,
+		overpassConcurrency:
+			process.env.PIXIES_OVERPASS_CONCURRENCY !== undefined
+				? Number(process.env.PIXIES_OVERPASS_CONCURRENCY)
+				: undefined,
+		overpassIntervalCap:
+			process.env.PIXIES_OVERPASS_INTERVAL_CAP !== undefined
+				? Number(process.env.PIXIES_OVERPASS_INTERVAL_CAP)
+				: undefined,
+		overpassIntervalMs:
+			process.env.PIXIES_OVERPASS_INTERVAL_MS !== undefined
+				? Number(process.env.PIXIES_OVERPASS_INTERVAL_MS)
+				: undefined,
 	};
 
 	return PixiesConfigSchema.parse(raw);
@@ -67,6 +100,12 @@ export interface CreateOsmClientsOptions {
 	contactEmail?: string;
 	userAgent: string;
 	fetch?: typeof globalThis.fetch;
+	nominatimConcurrency?: number;
+	nominatimIntervalCap?: number;
+	nominatimIntervalMs?: number;
+	overpassConcurrency?: number;
+	overpassIntervalCap?: number;
+	overpassIntervalMs?: number;
 }
 
 export function createOsmClients(options: CreateOsmClientsOptions): OsmClients {
@@ -76,11 +115,17 @@ export function createOsmClients(options: CreateOsmClientsOptions): OsmClients {
 			contactEmail: options.contactEmail,
 			userAgent: options.userAgent,
 			fetch: options.fetch,
+			concurrency: options.nominatimConcurrency,
+			intervalCap: options.nominatimIntervalCap,
+			intervalMs: options.nominatimIntervalMs,
 		}),
 		overpass: new OverpassClient({
 			baseUrl: options.overpassUrl,
 			userAgent: options.userAgent,
 			fetch: options.fetch,
+			concurrency: options.overpassConcurrency,
+			intervalCap: options.overpassIntervalCap,
+			intervalMs: options.overpassIntervalMs,
 		}),
 	};
 }
@@ -98,6 +143,12 @@ export function createAgent(options: CreateAgentOptions): Agent {
 			contactEmail: config.contactEmail,
 			userAgent: config.userAgent,
 			fetch: options.fetch,
+			nominatimConcurrency: config.nominatimConcurrency,
+			nominatimIntervalCap: config.nominatimIntervalCap,
+			nominatimIntervalMs: config.nominatimIntervalMs,
+			overpassConcurrency: config.overpassConcurrency,
+			overpassIntervalCap: config.overpassIntervalCap,
+			overpassIntervalMs: config.overpassIntervalMs,
 		});
 	const tools = createTools(clients);
 	return new Agent({

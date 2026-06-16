@@ -69,7 +69,8 @@ If the server ever becomes multi-process, this ADR's *constraint* (one chain per
 ## References
 
 - ADR-0001 — interface-independent core; this ADR refines its seam.
-- `packages/core/src/osm/nominatim.ts` — `withRateLimit` mutex, `RATE_LIMIT_MS`.
+- ADR-0005 — the bespoke Nominatim mutex is now a shared `p-queue` rate limiter; the invariant here (one client ⇒ one queue ⇒ one chain) is unchanged.
+- `packages/core/src/osm/nominatim.ts` — `createRateLimiter`-backed throttle.
 - `packages/core/src/agent.ts` — `createAgent({ osmClients })`, `createOsmClients`.
 - `packages/server/src/conversations.ts` — single `OsmClients` per `ConversationStore`.
 - `docs/api/sse.md` — Concurrency section describes the implemented invariant.

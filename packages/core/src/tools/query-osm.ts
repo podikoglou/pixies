@@ -4,6 +4,7 @@ import type { OverpassClient } from "../osm/overpass.ts";
 import { OsmServerBusyError, OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
 import { formatElement, overpassElementToData } from "../osm/format.ts";
 import type { QueryOsmToolDetails } from "./index.ts";
+import type { ToolProgress } from "./progress.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -14,17 +15,19 @@ const schema = Type.Object({
 
 export function createQueryOsmTool(
 	overpass: OverpassClient,
-): AgentTool<typeof schema, QueryOsmToolDetails | undefined> {
+): AgentTool<typeof schema, ToolProgress | QueryOsmToolDetails | undefined> {
 	return {
 		name: "query_osm",
 		label: "Query OSM",
 		description:
 			"Run an Overpass QL query against OpenStreetMap data. Use for finding features by tag, area, or geometry. Always include '[out:json]' prefix and a timeout. Use 'out center;' for ways/relations to get center coordinates.",
 		parameters: schema,
-		async execute(_toolCallId, params, signal) {
+		async execute(_toolCallId, params, signal, onUpdate) {
 			if (signal?.aborted) throw new Error("Operation aborted");
 			try {
-				const response = await overpass.query(params.query, signal);
+				const response = await overpass.query(params.query, signal, {
+					onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
+				});
 				const elements = response.elements ?? [];
 				if (elements.length === 0) {
 					return {

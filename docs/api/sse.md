@@ -28,6 +28,15 @@ Server configuration via env vars:
 | `PIXIES_NOMINATIM_URL` | (optional) | Override Nominatim endpoint |
 | `PIXIES_USER_AGENT` | `Pixies` | `User-Agent` header sent to OSM APIs |
 | `PIXIES_THINKING_LEVEL` | `off` | LLM reasoning level: `off` \| `low` \| `medium` \| `high` |
+| `PIXIES_NOMINATIM_CONCURRENCY` | `1` | Max concurrent in-flight Nominatim requests (public-instance policy; raise for self-hosted mirrors) |
+| `PIXIES_NOMINATIM_INTERVAL_CAP` | `1` | Max Nominatim requests started per interval window |
+| `PIXIES_NOMINATIM_INTERVAL_MS` | `1100` | Nominatim interval window length (ms) — ~1 req/s on the public instance |
+| `PIXIES_OVERPASS_CONCURRENCY` | `2` | Max concurrent in-flight Overpass requests (public-instance policy; raise for self-hosted mirrors) |
+| `PIXIES_OVERPASS_INTERVAL_CAP` | `2` | Max Overpass requests started per interval window |
+| `PIXIES_OVERPASS_INTERVAL_MS` | `1000` | Overpass interval window length (ms) |
+| `PIXIES_HTTP_RATE_LIMIT` | `30` | Max POST requests per IP per window on `/conversations` and `/conversations/:id/messages` (`0` disables) |
+| `PIXIES_HTTP_RATE_LIMIT_WINDOW_MS` | `60000` | Per-IP HTTP rate-limit window length (ms) |
+| `PIXIES_TRUST_PROXY` | `false` | Honor `X-Forwarded-For` for client IP — set `true` behind Caddy/Nginx |
 
 ## Authentication
 
@@ -86,6 +95,8 @@ The first event is always `conversation_created`, containing the new conversatio
 
 500s on this endpoint are rare — the `Agent` is freshly created, so prompt-level errors surface as in-stream `error` events rather than HTTP errors.
 
+**Response (429):** `application/json` — per-IP rate limit exceeded; includes an integer `Retry-After` header (seconds). See `PIXIES_HTTP_RATE_LIMIT*`.
+
 ### Send message to conversation
 
 ```
@@ -110,6 +121,8 @@ Content-Type: application/json
 ```
 
 Returned when a previous prompt on this conversation is still streaming. Clients should retry after the previous stream completes.
+
+**Response (429):** `application/json` — per-IP rate limit exceeded; includes an integer `Retry-After` header (seconds). See `PIXIES_HTTP_RATE_LIMIT*`.
 
 ### Get conversation transcript
 
@@ -314,7 +327,10 @@ There is no abort endpoint. Closing the connection IS the abort.
 ## Concurrency
 
 - One in-flight prompt per conversation. Concurrent prompt attempts return **409**.
-- No cross-conversation serialization of agent work itself. Nominatim rate-limiting **is** serialized cross-conversation: the server owns a single `NominatimClient` per process (constructed once in `ConversationStore`) and injects it into every `createAgent` call, so the rate-limit chain is global to the server's source IP (1 req / 1.1s). This is required by Nominatim's per-IP usage policy — see ADR-0004. Overpass has no such mutex and is not serialized.
+- No cross-conversation serialization of agent work itself. OSM rate-limiting **is** serialized cross-conversation: the server owns a single `NominatimClient` and a single `OverpassClient` per process (constructed once in `ConversationStore` — see ADR-0004) and injects them into every `createAgent` call. Each client owns one shared `p-queue` rate limiter (ADR-0005), so the throttle is global to the server's source IP:
+  - **Nominatim** — `{concurrency:1, intervalCap:1, interval:1100ms, strict}` → at most 1 request per 1.1s. Defaults match the public `nominatim.openstreetmap.org` 1 req/s per-IP policy; self-hosted/custom instances are configurable via `PIXIES_NOMINATIM_*`.
+  - **Overpass** — `{concurrency:2, intervalCap:2, interval:1000ms}` → at most 2 concurrent slots. Defaults match the public `overpass-api.de` `/api/status` "Rate limit: 2"; self-hosted/custom instances are configurable via `PIXIES_OVERPASS_*`.
+- **HTTP layer:** the two LLM-cost POST endpoints (`POST /conversations`, `POST /conversations/:id/messages`) are rate-limited per IP in-process. Over the limit → **429** with an integer `Retry-After` (seconds). GET/DELETE are not rate-limited (no LLM cost). See `PIXIES_HTTP_RATE_LIMIT*` env vars above.
 
 ## Conversation TTL
 
@@ -371,4 +387,4 @@ while (true) {
 - **Persistence.** None. Browser `sessionStorage` if the client wants to survive page refresh within a tab.
 - **CORS.** Not enabled; configuration planned.
 - **WebSocket transport.** Possible alternative to SSE for bidirectional needs (none currently).
-- **Rate limiting on the API surface.** None. OSM rate limits are enforced internally; API surface trusts clients.
+- **Rate limiting on the API surface.** Implemented in-process per IP on the two LLM-cost POST endpoints (`PIXIES_HTTP_RATE_LIMIT*`); GET/DELETE are not limited. Caddy-side limiting (defense-in-depth) is a possible future addition — stock Caddy has no rate-limit plugin.

@@ -19,7 +19,9 @@ test("isServerBusyResponse: 503 returns true regardless of body", () => {
 });
 
 test("isServerBusyResponse: 200 with busy body returns true", () => {
-	expect(isServerBusyResponse(200, "The server is probably too busy to handle your request")).toBe(true);
+	expect(isServerBusyResponse(200, "The server is probably too busy to handle your request")).toBe(
+		true,
+	);
 });
 
 test("isServerBusyResponse: 200 with clean body returns false", () => {
@@ -27,12 +29,14 @@ test("isServerBusyResponse: 200 with clean body returns false", () => {
 });
 
 test("isServerBusyResponse: 500 with busy body returns true", () => {
-	expect(isServerBusyResponse(500, "The server is probably too busy to handle your request")).toBe(true);
+	expect(isServerBusyResponse(500, "The server is probably too busy to handle your request")).toBe(
+		true,
+	);
 });
 
 test("isServerBusyResponse: body containing <status>HTTP 503</status> returns true", () => {
 	expect(
-		isServerBusyResponse(200, '<osm><status>HTTP 503</status><meta>too busy</meta></osm>'),
+		isServerBusyResponse(200, "<osm><status>HTTP 503</status><meta>too busy</meta></osm>"),
 	).toBe(true);
 });
 
@@ -99,9 +103,9 @@ test("osmFetch: 500 throws generic Error (not OsmServerBusyError)", async () => 
 	await expect(osmFetch("http://example.com", fakeFetch, { service: "Overpass" })).rejects.toThrow(
 		Error,
 	);
-	await expect(osmFetch("http://example.com", fakeFetch, { service: "Overpass" })).rejects.not.toThrow(
-		OsmServerBusyError,
-	);
+	await expect(
+		osmFetch("http://example.com", fakeFetch, { service: "Overpass" }),
+	).rejects.not.toThrow(OsmServerBusyError);
 });
 
 test("osmFetch: 200 returns Response (body unconsumed)", async () => {

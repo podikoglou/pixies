@@ -1,5 +1,5 @@
 import { osmFetch } from "./http.ts";
-import type { ToolProgress } from "../tools/progress.ts";
+import { createRateLimiter, type RateLimitCallbacks } from "./rate-limiter.ts";
 import { Type } from "typebox";
 import type { Static } from "typebox";
 import { Value } from "typebox/value";
@@ -31,70 +31,58 @@ export interface ReverseOptions {
 	zoom?: number;
 }
 
-/**
- * Progress callbacks invoked by the rate limiter. Emits typed
- * {@link ToolProgress} signals: `{ type: "queued" }` before waiting for a
- * rate-limit slot, `{ type: "running" }` once the slot is acquired.
- */
-export interface RateLimitCallbacks {
-	onProgress?: (progress: ToolProgress) => void;
-}
-
 export interface NominatimConfig {
 	baseUrl: string;
 	contactEmail?: string;
 	userAgent: string;
 	fetch?: typeof globalThis.fetch;
+	/**
+	 * Max concurrent in-flight requests. Defaults to 1 (the default public
+	 * `nominatim.openstreetmap.org` per-IP policy). Configurable for
+	 * self-hosted mirrors.
+	 */
+	concurrency?: number;
+	/**
+	 * Max requests started per {@link intervalMs} window. Defaults to 1.
+	 */
+	intervalCap?: number;
+	/**
+	 * Interval window length in ms. Defaults to 1100 to stay safely under the
+	 * default public Nominatim's 1 req/s per-IP policy. Configurable for
+	 * self-hosted mirrors and fast tests.
+	 */
+	intervalMs?: number;
 }
-
-const RATE_LIMIT_MS = 1100;
 
 export class NominatimClient {
 	private readonly baseUrl: string;
 	private readonly contactEmail?: string;
 	private readonly userAgent: string;
 	private readonly fetchFn: typeof globalThis.fetch;
-	private chain: Promise<unknown> = Promise.resolve();
-	private lastCallTime = 0;
+	/**
+	 * Shared p-queue limiter enforcing Nominatim's per-IP policy:
+	 * concurrency 1, at most 1 request per `intervalMs` (strict sliding
+	 * window → no boundary bursts). One client owns one queue, so the chain
+	 * is global to whoever shares this client (ADR-0004 / ADR-0005). Defaults
+	 * match the public `nominatim.openstreetmap.org` policy; `strict:true` is
+	 * an internal default (not env-exposed).
+	 */
+	private readonly limiter: ReturnType<typeof createRateLimiter>;
 
 	constructor(config: NominatimConfig) {
 		this.baseUrl = config.baseUrl;
 		this.contactEmail = config.contactEmail;
 		this.userAgent = config.userAgent;
 		this.fetchFn = config.fetch ?? globalThis.fetch;
-	}
-
-	private withRateLimit<T>(
-		fn: () => Promise<T>,
-		signal?: AbortSignal,
-		opts: RateLimitCallbacks = {},
-	): Promise<T> {
-		const run = this.chain.then(async () => {
-			const elapsed = Date.now() - this.lastCallTime;
-			const wait = RATE_LIMIT_MS - elapsed;
-			if (wait > 0) {
-				opts.onProgress?.({ type: "queued" });
-				await new Promise<void>((resolve, reject) => {
-					const timer = setTimeout(resolve, wait);
-					signal?.addEventListener(
-						"abort",
-						() => {
-							clearTimeout(timer);
-							reject(signal.reason ?? new Error("Aborted"));
-						},
-						{ once: true },
-					);
-				});
-			}
-			this.lastCallTime = Date.now();
-			opts.onProgress?.({ type: "running" });
-			return fn();
+		// Build the limiter from the three per-instance knobs (defaults equal
+		// the public instance policy: 1/1/1100ms). `strict` stays an internal
+		// Nominatim default — useful for self-hosted mirrors and tests.
+		this.limiter = createRateLimiter({
+			concurrency: config.concurrency ?? 1,
+			intervalCap: config.intervalCap ?? 1,
+			interval: config.intervalMs ?? 1100,
+			strict: true,
 		});
-		this.chain = run.then(
-			() => undefined,
-			() => undefined,
-		);
-		return run;
 	}
 
 	private buildUrl(path: string, params: Record<string, string | number | undefined>): URL {
@@ -106,12 +94,12 @@ export class NominatimClient {
 		return url;
 	}
 
-	private async fetchJson(
+	private fetchJson(
 		url: URL,
 		signal?: AbortSignal,
 		opts: RateLimitCallbacks = {},
 	): Promise<unknown> {
-		return this.withRateLimit(
+		return this.limiter.withRateLimit(
 			async () => {
 				const res = await osmFetch(url, this.fetchFn, {
 					service: "Nominatim",

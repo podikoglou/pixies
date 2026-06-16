@@ -89,6 +89,8 @@ export { NominatimClient } from "./osm/nominatim.ts";
 export type { NominatimConfig, NominatimResult } from "./osm/nominatim.ts";
 export { OverpassClient } from "./osm/overpass.ts";
 export type { OverpassConfig, OverpassResponse } from "./osm/overpass.ts";
+export { createRateLimiter } from "./osm/rate-limiter.ts";
+export type { RateLimiterOptions, RateLimiter, RateLimitCallbacks } from "./osm/rate-limiter.ts";
 export {
 	OsmServerBusyError,
 	OSM_SERVER_BUSY_MESSAGE,
