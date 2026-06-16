@@ -11,6 +11,10 @@
     "./db": {
       "types": "./src/db/index.ts",
       "default": "./src/db/index.ts"
+    },
+    "./logging": {
+      "types": "./src/logging/index.ts",
+      "default": "./src/logging/index.ts"
     }
   },
   "scripts": {
