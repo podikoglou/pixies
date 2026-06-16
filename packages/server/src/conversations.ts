@@ -13,6 +13,7 @@ import {
 	type ResolvedPixiesConfig,
 } from "@pixies/core";
 import { conversations as conversationsTable, type DbClient } from "@pixies/core/db";
+import { silentLogger, type Logger } from "@pixies/core/logging";
 
 interface Conversation {
 	readonly id: string;
@@ -35,16 +36,19 @@ export class ConversationStore {
 	private readonly db: DbClient;
 	private readonly maxSize: number;
 	private readonly agentFactory: (opts: CreateAgentOptions) => Agent;
+	private readonly logger: Logger;
 
 	constructor(
 		config: ResolvedPixiesConfig,
 		db: DbClient,
 		agentFactory: (opts: CreateAgentOptions) => Agent = createAgent,
+		logger: Logger = silentLogger,
 	) {
 		this.config = config;
 		this.db = db;
 		this.maxSize = config.cacheSize;
 		this.agentFactory = agentFactory;
+		this.logger = logger;
 		this.osmClients = createOsmClients({
 			overpassUrl: config.overpassUrl,
 			nominatimUrl: config.nominatimUrl,
@@ -74,7 +78,7 @@ export class ConversationStore {
 			.insert(conversationsTable)
 			.values({ id, transcript: [] })
 			.catch((err) =>
-				console.error(`[ConversationStore] failed to insert conversation ${id}:`, err),
+				this.logger.error({ conversationId: id, err }, "failed to insert conversation"),
 			);
 		return conv.id;
 	}
@@ -171,7 +175,7 @@ export class ConversationStore {
 							})
 							.where(eq(conversationsTable.id, id))
 							.catch((err) =>
-								console.error(`[ConversationStore] failed to persist transcript for ${id}:`, err),
+								this.logger.error({ conversationId: id, err }, "failed to persist transcript"),
 							);
 					});
 			},
@@ -194,7 +198,7 @@ export class ConversationStore {
 			.delete(conversationsTable)
 			.where(eq(conversationsTable.id, id))
 			.catch((err) =>
-				console.error(`[ConversationStore] failed to delete conversation ${id}:`, err),
+				this.logger.error({ conversationId: id, err }, "failed to delete conversation"),
 			);
 		return true;
 	}
