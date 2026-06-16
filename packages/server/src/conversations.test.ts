@@ -85,6 +85,12 @@ const baseConfig: ResolvedPixiesConfig = {
 	httpRateLimit: 30,
 	httpRateLimitWindowMs: 60_000,
 	trustProxy: false,
+	nominatimConcurrency: 1,
+	nominatimIntervalCap: 1,
+	nominatimIntervalMs: 1100,
+	overpassConcurrency: 2,
+	overpassIntervalCap: 2,
+	overpassIntervalMs: 1000,
 };
 
 const stores: ConversationStore[] = [];
