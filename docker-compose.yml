@@ -6,6 +6,7 @@ services:
       - "443:443"
     environment:
       CADDY_EMAIL: ${CADDY_EMAIL:-}
+      DOMAIN: ${DOMAIN:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

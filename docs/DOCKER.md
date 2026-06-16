@@ -15,12 +15,12 @@ Open `http://localhost:3000`.
 The `docker-compose.yml` includes a Caddy reverse-proxy container that
 automatically provisions Let's Encrypt certificates for your domain.
 
-1. Point your domain (e.g. `pixies.aleep.lol`) to the server's IP.
+1. Point your domain to the server's IP.
 2. On the server, copy and fill the env file:
    ```sh
    cp .env.example .env
    ```
-   At minimum set `PIXIES_MODEL`, `PIXIES_API_KEY`, and `CADDY_EMAIL`.
+   Set `DOMAIN`, `CADDY_EMAIL`, `PIXIES_MODEL`, and `PIXIES_API_KEY`.
 3. Start everything:
    ```sh
    docker compose up -d
@@ -31,21 +31,20 @@ to be exposed directly for the pixies service in production.
 
 ### Deploy script
 
-A `deploy.sh` script is provided (gitignored; create it from the template or
-write your own). It uses `rsync` to push code to the server and runs
-`docker compose up -d --build` remotely:
+A template `deploy.sh` (gitignored) is included. It uses `rsync` to push code
+to a server and runs `docker compose up -d --build` remotely:
 
 ```sh
-./deploy.sh          # deploys to 'newbox' (default)
-./deploy.sh myserver # deploys to a different SSH host
+./deploy.sh user@yourserver.com pixies
 ```
 
 ## Environment variables
 
 | Variable | Required | Default | Description |
-|---|---|---|---|
+|---|---|---|---|---|
 | `PIXIES_MODEL` | yes | — | AI model in `provider/model-id` format (e.g. `openai/gpt-4o`) |
 | `PIXIES_API_KEY` | yes | — | API key for the AI provider |
+| `DOMAIN` | yes (prod) | `localhost` | Domain for TLS (passed to Caddy) |
 | `CADDY_EMAIL` | yes (prod) | — | Email for Let's Encrypt certificate notices |
 | `PIXIES_HOST` | no | `127.0.0.1` | Listen hostname (set to `0.0.0.0` inside Docker) |
 | `PIXIES_PORT` | no | `3000` | Listen port |
