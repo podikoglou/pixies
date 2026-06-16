@@ -194,7 +194,7 @@ Emitted when the current assistant message is complete. Payload is the full auth
 { "message": { "role": "assistant", "content": [], "stopReason": "stop" } }
 ```
 
-The `message.content` array may include `{ type: "text", text: "..." }` and `{ type: "toolCall", ... }` blocks; clients typically only render the text blocks.
+The `message.content` array may include `{ type: "text", text: "..." }` and `{ type: "toolCall" }` blocks (the latter stripped — tool details travel via `tool_execution_*` events). Clients typically only render the text blocks.
 
 ### `tool_execution_start`
 
