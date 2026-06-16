@@ -79,26 +79,29 @@ test("abort-while-queued with no reason normalizes to signal.reason (DOMExceptio
 test("emits {type:'queued'} when contended, then {type:'running'} once started", async () => {
 	const limiter = createRateLimiter({ concurrency: 1 });
 	const a = blocker<string>();
-	const progress: string[] = [];
+	const progressA: string[] = [];
+	const progressB: string[] = [];
 
 	const pA = limiter.withRateLimit(async () => a.promise, undefined, {
-		onProgress: (p) => progress.push(p.type),
+		onProgress: (p) => progressA.push(p.type),
 	});
+	// Task A started immediately (no contention) → only "running".
+	await Promise.resolve();
+	expect(progressA).toEqual(["running"]);
+
 	const pB = limiter.withRateLimit(
 		async () => "b",
 		undefined,
-		{ onProgress: (p) => progress.push(p.type) },
+		{ onProgress: (p) => progressB.push(p.type) },
 	);
-
-	await Promise.resolve();
-	expect(progress).toContain("queued");
-	// B has not started yet.
-	expect(progress).not.toContain("running");
+	// Task B is contended → "queued" emitted at enqueue, not yet "running".
+	expect(progressB).toEqual(["queued"]);
 
 	a.resolve("a");
 	await pA;
 	await pB;
-	expect(progress).toEqual(["queued", "running"]);
+	// After A frees the slot, B runs → "running".
+	expect(progressB).toEqual(["queued", "running"]);
 });
 
 test("strict interval spacing — tasks start at least `interval` ms apart", async () => {
