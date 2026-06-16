@@ -1,6 +1,7 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import type { NominatimClient } from "../osm/nominatim.ts";
+import { OsmServerBusyError, OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
 import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
 import type { GeocodeToolDetails } from "./index.ts";
 import type { ToolProgress } from "./progress.ts";
@@ -24,24 +25,34 @@ export function createGeocodeTool(
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal, onUpdate) {
 			if (signal?.aborted) throw new Error("Operation aborted");
-			const results = await nominatim.search(params.query, { limit: params.limit }, signal, {
-				onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
-			});
-			if (results.length === 0) {
+			try {
+				const results = await nominatim.search(params.query, { limit: params.limit }, signal, {
+					onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
+				});
+				if (results.length === 0) {
+					return {
+						content: [{ type: "text", text: "No results." }],
+						details: { top: "no results", data: [] },
+					};
+				}
+				const lines = results.map(formatNominatimResult);
+				const data = results.map(nominatimResultToData);
+				const top = results[0];
+				if (!top) throw new Error("No top result");
+				const topName = top.name || top.display_name?.split(",")[0] || "unknown";
 				return {
-					content: [{ type: "text", text: "No results." }],
-					details: { top: "no results", data: [] },
+					content: [{ type: "text", text: lines.join("\n") }],
+					details: { top: `${topName} (${top.lat},${top.lon})`, data },
 				};
+			} catch (err) {
+				if (err instanceof OsmServerBusyError) {
+					return {
+						content: [{ type: "text", text: OSM_SERVER_BUSY_MESSAGE }],
+						details: { top: "osm server busy", data: [] },
+					};
+				}
+				throw err;
 			}
-			const lines = results.map(formatNominatimResult);
-			const data = results.map(nominatimResultToData);
-			const top = results[0];
-			if (!top) throw new Error("No top result");
-			const topName = top.name || top.display_name?.split(",")[0] || "unknown";
-			return {
-				content: [{ type: "text", text: lines.join("\n") }],
-				details: { top: `${topName} (${top.lat},${top.lon})`, data },
-			};
 		},
 	};
 }

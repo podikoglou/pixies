@@ -1,6 +1,7 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import type { OverpassClient } from "../osm/overpass.ts";
+import { OsmServerBusyError, OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
 import { formatElement, overpassElementToData } from "../osm/format.ts";
 import type { QueryOsmToolDetails } from "./index.ts";
 
@@ -22,20 +23,27 @@ export function createQueryOsmTool(
 		parameters: schema,
 		async execute(_toolCallId, params, signal) {
 			if (signal?.aborted) throw new Error("Operation aborted");
-			const response = await overpass.query(params.query, signal);
-			const elements = response.elements ?? [];
-			if (elements.length === 0) {
+			try {
+				const response = await overpass.query(params.query, signal);
+				const elements = response.elements ?? [];
+				if (elements.length === 0) {
+					return {
+						content: [{ type: "text", text: "No results." }],
+						details: { count: 0, data: [] },
+					};
+				}
+				const lines = elements.map(formatElement);
+				const data = elements.map(overpassElementToData);
 				return {
-					content: [{ type: "text", text: "No results." }],
-					details: { count: 0, data: [] },
+					content: [{ type: "text", text: lines.join("\n") }],
+					details: { count: elements.length, data },
 				};
+			} catch (err) {
+				if (err instanceof OsmServerBusyError) {
+					return { content: [{ type: "text", text: OSM_SERVER_BUSY_MESSAGE }], details: undefined };
+				}
+				throw err;
 			}
-			const lines = elements.map(formatElement);
-			const data = elements.map(overpassElementToData);
-			return {
-				content: [{ type: "text", text: lines.join("\n") }],
-				details: { count: elements.length, data },
-			};
 		},
 	};
 }
