@@ -1,5 +1,7 @@
 import { Type } from "typebox";
 import type { Static, TSchema } from "typebox";
+import { Value } from "typebox/value";
+import type { AssistantMessage as PiAiAssistantMessage } from "@earendil-works/pi-ai";
 import { ToolProgressSchema } from "./tools/progress.ts";
 
 export const ConversationCreatedData = Type.Object({
@@ -36,6 +38,22 @@ export const AssistantMessageSchema = Type.Object(
 	},
 	{ additionalProperties: false },
 );
+
+export type ClientAssistantMessage = Static<typeof AssistantMessageSchema>;
+
+/**
+ * Strip internal call metadata (api/provider/model/responseModel/responseId/
+ * usage/diagnostics/errorMessage/timestamp) from a pi-ai AssistantMessage before
+ * sending it to clients over SSE.
+ *
+ * Schema-driven via {@link AssistantMessageSchema} so it stays in sync with the
+ * wire contract (issue #47). `Value.Clean` mutates its input, so we clone first
+ * — the incoming object is the agent's own internal reference (also persisted to
+ * SQLite) and must not be corrupted.
+ */
+export function toClientAssistantMessage(msg: PiAiAssistantMessage): ClientAssistantMessage {
+	return Value.Clean(AssistantMessageSchema, Value.Clone(msg)) as ClientAssistantMessage;
+}
 
 export const MessageEndData = Type.Object({
 	message: AssistantMessageSchema,
