@@ -15,4 +15,4 @@ lefthook.yml
 .oxfmtrc.json
 .oxlintrc.json
 skills-lock.json
-packages/tui
+packages/tui/src
