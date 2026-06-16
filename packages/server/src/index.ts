@@ -95,6 +95,30 @@ function rejectStream(result: Extract<StreamPromptResult, { ok: false }>): Respo
 	return Response.json({ error: "conversation not found" }, { status: 404 });
 }
 
+// Bun augments route handler Request objects with `params`. Use a permissive
+// input type so the wrapper works for both plain and parametric routes.
+type RouteHandler = (req: any, server: Bun.Server<undefined>) => Response | Promise<Response>;
+
+function withRequestLogging(
+	logger: Logger,
+	handler: RouteHandler,
+): (req: any, server: Bun.Server<undefined>) => Promise<Response> {
+	return async (req, server) => {
+		const start = Date.now();
+		const res = await handler(req, server);
+		logger.info(
+			{
+				method: req.method,
+				path: new URL(req.url).pathname,
+				statusCode: res.status,
+				durationMs: Date.now() - start,
+			},
+			"request",
+		);
+		return res;
+	};
+}
+
 export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined> {
 	let config: ResolvedPixiesConfig;
 	try {
@@ -125,26 +149,26 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 		hostname,
 		port,
 		routes: {
-			"/health": () => Response.json({ status: "ok", conversations: store.size() }),
+			"/health": withRequestLogging(logger, () =>
+				Response.json({ status: "ok", conversations: store.size() }),
+			),
 			"/conversations": {
-				POST: async (req, server) => {
+				POST: withRequestLogging(logger, async (req, server) => {
 					const denied = checkRateLimit(req, server, rateLimiter);
 					if (denied) return denied;
 					const parsed = await readMessage(req);
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
 					const id = store.create();
 					server.timeout(req, 0);
-					// Fresh conversation: not_found/conflict are impossible, but the
-					// type still asks us to handle them.
 					const result = await store.streamPrompt(id, parsed.message);
 					if (!result.ok) return rejectStream(result);
 					return pipeAgentStream(store, result, id, logger, (w) =>
 						w.write("conversation_created", { id }),
 					);
-				},
+				}),
 			},
 			"/conversations/:id/messages": {
-				POST: async (req, server) => {
+				POST: withRequestLogging(logger, async (req, server) => {
 					const denied = checkRateLimit(req, server, rateLimiter);
 					if (denied) return denied;
 					const id = req.params.id;
@@ -154,27 +178,27 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 					const result = await store.streamPrompt(id, parsed.message);
 					if (!result.ok) return rejectStream(result);
 					return pipeAgentStream(store, result, id, logger);
-				},
+				}),
 			},
 			"/conversations/:id": {
-				GET: async (req) => {
+				GET: withRequestLogging(logger, async (req) => {
 					const id = req.params.id;
 					const conv = await store.get(id);
 					if (!conv)
 						return Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
 					const messages = conv.agent.state.messages.map(toClientTranscriptMessage);
 					return Response.json({ id, messages });
-				},
-				DELETE: (req) => {
+				}),
+				DELETE: withRequestLogging(logger, (req) => {
 					const id = req.params.id;
 					const ok = store.delete(id);
 					return ok
 						? new Response(null, { status: 204 })
 						: Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
-				},
+				}),
 			},
 		},
-		fetch: (req) => {
+		fetch: withRequestLogging(logger, (req) => {
 			const url = new URL(req.url);
 			const requested = url.pathname === "/" ? "/index.html" : url.pathname;
 			const file = Bun.file(path.join(WEB_DIST, requested));
@@ -182,7 +206,7 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 			const indexHtml = Bun.file(path.join(WEB_DIST, "index.html"));
 			if (indexHtml.size > 0) return new Response(indexHtml);
 			return Response.json({ error: "not found" }, { status: 404 });
-		},
+		}),
 	});
 
 	const url = `http://${hostname}:${port}`;
