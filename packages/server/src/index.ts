@@ -151,6 +151,32 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 	const db = createDb(config.dbFile);
 	migrate(db, { migrationsFolder: "./drizzle" });
 	const logger = opts.logger ?? createLogger({ discordWebhookUrl: config.discordWebhookUrl });
+	logger.info(
+		{
+			host: config.host,
+			port: config.port,
+			model: config.model,
+			thinkingLevel: config.thinkingLevel,
+			dbFile: config.dbFile,
+			cacheSize: config.cacheSize,
+			httpRateLimit: config.httpRateLimit,
+			httpRateLimitWindowMs: config.httpRateLimitWindowMs,
+			trustProxy: config.trustProxy,
+			discordWebhookUrl: config.discordWebhookUrl ? "set" : "unset",
+			apiKey: config.apiKey ? "set" : "unset",
+			contactEmail: config.contactEmail ?? "unset",
+			overpassUrl: config.overpassUrl,
+			nominatimUrl: config.nominatimUrl,
+			userAgent: config.userAgent,
+			nominatimConcurrency: config.nominatimConcurrency,
+			nominatimIntervalCap: config.nominatimIntervalCap,
+			nominatimIntervalMs: config.nominatimIntervalMs,
+			overpassConcurrency: config.overpassConcurrency,
+			overpassIntervalCap: config.overpassIntervalCap,
+			overpassIntervalMs: config.overpassIntervalMs,
+		},
+		"pixies server configuration",
+	);
 	registerGlobalHandlers(logger);
 	const store = new ConversationStore(config, db, createAgent, logger);
 	// In-process per-IP limiter for the two LLM-cost POST endpoints. Works in
