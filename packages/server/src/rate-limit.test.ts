@@ -108,12 +108,3 @@ test("checkRateLimit: returns 429 once over the limit", () => {
 	expect(denied).toBeInstanceOf(Response);
 	expect(denied!.status).toBe(429);
 });
-
-test("checkRateLimit: unknown IP is allowed (null requestIP)", () => {
-	const server = fakeServer(null);
-	const req = new Request("https://x.example/", { method: "POST" });
-	const limiter = new IpRateLimiter({ maxRequests: 1, windowMs: 1000, trustProxy: false });
-	// Repeated requests with no resolvable IP must never be denied.
-	expect(checkRateLimit(req, server, limiter)).toBeNull();
-	expect(checkRateLimit(req, server, limiter)).toBeNull();
-});

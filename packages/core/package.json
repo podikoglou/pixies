@@ -11,6 +11,10 @@
     "./db": {
       "types": "./src/db/index.ts",
       "default": "./src/db/index.ts"
+    },
+    "./logging": {
+      "types": "./src/logging/index.ts",
+      "default": "./src/logging/index.ts"
     }
   },
   "scripts": {
@@ -26,6 +30,7 @@
     "@earendil-works/pi-ai": "0.79.3",
     "drizzle-orm": "^0.45.2",
     "p-queue": "^9.3.0",
+    "pino": "^10.3.1",
     "typebox": "1.1.38",
     "zod": "^4.4.3"
   },

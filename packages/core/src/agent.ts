@@ -2,6 +2,7 @@ import { Agent } from "@earendil-works/pi-agent-core";
 import { getModels } from "@earendil-works/pi-ai";
 import type { Api, KnownProvider, Model } from "@earendil-works/pi-ai";
 import { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
+import { silentLogger, type Logger } from "./logging/index.ts";
 import { NominatimClient } from "./osm/nominatim.ts";
 import { OverpassClient } from "./osm/overpass.ts";
 import { createTools, type OsmClients } from "./tools/index.ts";
@@ -76,6 +77,7 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 			process.env.PIXIES_OVERPASS_INTERVAL_MS !== undefined
 				? Number(process.env.PIXIES_OVERPASS_INTERVAL_MS)
 				: undefined,
+		discordWebhookUrl: process.env.PIXIES_DISCORD_WEBHOOK_URL,
 	};
 
 	return PixiesConfigSchema.parse(raw);
@@ -106,9 +108,11 @@ export interface CreateOsmClientsOptions {
 	overpassConcurrency?: number;
 	overpassIntervalCap?: number;
 	overpassIntervalMs?: number;
+	logger?: Logger;
 }
 
 export function createOsmClients(options: CreateOsmClientsOptions): OsmClients {
+	const logger = options.logger ?? silentLogger;
 	return {
 		nominatim: new NominatimClient({
 			baseUrl: options.nominatimUrl,
@@ -118,6 +122,7 @@ export function createOsmClients(options: CreateOsmClientsOptions): OsmClients {
 			concurrency: options.nominatimConcurrency,
 			intervalCap: options.nominatimIntervalCap,
 			intervalMs: options.nominatimIntervalMs,
+			logger,
 		}),
 		overpass: new OverpassClient({
 			baseUrl: options.overpassUrl,
@@ -126,6 +131,7 @@ export function createOsmClients(options: CreateOsmClientsOptions): OsmClients {
 			concurrency: options.overpassConcurrency,
 			intervalCap: options.overpassIntervalCap,
 			intervalMs: options.overpassIntervalMs,
+			logger,
 		}),
 	};
 }

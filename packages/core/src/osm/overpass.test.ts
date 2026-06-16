@@ -2,6 +2,7 @@
 import { test, expect, mock } from "bun:test";
 import { OverpassClient } from "./overpass.ts";
 import { OsmServerBusyError } from "./http.ts";
+import { type Logger } from "../logging/index.ts";
 
 /** Build a JSON `Response` osmFetch treats as a success. */
 function jsonResponse(data: unknown): Response {
@@ -24,11 +25,12 @@ function deferred<T>(): Deferred<T> {
 	return { promise, resolve };
 }
 
-function makeOverpass(fetch: typeof globalThis.fetch) {
+function makeOverpass(fetch: typeof globalThis.fetch, logger?: Logger) {
 	return new OverpassClient({
 		baseUrl: "https://overpass.example.com/api/interpreter",
 		userAgent: "pixies-test",
 		fetch,
+		logger,
 	});
 }
 

@@ -9,6 +9,8 @@
  * future defense-in-depth. See issue #91.
  */
 
+import { silentLogger, type Logger } from "@pixies/core/logging";
+
 export interface IpRateLimiterOptions {
 	/** Max requests per IP per window. `<= 0` disables limiting. */
 	maxRequests: number;
@@ -16,6 +18,8 @@ export interface IpRateLimiterOptions {
 	windowMs: number;
 	/** When true, prefer the first `X-Forwarded-For` entry (set behind Caddy/Nginx). */
 	trustProxy: boolean;
+	/** Structured logger; defaults to silent. */
+	logger?: Logger;
 }
 
 interface WindowState {
@@ -37,12 +41,14 @@ export class IpRateLimiter {
 	readonly maxRequests: number;
 	readonly windowMs: number;
 	readonly trustProxy: boolean;
+	readonly logger: Logger;
 	private readonly windows = new Map<string, WindowState>();
 
 	constructor(opts: IpRateLimiterOptions) {
 		this.maxRequests = opts.maxRequests;
 		this.windowMs = opts.windowMs;
 		this.trustProxy = opts.trustProxy;
+		this.logger = opts.logger ?? silentLogger;
 	}
 
 	/**
@@ -58,7 +64,12 @@ export class IpRateLimiter {
 		}
 		state.count++;
 		if (state.count > this.maxRequests) {
-			return { allowed: false, retryAfterMs: Math.max(1, state.windowStart + this.windowMs - now) };
+			const retryAfterMs = Math.max(1, state.windowStart + this.windowMs - now);
+			this.logger.warn(
+				{ ip, requestCount: state.count, maxRequests: this.maxRequests, retryAfterMs },
+				"rate limit denied",
+			);
+			return { allowed: false, retryAfterMs };
 		}
 		return { allowed: true, retryAfterMs: 0 };
 	}
@@ -109,7 +120,10 @@ export function checkRateLimit(
 ): Response | null {
 	const ip = getClientIp(req, server, limiter.trustProxy);
 	if (!ip) {
-		console.warn("[rate-limit] could not determine client IP; allowing request");
+		limiter.logger.warn(
+			{ event: "rate_limit_no_ip" },
+			"could not determine client IP; allowing request",
+		);
 		return null;
 	}
 	const { allowed, retryAfterMs } = limiter.consume(ip);

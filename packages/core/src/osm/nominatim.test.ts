@@ -3,6 +3,7 @@ import { test, expect, mock } from "bun:test";
 import { NominatimClient } from "./nominatim.ts";
 import { OsmServerBusyError } from "./http.ts";
 import { createOsmClients } from "../agent.ts";
+import { type Logger } from "../logging/index.ts";
 
 /** Build a JSON `Response`-like object osmFetch treats as a success. */
 function jsonResponse(data: unknown): Response {
@@ -21,12 +22,13 @@ function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
 	return { promise, resolve };
 }
 
-function makeClient(fetch: typeof globalThis.fetch, intervalMs = 40) {
+function makeClient(fetch: typeof globalThis.fetch, intervalMs = 40, logger?: Logger) {
 	return new NominatimClient({
 		baseUrl: "https://nominatim.example.com",
 		userAgent: "pixies-test",
 		fetch,
 		intervalMs,
+		logger,
 	});
 }
 
