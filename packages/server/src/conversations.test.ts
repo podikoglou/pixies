@@ -1,0 +1,326 @@
+/// <reference types="bun" />
+import { afterEach, expect, setSystemTime, spyOn, test } from "bun:test";
+import type { Agent, AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
+import { Database } from "bun:sqlite";
+import { drizzle } from "drizzle-orm/bun-sqlite";
+import { eq } from "drizzle-orm";
+import { conversations as conversationsTable, type DbClient } from "@pixies/core/db";
+import { type CreateAgentOptions, type ResolvedPixiesConfig } from "@pixies/core";
+import { ConversationStore } from "./conversations.ts";
+
+/**
+ * Minimal Agent stand-in. The store depends on exactly four members:
+ * `subscribe`, `prompt`, `state.messages`, and `abort`. `prompt` resolves
+ * deterministically, pushing a user + assistant message and emitting the
+ * `message_start` / `message_end` events the store forwards over SSE.
+ */
+class FakeAgent {
+	state = { messages: [] as AgentMessage[] };
+	aborted = false;
+	private readonly listeners = new Set<(event: AgentEvent) => void>();
+
+	subscribe(listener: (event: AgentEvent) => void): () => void {
+		this.listeners.add(listener);
+		return () => {
+			this.listeners.delete(listener);
+		};
+	}
+
+	async prompt(message: string): Promise<void> {
+		const now = Date.now();
+		const userMsg = { role: "user", content: message, timestamp: now } as unknown as AgentMessage;
+		const assistantMsg = {
+			role: "assistant",
+			content: [{ type: "text", text: `echo: ${message}` }],
+			api: "anthropic-messages",
+			provider: "anthropic",
+			model: "claude-3-5-sonnet",
+			usage: {
+				input: 1,
+				output: 1,
+				cacheRead: 0,
+				cacheWrite: 0,
+				total: 2,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+			},
+			stopReason: "stop",
+			timestamp: now,
+		} as unknown as AgentMessage;
+		this.state.messages.push(userMsg, assistantMsg);
+		for (const listener of this.listeners)
+			listener({ type: "message_start", message: assistantMsg });
+		for (const listener of this.listeners) listener({ type: "message_end", message: assistantMsg });
+	}
+
+	abort(): void {
+		this.aborted = true;
+	}
+}
+
+/** Build an isolated in-memory drizzle DB (no migration folder coupling). */
+function createTestDb(): DbClient {
+	const sqlite = new Database(":memory:");
+	sqlite.run(
+		"CREATE TABLE `conversations` (`id` text PRIMARY KEY NOT NULL, `transcript` text, `created_at` integer, `updated_at` integer)",
+	);
+	return drizzle({
+		client: sqlite,
+		schema: { conversations: conversationsTable },
+		casing: "snake_case",
+	}) as unknown as DbClient;
+}
+
+const baseConfig: ResolvedPixiesConfig = {
+	model: "anthropic/claude-3-5-sonnet",
+	apiKey: "test-key",
+	contactEmail: undefined,
+	overpassUrl: "https://overpass-api.de/api/interpreter",
+	nominatimUrl: "https://nominatim.openstreetmap.org",
+	userAgent: "Pixies (test)",
+	host: "127.0.0.1",
+	port: 3000,
+	thinkingLevel: "off",
+	dbFile: ":memory:",
+	cacheSize: 50,
+};
+
+const stores: ConversationStore[] = [];
+
+/** Factory that counts calls and (optionally) captures built agents. */
+function makeFakeFactory(capture?: FakeAgent[]) {
+	const fn = () => {
+		const agent = new FakeAgent();
+		capture?.push(agent);
+		return agent as unknown as Agent;
+	};
+	return fn;
+}
+
+interface MakeStoreOpts {
+	cacheSize?: number;
+	db?: DbClient;
+	agentFactory?: (opts: CreateAgentOptions) => Agent;
+}
+
+function makeStore(opts: MakeStoreOpts = {}): { store: ConversationStore; db: DbClient } {
+	const db = opts.db ?? createTestDb();
+	const config: ResolvedPixiesConfig = {
+		...baseConfig,
+		cacheSize: opts.cacheSize ?? baseConfig.cacheSize,
+	};
+	const store = new ConversationStore(config, db, opts.agentFactory ?? makeFakeFactory());
+	stores.push(store);
+	return { store, db };
+}
+
+afterEach(() => {
+	while (stores.length) stores.pop()?.stop();
+	setSystemTime();
+});
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+test("create() returns an id and persists an empty-transcript row", async () => {
+	const { store, db } = makeStore();
+	const id = store.create();
+	expect(typeof id).toBe("string");
+	await sleep(10);
+	const rows = await db.select().from(conversationsTable).where(eq(conversationsTable.id, id));
+	expect(rows).toHaveLength(1);
+	expect(rows[0]?.transcript).toEqual([]);
+});
+
+test("get() cache hit moves the entry to the LRU tail", async () => {
+	const calls: FakeAgent[] = [];
+	const { store } = makeStore({
+		cacheSize: 2,
+		agentFactory: makeFakeFactory(calls),
+	});
+
+	const id1 = store.create();
+	const id2 = store.create();
+	await sleep(10);
+	// Touch id1: cache order becomes [id2, id1]; id1 is now most-recent.
+	await store.get(id1);
+
+	store.create(); // over maxSize → evicts the LRU (id2, not id1)
+	await sleep(10);
+
+	// id1 survived (it was moved to the tail) → no rehydration. Checked
+	// before probing id2, since rehydrating id2 would itself evict id3/id1.
+	const beforeHit = calls.length;
+	const id1Conv = await store.get(id1);
+	expect(id1Conv).toBeDefined();
+	expect(calls.length).toBe(beforeHit);
+
+	// id2 was evicted → rehydrates.
+	const beforeMiss = calls.length;
+	const id2Conv = await store.get(id2);
+	expect(id2Conv).toBeDefined();
+	expect(calls.length).toBe(beforeMiss + 1);
+});
+
+test("get() cache miss rehydrates a non-empty transcript from the DB", async () => {
+	const { store, db } = makeStore();
+	const id = "seeded-id";
+	const seeded: AgentMessage[] = [
+		{ role: "user", content: "hello", timestamp: 1 } as unknown as AgentMessage,
+	];
+	await db.insert(conversationsTable).values({ id, transcript: seeded });
+
+	const conv = await store.get(id);
+	expect(conv).toBeDefined();
+	expect(conv?.agent.state.messages).toHaveLength(1);
+	expect(conv?.agent.state.messages[0]).toEqual(seeded[0]);
+});
+
+test("streamPrompt() returns not_found for an unknown id", async () => {
+	const { store } = makeStore();
+	const result = await store.streamPrompt("does-not-exist", "hi");
+	expect(result).toEqual({ ok: false, reason: "not_found" });
+});
+
+test("streamPrompt() returns conflict while a prompt is in-flight", async () => {
+	const { store } = makeStore();
+	const id = store.create();
+	await sleep(10);
+
+	const first = await store.streamPrompt(id, "first");
+	expect(first.ok).toBe(true);
+
+	// Called synchronously after the first resolves: inFlight is still true
+	// (the .finally that clears it runs on a later microtask).
+	const second = await store.streamPrompt(id, "second");
+	expect(second.ok).toBe(false);
+	if (!second.ok) expect(second.reason).toBe("conflict");
+});
+
+test("streamPrompt() persists the transcript after the stream closes", async () => {
+	const { store, db } = makeStore();
+	const id = store.create();
+	await sleep(10); // let the insert settle
+
+	const result = await store.streamPrompt(id, "hello");
+	if (!result.ok) throw new Error("expected stream to start");
+	for await (const _ of result.stream) {
+		// drain — FakeAgent emits message_start/message_end then closes
+	}
+	await sleep(10); // let the .finally persistence settle
+
+	const rows = await db.select().from(conversationsTable).where(eq(conversationsTable.id, id));
+	expect(rows).toHaveLength(1);
+	const transcript = rows[0]?.transcript;
+	expect(transcript).toHaveLength(2);
+	expect(transcript?.[0]).toMatchObject({ role: "user", content: "hello" });
+	expect(transcript?.[1]).toMatchObject({ role: "assistant" });
+});
+
+test("delete() aborts in-flight prompts and removes the row from cache and DB", async () => {
+	const agents: FakeAgent[] = [];
+	const { store, db } = makeStore({ agentFactory: makeFakeFactory(agents) });
+	const id = store.create();
+	await sleep(10);
+	const agent = agents[0]!;
+	expect(agent).toBeDefined();
+
+	await store.streamPrompt(id, "hi"); // starts an in-flight prompt
+	const existed = store.delete(id);
+	expect(existed).toBe(true);
+	expect(agent.aborted).toBe(true);
+
+	await sleep(10);
+	const rows = await db.select().from(conversationsTable).where(eq(conversationsTable.id, id));
+	expect(rows).toHaveLength(0);
+	expect(await store.get(id)).toBeUndefined();
+});
+
+test("delete() returns false for an unknown id", () => {
+	const { store } = makeStore();
+	expect(store.delete("never-existed")).toBe(false);
+});
+
+test("evictIfNeeded() evicts the oldest conversation when over maxSize", async () => {
+	const calls: FakeAgent[] = [];
+	const { store } = makeStore({
+		cacheSize: 2,
+		agentFactory: makeFakeFactory(calls),
+	});
+
+	const id1 = store.create();
+	expect(store.size()).toBe(1);
+	store.create();
+	expect(store.size()).toBe(2);
+	const id3 = store.create(); // evicts id1 (oldest)
+	expect(store.size()).toBe(2);
+	await sleep(10);
+
+	// id3 (most-recent) is still cached → no rehydration.
+	const beforeHit = calls.length;
+	await store.get(id3);
+	expect(calls.length).toBe(beforeHit);
+
+	// id1 (oldest) was evicted → rehydrates (new factory call).
+	const beforeMiss = calls.length;
+	const r1 = await store.get(id1);
+	expect(r1).toBeDefined();
+	expect(calls.length).toBe(beforeMiss + 1);
+});
+
+test("sweep() evicts conversations idle longer than 24h", () => {
+	const { store } = makeStore();
+	const realNow = Date.now();
+	setSystemTime(realNow);
+
+	store.create();
+	expect(store.size()).toBe(1);
+
+	// Advance just past the 24h TTL.
+	setSystemTime(realNow + 24 * 60 * 60 * 1000 + 1);
+	store.sweep();
+	expect(store.size()).toBe(0);
+
+	setSystemTime();
+});
+
+test("DB persistence failures are logged via console.error (regression for #59)", async () => {
+	const realDb = createTestDb();
+	// Proxy that breaks ONLY update(); insert/select/delete pass through.
+	const errorDb = new Proxy(realDb, {
+		get(target, prop) {
+			if (prop === "update") {
+				return () => ({
+					set: () => ({
+						where: () => Promise.reject(new Error("boom")),
+					}),
+				});
+			}
+			return Reflect.get(target, prop);
+		},
+	}) as unknown as DbClient;
+
+	const store = new ConversationStore(baseConfig, errorDb, makeFakeFactory());
+	stores.push(store);
+
+	const id = store.create();
+	await sleep(10); // insert (passthrough) settles
+
+	const spy = spyOn(console, "error");
+	const result = await store.streamPrompt(id, "x");
+	if (!result.ok) throw new Error("expected stream to start");
+	for await (const _ of result.stream) {
+		// drain
+	}
+	await sleep(10); // let the rejected update's .catch settle
+
+	expect(spy).toHaveBeenCalled();
+	const logged = spy.mock.calls.find(
+		(call) =>
+			typeof call[0] === "string" &&
+			call[0].includes("failed to persist transcript") &&
+			call[1] instanceof Error,
+	);
+	expect(logged).toBeDefined();
+	spy.mockRestore();
+});
