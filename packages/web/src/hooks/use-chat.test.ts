@@ -59,7 +59,7 @@ test("text_delta does not fire callback and dispatches TEXT_DELTA", () => {
 	expect(actions).toEqual([{ type: "TEXT_DELTA", delta: "hi" }]);
 });
 
-test("message_end does not fire callback and dispatches MESSAGE_END", () => {
+test("message_end does not fire callback and dispatches MESSAGE_END without responseTimeMs", () => {
 	const { dispatch, actions } = capture();
 	const evt: SSEEvent = {
 		event: "message_end",
@@ -70,7 +70,29 @@ test("message_end does not fire callback and dispatches MESSAGE_END", () => {
 		throw new Error("should not fire");
 	});
 
-	expect(actions).toEqual([{ type: "MESSAGE_END", text: "hello" }]);
+	expect(actions).toEqual([{ type: "MESSAGE_END", text: "hello", responseTimeMs: undefined }]);
+});
+
+test("message_end with startTime computes responseTimeMs", () => {
+	const { dispatch, actions } = capture();
+	const evt: SSEEvent = {
+		event: "message_end",
+		data: { message: { role: "assistant", content: [{ type: "text", text: "hello" }] } },
+	};
+	const startTime = Date.now() - 1234;
+
+	dispatchSseEvent(evt, dispatch, undefined, startTime);
+
+	const action = actions[0];
+	expect(action).toBeDefined();
+	if (!action) return;
+	expect(action.type).toBe("MESSAGE_END");
+	if (action.type !== "MESSAGE_END") return;
+	expect(action.text).toBe("hello");
+	expect(action.responseTimeMs).toBeDefined();
+	if (action.responseTimeMs === undefined) return;
+	expect(action.responseTimeMs).toBeGreaterThanOrEqual(1234);
+	expect(action.responseTimeMs).toBeLessThan(2000); // not too far from the faked startTime
 });
 
 test("tool_execution_start does not fire callback and dispatches TOOL_START", () => {

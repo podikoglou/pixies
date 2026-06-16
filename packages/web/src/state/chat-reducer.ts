@@ -3,7 +3,7 @@ import { parseToolResult, summarizeResult, type ToolProgress, type ToolResult } 
 
 export type TimelineItem =
 	| { kind: "user-message"; text: string }
-	| { kind: "assistant-message"; text: string }
+	| { kind: "assistant-message"; text: string; responseTimeMs?: number }
 	| {
 			kind: "tool-call";
 			toolCallId: string;
@@ -38,7 +38,7 @@ export type ChatAction =
 	| { type: "CONVERSATION_CREATED"; id: string }
 	| { type: "MESSAGE_START" }
 	| { type: "TEXT_DELTA"; delta: string }
-	| { type: "MESSAGE_END"; text: string }
+	| { type: "MESSAGE_END"; text: string; responseTimeMs?: number }
 	| { type: "TOOL_START"; toolCallId: string; toolName: string; args: unknown }
 	| { type: "TOOL_UPDATE"; toolCallId: string; progress: ToolProgress }
 	| {
@@ -82,7 +82,14 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 			if (text.length === 0) return { ...state, streamingText: "" };
 			return {
 				...state,
-				items: [...state.items, { kind: "assistant-message", text }],
+				items: [
+					...state.items,
+					{
+						kind: "assistant-message",
+						text,
+						responseTimeMs: action.responseTimeMs,
+					},
+				],
 				streamingText: "",
 			};
 		}

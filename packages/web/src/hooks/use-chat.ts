@@ -22,6 +22,7 @@ export function dispatchSseEvent(
 	evt: SSEEvent,
 	dispatch: Dispatch<ChatAction>,
 	onConversationCreated?: (id: string) => void,
+	startTime?: number,
 ): void {
 	switch (evt.event) {
 		case "conversation_created":
@@ -36,9 +37,15 @@ export function dispatchSseEvent(
 		case "text_delta":
 			dispatch({ type: "TEXT_DELTA", delta: evt.data.delta });
 			break;
-		case "message_end":
-			dispatch({ type: "MESSAGE_END", text: joinContentText(evt.data.message.content, "") });
+		case "message_end": {
+			const responseTimeMs = startTime ? Date.now() - startTime : undefined;
+			dispatch({
+				type: "MESSAGE_END",
+				text: joinContentText(evt.data.message.content, ""),
+				responseTimeMs,
+			});
 			break;
+		}
 		case "tool_execution_start":
 			dispatch({
 				type: "TOOL_START",
@@ -79,12 +86,14 @@ export function useChat() {
 	const stateRef = useRef(state);
 	stateRef.current = state;
 	const abortRef = useRef<AbortController | null>(null);
+	const startTimeRef = useRef<number>(0);
 
 	const sendMessage = useCallback(
 		async (message: string, opts?: { onConversationCreated?: (id: string) => void }) => {
 			if (!message.trim()) return;
 			const controller = new AbortController();
 			abortRef.current = controller;
+			startTimeRef.current = Date.now();
 			dispatch({ type: "SEND_MESSAGE", text: message });
 
 			const conversationId = stateRef.current.conversationId;
@@ -94,7 +103,7 @@ export function useChat() {
 
 			try {
 				for await (const evt of stream)
-					dispatchSseEvent(evt, dispatch, opts?.onConversationCreated);
+					dispatchSseEvent(evt, dispatch, opts?.onConversationCreated, startTimeRef.current);
 			} catch (err) {
 				if (isAbortError(err)) {
 					dispatch({ type: "STREAM_DONE" });
