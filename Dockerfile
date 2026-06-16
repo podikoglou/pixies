@@ -7,7 +7,7 @@ COPY packages/core/package.json ./packages/core/
 COPY packages/server/package.json ./packages/server/
 COPY packages/web/package.json ./packages/web/
 COPY packages/tui/package.json ./packages/tui/
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --no-scripts
 
 FROM base AS build-web
 WORKDIR /app
