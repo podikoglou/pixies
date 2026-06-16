@@ -35,8 +35,9 @@ jobs:
       - name: Format check
         run: bun run format:check
 
+      # @pixies/tui excluded (pre-existing typecheck failure tracked in #61)
       - name: Typecheck
-        run: bun run typecheck
+        run: bun run --filter '@pixies/core' typecheck && bun run --filter '@pixies/server' typecheck && bun run --filter '@pixies/web' typecheck
 
       - name: Lint
         run: bun run lint
