@@ -1,10 +1,11 @@
 /// <reference types="bun" />
-import { afterEach, expect, setSystemTime, spyOn, test } from "bun:test";
+import { afterEach, expect, mock, setSystemTime, test } from "bun:test";
 import type { Agent, AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { eq } from "drizzle-orm";
 import { conversations as conversationsTable, type DbClient } from "@pixies/core/db";
+import { type Logger } from "@pixies/core/logging";
 import { type CreateAgentOptions, type ResolvedPixiesConfig } from "@pixies/core";
 import { ConversationStore } from "./conversations.ts";
 
@@ -293,7 +294,7 @@ test("sweep() evicts conversations idle longer than 24h", () => {
 	setSystemTime();
 });
 
-test("DB persistence failures are logged via console.error (regression for #59)", async () => {
+test("DB persistence failures are surfaced via logger.error (regression for #59)", async () => {
 	const realDb = createTestDb();
 	// Proxy that breaks ONLY update(); insert/select/delete pass through.
 	const errorDb = new Proxy(realDb, {
@@ -309,13 +310,16 @@ test("DB persistence failures are logged via console.error (regression for #59)"
 		},
 	}) as unknown as DbClient;
 
-	const store = new ConversationStore(baseConfig, errorDb, makeFakeFactory());
+	const errorSpy = mock(
+		(_context: { conversationId?: string; err?: unknown }, _msg?: string) => {},
+	);
+	const mockLogger = { error: errorSpy } as unknown as Logger;
+	const store = new ConversationStore(baseConfig, errorDb, makeFakeFactory(), mockLogger);
 	stores.push(store);
 
 	const id = store.create();
 	await sleep(10); // insert (passthrough) settles
 
-	const spy = spyOn(console, "error");
 	const result = await store.streamPrompt(id, "x");
 	if (!result.ok) throw new Error("expected stream to start");
 	for await (const _ of result.stream) {
@@ -323,13 +327,10 @@ test("DB persistence failures are logged via console.error (regression for #59)"
 	}
 	await sleep(10); // let the rejected update's .catch settle
 
-	expect(spy).toHaveBeenCalled();
-	const logged = spy.mock.calls.find(
-		(call) =>
-			typeof call[0] === "string" &&
-			call[0].includes("failed to persist transcript") &&
-			call[1] instanceof Error,
+	expect(errorSpy).toHaveBeenCalled();
+	const logged = errorSpy.mock.calls.find(
+		(call) => call[1] === "failed to persist transcript" && call[0]?.conversationId === id,
 	);
 	expect(logged).toBeDefined();
-	spy.mockRestore();
+	expect(logged?.[0]?.err).toBeInstanceOf(Error);
 });
