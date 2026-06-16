@@ -50,6 +50,12 @@ export class ConversationStore {
 			nominatimUrl: config.nominatimUrl,
 			contactEmail: config.contactEmail,
 			userAgent: config.userAgent,
+			nominatimConcurrency: config.nominatimConcurrency,
+			nominatimIntervalCap: config.nominatimIntervalCap,
+			nominatimIntervalMs: config.nominatimIntervalMs,
+			overpassConcurrency: config.overpassConcurrency,
+			overpassIntervalCap: config.overpassIntervalCap,
+			overpassIntervalMs: config.overpassIntervalMs,
 		});
 		this.sweeper = setInterval(() => this.sweep(), SWEEP_INTERVAL_MS);
 	}
