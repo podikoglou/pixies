@@ -14,7 +14,8 @@ FROM base AS build-web
 COPY --from=install /app/node_modules ./node_modules
 COPY --from=install /app/package.json ./package.json
 COPY --from=install /app/bun.lock ./bun.lock
-COPY --from=install /app/packages ./packages
+COPY packages/web ./packages/web
+COPY packages/core/src ./packages/core/src
 COPY tsconfig.base.json tsconfig.json ./
 RUN bun run build:web
 
