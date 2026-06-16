@@ -75,7 +75,7 @@ test("OsmServerBusyError includes service name in message", () => {
 test("osmFetch: 429 throws OsmServerBusyError", async () => {
 	const fakeFetch = mock(() =>
 		Promise.resolve(new Response("too busy", { status: 429 })),
-	);
+	) as unknown as typeof fetch;
 	await expect(osmFetch("http://example.com", fakeFetch, { service: "Overpass" })).rejects.toThrow(
 		OsmServerBusyError,
 	);
@@ -86,7 +86,7 @@ test("osmFetch: 503 with busy body throws OsmServerBusyError", async () => {
 		Promise.resolve(
 			new Response("The server is probably too busy to handle your request", { status: 503 }),
 		),
-	);
+	) as unknown as typeof fetch;
 	await expect(osmFetch("http://example.com", fakeFetch, { service: "Overpass" })).rejects.toThrow(
 		OsmServerBusyError,
 	);
@@ -95,7 +95,7 @@ test("osmFetch: 503 with busy body throws OsmServerBusyError", async () => {
 test("osmFetch: 500 throws generic Error (not OsmServerBusyError)", async () => {
 	const fakeFetch = mock(() =>
 		Promise.resolve(new Response("Internal Server Error", { status: 500 })),
-	);
+	) as unknown as typeof fetch;
 	await expect(osmFetch("http://example.com", fakeFetch, { service: "Overpass" })).rejects.toThrow(
 		Error,
 	);
@@ -107,7 +107,7 @@ test("osmFetch: 500 throws generic Error (not OsmServerBusyError)", async () => 
 test("osmFetch: 200 returns Response (body unconsumed)", async () => {
 	const fakeFetch = mock(() =>
 		Promise.resolve(new Response('{"elements":[]}', { status: 200 })),
-	);
+	) as unknown as typeof fetch;
 	const res = await osmFetch("http://example.com", fakeFetch);
 	expect(res.status).toBe(200);
 	// Body should be consumable (not yet read by osmFetch)
