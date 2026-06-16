@@ -104,7 +104,9 @@ test("OsmServerBusyError from osmFetch passes through unchanged", async () => {
 });
 
 test("generic non-abort error passes through unchanged", async () => {
-	const fetchMock = mock(() => Promise.reject(new Error("network down"))) as unknown as typeof fetch;
+	const fetchMock = mock(() =>
+		Promise.reject(new Error("network down")),
+	) as unknown as typeof fetch;
 	const client = makeClient(fetchMock);
 
 	await expect(client.search("Berlin")).rejects.toThrow("network down");

@@ -132,7 +132,9 @@ test("abort while running rejects and the signal threaded to fetch is aborted", 
 // ---- OsmServerBusyError passthrough (CAVEAT #3) -----------------------------
 
 test("OsmServerBusyError passes through unchanged", async () => {
-	const fetchMock = mock(() => Promise.resolve(new Response("busy", { status: 429 }))) as unknown as typeof fetch;
+	const fetchMock = mock(() =>
+		Promise.resolve(new Response("busy", { status: 429 })),
+	) as unknown as typeof fetch;
 	const client = makeOverpass(fetchMock);
 	await expect(client.query("[out:json];node(1);out;")).rejects.toBeInstanceOf(OsmServerBusyError);
 });
@@ -141,9 +143,7 @@ test("OsmServerBusyError passes through unchanged", async () => {
 
 test("query returns parsed OverpassResponse on success", async () => {
 	const fetchMock = mock(() =>
-		Promise.resolve(
-			jsonResponse({ elements: [{ type: "node", id: 1, lat: 1, lon: 2 }] }),
-		),
+		Promise.resolve(jsonResponse({ elements: [{ type: "node", id: 1, lat: 1, lon: 2 }] })),
 	) as unknown as typeof fetch;
 	const client = makeOverpass(fetchMock);
 	const res = await client.query("[out:json];node(1);out;");

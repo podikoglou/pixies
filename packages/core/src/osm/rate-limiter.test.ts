@@ -89,11 +89,9 @@ test("emits {type:'queued'} when contended, then {type:'running'} once started",
 	await Promise.resolve();
 	expect(progressA).toEqual(["running"]);
 
-	const pB = limiter.withRateLimit(
-		async () => "b",
-		undefined,
-		{ onProgress: (p) => progressB.push(p.type) },
-	);
+	const pB = limiter.withRateLimit(async () => "b", undefined, {
+		onProgress: (p) => progressB.push(p.type),
+	});
 	// Task B is contended → "queued" emitted at enqueue, not yet "running".
 	expect(progressB).toEqual(["queued"]);
 
