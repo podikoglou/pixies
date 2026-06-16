@@ -19,6 +19,23 @@ const WEB_DIST = process.env.PIXIES_WEB_DIST ?? path.resolve(import.meta.dir, ".
 
 let globalHandlersRegistered = false;
 
+export function registerGlobalHandlers(logger: Logger): void {
+	if (globalHandlersRegistered) return;
+	globalHandlersRegistered = true;
+	process.on("unhandledRejection", (reason) => {
+		logger.fatal(
+			{ err: reason instanceof Error ? reason : new Error(String(reason)) },
+			"unhandled rejection",
+		);
+	});
+	process.on("uncaughtException", (err) => {
+		logger.error(
+			{ err: err instanceof Error ? err : new Error(String(err)) },
+			"uncaught exception",
+		);
+	});
+}
+
 export interface StartServerOptions {
 	hostname?: string;
 	port?: number;
@@ -134,21 +151,7 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 	const db = createDb(config.dbFile);
 	migrate(db, { migrationsFolder: "./drizzle" });
 	const logger = opts.logger ?? createLogger({ discordWebhookUrl: config.discordWebhookUrl });
-	if (!globalHandlersRegistered) {
-		globalHandlersRegistered = true;
-		process.on("unhandledRejection", (reason) => {
-			logger.fatal(
-				{ err: reason instanceof Error ? reason : new Error(String(reason)) },
-				"unhandled rejection",
-			);
-		});
-		process.on("uncaughtException", (err) => {
-			logger.error(
-				{ err: err instanceof Error ? err : new Error(String(err)) },
-				"uncaught exception",
-			);
-		});
-	}
+	registerGlobalHandlers(logger);
 	const store = new ConversationStore(config, db, createAgent, logger);
 	// In-process per-IP limiter for the two LLM-cost POST endpoints. Works in
 	// dev and prod; Caddy-side limiting remains an optional future
