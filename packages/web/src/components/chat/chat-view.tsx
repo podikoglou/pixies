@@ -79,7 +79,16 @@ export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 		<div className="flex h-dvh flex-col">
 			<header className="border-border border-b">
 				<div className="mx-auto max-w-3xl px-4 py-2.5">
-					<button type="button" onClick={() => { reset(); navigate({ to: "/" }); }} className="text-muted-foreground text-sm font-medium tracking-tight">pixies</button>
+					<button
+						type="button"
+						onClick={() => {
+							reset();
+							navigate({ to: "/" });
+						}}
+						className="text-muted-foreground text-sm font-medium tracking-tight"
+					>
+						pixies
+					</button>
 				</div>
 			</header>
 
