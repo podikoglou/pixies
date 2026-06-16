@@ -10,9 +10,18 @@ interface ChatTimelineProps {
 	state: ChatState;
 }
 
-function renderDisplayMap(data: DisplayMapData, items: TimelineItem[]) {
+function renderDisplayMap(
+	data: DisplayMapData,
+	items: TimelineItem[],
+	currentIndex: number,
+) {
 	if (data.queryRef) {
-		const markers = resolveMapMarkers(data.queryRef, data.elementIds, items);
+		const markers = resolveMapMarkers(
+			data.queryRef,
+			data.elementIds,
+			items,
+			currentIndex,
+		);
 		if (markers === null || markers.length === 0) {
 			return (
 				<div className="text-muted-foreground flex h-[400px] w-full items-center justify-center rounded-md border text-sm">
@@ -43,7 +52,7 @@ export function ChatTimeline({ state }: ChatTimelineProps) {
 					item.status === "done" &&
 					item.result.kind === "display_map"
 				) {
-					content = renderDisplayMap(item.result.data, state.items);
+					content = renderDisplayMap(item.result.data, state.items, i);
 				} else {
 					content = <ToolCallCard item={item} />;
 				}
