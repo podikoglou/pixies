@@ -21,12 +21,12 @@ function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
 	return { promise, resolve };
 }
 
-function makeClient(fetch: typeof globalThis.fetch, rateLimitMs = 40) {
+function makeClient(fetch: typeof globalThis.fetch, intervalMs = 40) {
 	return new NominatimClient({
 		baseUrl: "https://nominatim.example.com",
 		userAgent: "pixies-test",
 		fetch,
-		rateLimitMs,
+		intervalMs,
 	});
 }
 
@@ -114,7 +114,7 @@ test("generic non-abort error passes through unchanged", async () => {
 
 // ---- interval spacing -------------------------------------------------------
 
-test("serializes consecutive searches at least rateLimitMs apart", async () => {
+test("serializes consecutive searches at least intervalMs apart", async () => {
 	const starts: number[] = [];
 	const fetchMock = mock(() => {
 		starts.push(Date.now());

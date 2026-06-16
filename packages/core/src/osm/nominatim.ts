@@ -37,11 +37,21 @@ export interface NominatimConfig {
 	userAgent: string;
 	fetch?: typeof globalThis.fetch;
 	/**
-	 * Minimum spacing between Nominatim requests (ms). Defaults to 1100 to stay
-	 * safely under Nominatim's 1 req/s per-IP policy. Configurable for
+	 * Max concurrent in-flight requests. Defaults to 1 (the default public
+	 * `nominatim.openstreetmap.org` per-IP policy). Configurable for
+	 * self-hosted mirrors.
+	 */
+	concurrency?: number;
+	/**
+	 * Max requests started per {@link intervalMs} window. Defaults to 1.
+	 */
+	intervalCap?: number;
+	/**
+	 * Interval window length in ms. Defaults to 1100 to stay safely under the
+	 * default public Nominatim's 1 req/s per-IP policy. Configurable for
 	 * self-hosted mirrors and fast tests.
 	 */
-	rateLimitMs?: number;
+	intervalMs?: number;
 }
 
 export class NominatimClient {
@@ -51,9 +61,11 @@ export class NominatimClient {
 	private readonly fetchFn: typeof globalThis.fetch;
 	/**
 	 * Shared p-queue limiter enforcing Nominatim's per-IP policy:
-	 * concurrency 1, at most 1 request per `rateLimitMs` (strict sliding
+	 * concurrency 1, at most 1 request per `intervalMs` (strict sliding
 	 * window → no boundary bursts). One client owns one queue, so the chain
-	 * is global to whoever shares this client (ADR-0004 / ADR-0005).
+	 * is global to whoever shares this client (ADR-0004 / ADR-0005). Defaults
+	 * match the public `nominatim.openstreetmap.org` policy; `strict:true` is
+	 * an internal default (not env-exposed).
 	 */
 	private readonly limiter: ReturnType<typeof createRateLimiter>;
 
@@ -62,12 +74,13 @@ export class NominatimClient {
 		this.contactEmail = config.contactEmail;
 		this.userAgent = config.userAgent;
 		this.fetchFn = config.fetch ?? globalThis.fetch;
-		// Promote the old module constant (RATE_LIMIT_MS = 1100) to a
-		// per-instance config knob — useful for self-hosted mirrors and tests.
+		// Build the limiter from the three per-instance knobs (defaults equal
+		// the public instance policy: 1/1/1100ms). `strict` stays an internal
+		// Nominatim default — useful for self-hosted mirrors and tests.
 		this.limiter = createRateLimiter({
-			concurrency: 1,
-			intervalCap: 1,
-			interval: config.rateLimitMs ?? 1100,
+			concurrency: config.concurrency ?? 1,
+			intervalCap: config.intervalCap ?? 1,
+			interval: config.intervalMs ?? 1100,
 			strict: true,
 		});
 	}
