@@ -1,3 +1,4 @@
+// Adapted from pqoqubbw/icons (https://github.com/pqoqubbw/icons) — MIT
 import type { Transition, Variants } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
