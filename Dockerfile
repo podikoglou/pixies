@@ -16,7 +16,7 @@ COPY --from=install /app/node_modules ./node_modules
 COPY packages/web ./packages/web
 COPY packages/core ./packages/core
 COPY tsconfig.base.json tsconfig.json ./
-RUN bun run build:web
+RUN bun run --filter '@pixies/web' build
 
 FROM base AS runner
 WORKDIR /app
