@@ -7,7 +7,12 @@ import { conversations as conversationsTable, type DbClient } from "@pixies/core
 import { type Logger, silentLogger } from "@pixies/core/logging";
 import { type ResolvedPixiesConfig } from "@pixies/core";
 import { ConversationStore } from "./conversations.ts";
-import { pipeAgentStream, withRequestLogging, registerGlobalHandlers } from "./index.ts";
+import {
+	pipeAgentStream,
+	withRequestLogging,
+	registerGlobalHandlers,
+	logResolvedConfig,
+} from "./index.ts";
 
 const testConfig: ResolvedPixiesConfig = {
 	model: "anthropic/claude-3-5-sonnet",
@@ -180,4 +185,34 @@ test("registerGlobalHandlers prevents duplicate handler registration", () => {
 	// callCount is 0 because the flag prevented re-registration; the
 	// previous test's logger is still the one that fires.
 	expect(callCount).toBe(0);
+});
+
+// Task 4: logResolvedConfig logs config with masked secrets
+test("logResolvedConfig logs config with masked apiKey and discordWebhookUrl", () => {
+	const infoSpy = mock((_obj: unknown, _msg?: string) => {});
+	const mockLogger = { info: infoSpy } as unknown as Logger;
+
+	const config: ResolvedPixiesConfig = {
+		...testConfig,
+		apiKey: "sk-real-secret-key-12345",
+		discordWebhookUrl: "https://discord.com/api/webhooks/123/secret",
+		contactEmail: "admin@example.com",
+	};
+
+	logResolvedConfig(mockLogger, config);
+
+	expect(infoSpy).toHaveBeenCalledTimes(1);
+	const [fields, msg] = infoSpy.mock.calls[0]!;
+	expect(msg).toBe("pixies server configuration");
+	expect(fields).toMatchObject({
+		host: "127.0.0.1",
+		port: 3000,
+		model: "anthropic/claude-3-5-sonnet",
+	});
+
+	const obj = fields as Record<string, unknown>;
+	expect(obj.apiKey).toBe("set");
+	expect(obj.discordWebhookUrl).toBe("set");
+	expect(obj.apiKey).not.toBe("sk-real-secret-key-12345");
+	expect(obj.discordWebhookUrl).not.toContain("discord.com");
 });
