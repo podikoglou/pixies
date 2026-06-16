@@ -82,6 +82,9 @@ const baseConfig: ResolvedPixiesConfig = {
 	thinkingLevel: "off",
 	dbFile: ":memory:",
 	cacheSize: 50,
+	httpRateLimit: 30,
+	httpRateLimitWindowMs: 60_000,
+	trustProxy: false,
 };
 
 const stores: ConversationStore[] = [];
