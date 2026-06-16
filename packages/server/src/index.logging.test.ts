@@ -7,7 +7,7 @@ import { conversations as conversationsTable, type DbClient } from "@pixies/core
 import { type Logger, silentLogger } from "@pixies/core/logging";
 import { type ResolvedPixiesConfig } from "@pixies/core";
 import { ConversationStore } from "./conversations.ts";
-import { pipeAgentStream } from "./index.ts";
+import { pipeAgentStream, withRequestLogging } from "./index.ts";
 
 const testConfig: ResolvedPixiesConfig = {
 	model: "anthropic/claude-3-5-sonnet",
@@ -106,4 +106,38 @@ test("pipeAgentStream does not log error on successful stream", async () => {
 	await Bun.sleep(50);
 
 	expect(errorSpy).not.toHaveBeenCalled();
+});
+
+// Task 2: withRequestLogging logs structured request fields
+test("withRequestLogging logs method, path, statusCode, durationMs and no sensitive fields", async () => {
+	const infoSpy = mock((_obj: unknown, _msg?: string) => {});
+	const mockLogger = { info: infoSpy } as unknown as Logger;
+
+	const handler = withRequestLogging(mockLogger, (_req: any, _server: any) => {
+		return new Response("ok", { status: 200 });
+	});
+
+	const req = new Request("http://localhost:3000/health", {
+		method: "GET",
+		headers: { authorization: "Bearer secret-token", cookie: "session=abc" },
+	});
+
+	await handler(req, {} as any);
+
+	expect(infoSpy).toHaveBeenCalledTimes(1);
+	const [fields, msg] = infoSpy.mock.calls[0]!;
+	expect(msg).toBe("request");
+	expect(fields).toMatchObject({
+		method: "GET",
+		path: "/health",
+		statusCode: 200,
+		durationMs: expect.any(Number),
+	});
+
+	const obj = fields as Record<string, unknown>;
+	expect(obj.body).toBeUndefined();
+	expect(obj.headers).toBeUndefined();
+	expect(obj.cookie).toBeUndefined();
+	expect(obj.query).toBeUndefined();
+	expect(obj.authorization).toBeUndefined();
 });

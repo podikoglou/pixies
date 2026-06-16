@@ -99,7 +99,7 @@ function rejectStream(result: Extract<StreamPromptResult, { ok: false }>): Respo
 // input type so the wrapper works for both plain and parametric routes.
 type RouteHandler = (req: any, server: Bun.Server<undefined>) => Response | Promise<Response>;
 
-function withRequestLogging(
+export function withRequestLogging(
 	logger: Logger,
 	handler: RouteHandler,
 ): (req: any, server: Bun.Server<undefined>) => Promise<Response> {
