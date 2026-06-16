@@ -237,7 +237,9 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 					const conv = await store.get(id);
 					if (!conv)
 						return Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
-					const messages = conv.agent.state.messages.map(toClientTranscriptMessage);
+					const messages = conv.agent.state.messages
+						.filter((m) => m.role !== "assistant")
+						.map(toClientTranscriptMessage);
 					return Response.json({ id, messages });
 				}),
 				DELETE: withRequestLogging(logger, (req) => {
