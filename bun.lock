@@ -50,6 +50,8 @@
       "name": "@pixies/tui",
       "version": "0.1.0",
       "dependencies": {
+        "@earendil-works/pi-agent-core": "0.79.3",
+        "@earendil-works/pi-ai": "0.79.3",
         "@earendil-works/pi-tui": "0.79.3",
         "@pixies/core": "workspace:*",
         "chalk": "5.6.2",
