@@ -77,22 +77,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 			return { ...state, streamingText: "" };
 		case "TEXT_DELTA":
 			return { ...state, streamingText: state.streamingText + action.delta };
-		case "MESSAGE_END": {
-			const text = action.text.length > 0 ? action.text : state.streamingText;
-			if (text.length === 0) return { ...state, streamingText: "" };
-			return {
-				...state,
-				items: [
-					...state.items,
-					{
-						kind: "assistant-message",
-						text,
-						responseTimeMs: action.responseTimeMs,
-					},
-				],
-				streamingText: "",
-			};
-		}
+		case "MESSAGE_END":
+			return { ...state, streamingText: "" };
 		case "TOOL_START":
 			return {
 				...state,
@@ -169,11 +155,8 @@ export function transcriptToItems(transcript: ConversationTranscript): TimelineI
 			case "user":
 				items.push({ kind: "user-message", text: joinContentText(msg.content, "") });
 				break;
-			case "assistant": {
-				const text = joinContentText(msg.content, "");
-				if (text.length > 0) items.push({ kind: "assistant-message", text });
+			case "assistant":
 				break;
-			}
 			case "toolResult": {
 				const parsed = parseToolResult(msg.toolName, msg.details);
 				items.push({
