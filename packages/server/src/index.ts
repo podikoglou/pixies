@@ -1,9 +1,11 @@
 import {
+	createAgent,
 	readConfigFromEnv,
 	toClientTranscriptMessage,
 	type ResolvedPixiesConfig,
 } from "@pixies/core";
 import { createDb } from "@pixies/core/db";
+import { createLogger, type Logger } from "@pixies/core/logging";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import path from "node:path";
@@ -19,6 +21,7 @@ export interface StartServerOptions {
 	hostname?: string;
 	port?: number;
 	config?: ResolvedPixiesConfig;
+	logger?: Logger;
 	onReady?: (url: string) => void;
 }
 
@@ -99,7 +102,8 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 	}
 	const db = createDb(config.dbFile);
 	migrate(db, { migrationsFolder: "./drizzle" });
-	const store = new ConversationStore(config, db);
+	const logger = opts.logger ?? createLogger({ discordWebhookUrl: config.discordWebhookUrl });
+	const store = new ConversationStore(config, db, createAgent, logger);
 	// In-process per-IP limiter for the two LLM-cost POST endpoints. Works in
 	// dev and prod; Caddy-side limiting remains an optional future
 	// defense-in-depth (stock Caddy has no rate-limit plugin). See #91.
@@ -173,10 +177,12 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 		},
 	});
 
-	opts.onReady?.(`http://${hostname}:${port}`);
+	const url = `http://${hostname}:${port}`;
+	logger.info({ url }, "pixies server listening");
+	opts.onReady?.(url);
 	return server;
 }
 
 if (import.meta.main) {
-	startServer({ onReady: (url) => console.log(`pixies server listening on ${url}`) });
+	startServer();
 }
