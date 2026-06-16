@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   ci:
-    name: format / typecheck / lint / test
+    name: format / typecheck / lint / build / test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -40,6 +40,9 @@ jobs:
 
       - name: Lint
         run: bun run lint
+
+      - name: Build web
+        run: bun run build:web
 
       # @pixies/core, @pixies/web, and @pixies/server have `test` scripts;
       # only @pixies/tui does not, so tests are filtered explicitly.
