@@ -9,7 +9,7 @@ import { IpRateLimiter, checkRateLimit } from "./rate-limit.ts";
  * handler calling `checkRateLimit` at the top and returning the `429` on deny.
  * `startServer` itself can't be exercised in-process because its
  * `migrate({ migrationsFolder: "./drizzle" })` is cwd-relative (the folder
- * lives at the repo root, not under `packages/server`) — tracked separately.
+ * lives at the repo root, not under `packages/server`) — tracked in #97.
  * This replica validates the real HTTP path: `server.requestIP` → `429` +
  * integer `Retry-After`, shared across both LLM-cost POST endpoints.
  */
