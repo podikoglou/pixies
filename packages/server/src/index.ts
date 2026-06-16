@@ -55,7 +55,7 @@ async function readMessage(req: Request): Promise<MessageResult> {
  * @param onOpen   Optional preamble writer (e.g. `conversation_created`).
  * @param abortId  Conversation id to abort on client disconnect.
  */
-function pipeAgentStream(
+export function pipeAgentStream(
 	store: ConversationStore,
 	result: Extract<StreamPromptResult, { ok: true }>,
 	abortId: string,
