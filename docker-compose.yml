@@ -1,8 +1,19 @@
 services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CADDY_EMAIL: ${CADDY_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+
   pixies:
     build: .
-    ports:
-      - "${PIXIES_PORT:-3000}:3000"
     environment:
       PIXIES_DB_FILE: /app/data/pixies.db
     env_file: ".env"
@@ -12,3 +23,5 @@ services:
 
 volumes:
   pixies-data:
+  caddy-data:
+  caddy-config:

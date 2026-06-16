@@ -1,0 +1,3 @@
+pixies.aleep.lol {
+    reverse_proxy pixies:3000
+}
