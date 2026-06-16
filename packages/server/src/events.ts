@@ -1,19 +1,13 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import { isToolProgress, toClientAssistantMessage } from "@pixies/core";
+import { isToolProgress } from "@pixies/core";
 import type { SSEEvent } from "@pixies/core";
 
 export function translateAgentEvent(event: AgentEvent): SSEEvent[] {
 	switch (event.type) {
 		case "message_start":
-			return event.message.role === "assistant" ? [{ event: "message_start", data: {} }] : [];
 		case "message_update":
-			return event.assistantMessageEvent.type === "text_delta"
-				? [{ event: "text_delta", data: { delta: event.assistantMessageEvent.delta } }]
-				: [];
 		case "message_end":
-			return event.message.role === "assistant"
-				? [{ event: "message_end", data: { message: toClientAssistantMessage(event.message) } }]
-				: [];
+			return [];
 		case "tool_execution_start":
 			return [
 				{
