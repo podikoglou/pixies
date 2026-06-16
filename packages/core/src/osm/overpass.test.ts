@@ -38,12 +38,12 @@ function blockingFetch(): {
 	blockers: Deferred<Response>[];
 } {
 	const blockers: Deferred<Response>[] = [];
-	const fetch = mock(() => {
+	const fetchFn = mock(() => {
 		const d = deferred<Response>();
 		blockers.push(d);
 		return d.promise;
-	}) as unknown as typeof fetch;
-	return { fetch, blockers };
+	}) as unknown as typeof globalThis.fetch;
+	return { fetch: fetchFn, blockers };
 }
 
 /** Resolve all outstanding blockers so hanging queries can settle. */
