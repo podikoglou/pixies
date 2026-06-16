@@ -89,3 +89,9 @@ export { NominatimClient } from "./osm/nominatim.ts";
 export type { NominatimConfig, NominatimResult } from "./osm/nominatim.ts";
 export { OverpassClient } from "./osm/overpass.ts";
 export type { OverpassConfig, OverpassResponse } from "./osm/overpass.ts";
+export {
+	OsmServerBusyError,
+	OSM_SERVER_BUSY_MESSAGE,
+	isServerBusyResponse,
+	SERVER_BUSY_BODY_MARKERS,
+} from "./osm/http.ts";

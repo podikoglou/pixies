@@ -1,6 +1,7 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import type { NominatimClient } from "../osm/nominatim.ts";
+import { OsmServerBusyError, OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
 import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
 import type { ReverseGeocodeToolDetails } from "./index.ts";
 import type { ToolProgress } from "./progress.ts";
@@ -28,26 +29,33 @@ export function createReverseGeocodeTool(
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal, onUpdate) {
 			if (signal?.aborted) throw new Error("Operation aborted");
-			const result = await nominatim.reverse(
-				params.lat,
-				params.lon,
-				{ zoom: params.zoom },
-				signal,
-				{
-					onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
-				},
-			);
-			if (!result || !result.display_name) {
+			try {
+				const result = await nominatim.reverse(
+					params.lat,
+					params.lon,
+					{ zoom: params.zoom },
+					signal,
+					{
+						onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
+					},
+				);
+				if (!result || !result.display_name) {
+					return {
+						content: [{ type: "text", text: "No results." }],
+						details: undefined,
+					};
+				}
+				const name = result.name || result.display_name.split(",")[0] || "unknown";
 				return {
-					content: [{ type: "text", text: "No results." }],
-					details: undefined,
+					content: [{ type: "text", text: formatNominatimResult(result) }],
+					details: { name: name.slice(0, 50), data: nominatimResultToData(result) },
 				};
+			} catch (err) {
+				if (err instanceof OsmServerBusyError) {
+					return { content: [{ type: "text", text: OSM_SERVER_BUSY_MESSAGE }], details: undefined };
+				}
+				throw err;
 			}
-			const name = result.name || result.display_name.split(",")[0] || "unknown";
-			return {
-				content: [{ type: "text", text: formatNominatimResult(result) }],
-				details: { name: name.slice(0, 50), data: nominatimResultToData(result) },
-			};
 		},
 	};
 }
