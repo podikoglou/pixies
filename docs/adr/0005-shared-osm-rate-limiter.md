@@ -22,12 +22,23 @@ Introduce one shared throttle primitive — `createRateLimiter({ concurrency, in
 
 Both clients construct their own limiter at their per-service policy:
 
-| Client | Limiter config | Grounding |
+| Client | Limiter config (defaults) | Grounding |
 | --- | --- | --- |
-| Nominatim | `{concurrency:1, intervalCap:1, interval: rateLimitMs ?? 1100, strict:true}` | 1 req/s per-IP policy; `strict` sliding window prevents boundary bursts. |
-| Overpass | `{concurrency:2, intervalCap:2, interval:1000}` | `/api/status` "Rate limit: 2"; concurrency is the hard policy (Overpass queries are slow, so fixed-window bursts are not a real risk). |
+| Nominatim | `{concurrency:1, intervalCap:1, interval:1100ms, strict:true}` | 1 req/s per-IP policy of the default public `nominatim.openstreetmap.org`; `strict` sliding window prevents boundary bursts. |
+| Overpass | `{concurrency:2, intervalCap:2, interval:1000ms}` | `/api/status` "Rate limit: 2" on the default public `overpass-api.de`; concurrency is the hard policy (Overpass queries are slow, so fixed-window bursts are not a real risk). |
+
+Each value is a per-instance config knob (`NominatimConfig`/`OverpassConfig` `concurrency`/`intervalCap`/`intervalMs`) whose defaults reproduce today's behavior. `strict:true` is an internal Nominatim default (not env-exposed). The defaults target the **public** instances; self-hosted/custom instances are configurable via the env vars below.
 
 The old Nominatim `chain`/`lastCallTime`/`RATE_LIMIT_MS`/`withRateLimit` are deleted; `fetchJson` now calls `this.limiter.withRateLimit(...)`. Overpass `query()` wraps its `osmFetch` in `this.limiter.withRateLimit(...)` and gains an optional `callbacks` param so `query_osm` can report `queued`/`running` progress like the Nominatim tools.
+
+**Per-instance policy is now env-configurable.** The three limiter knobs per service are exposed as six env-backed `PixiesConfigSchema` fields (read in `readConfigFromEnv` and plumbed through `CreateOsmClientsOptions` → `createOsmClients`):
+
+| Service | Env vars | Defaults |
+| --- | --- | --- |
+| Nominatim | `PIXIES_NOMINATIM_CONCURRENCY` / `PIXIES_NOMINATIM_INTERVAL_CAP` / `PIXIES_NOMINATIM_INTERVAL_MS` | 1 / 1 / 1100 |
+| Overpass | `PIXIES_OVERPASS_CONCURRENCY` / `PIXIES_OVERPASS_INTERVAL_CAP` / `PIXIES_OVERPASS_INTERVAL_MS` | 2 / 2 / 1000 |
+
+The defaults equal the public-instance policies above; operators pointing at self-hosted mirrors via `PIXIES_NOMINATIM_URL`/`PIXIES_OVERPASS_URL` can raise them to match that mirror's own limits.
 
 ADR-0004's invariant is **preserved structurally**: `createOsmClients` still builds one `NominatimClient` + one `OverpassClient`, and `ConversationStore` still calls `createOsmClients` **once**. One instance ⇒ one p-queue ⇒ one chain, per service, per process — independent of conversation count.
 
@@ -50,7 +61,7 @@ ADR-0004's invariant is **preserved structurally**: `createOsmClients` still bui
 - Overpass is now throttled to 2 concurrent slots (was unbounded).
 - One well-tested throttle primitive replaces two mechanisms; future OSM services reuse it by config.
 - Both clients have direct unit coverage (serialization, abort, busy passthrough).
-- `rateLimitMs` is now a per-instance Nominatim config knob (useful for self-hosted mirrors and fast tests), promoting the old module constant.
+- The limiter knobs are now env-configurable per instance (`PIXIES_NOMINATIM_*` / `PIXIES_OVERPASS_*`), promoting the old module constant `RATE_LIMIT_MS` to three knobs per service. Defaults reproduce today's behavior; self-hosted mirrors and fast tests can override them.
 
 **Negative:**
 
@@ -61,8 +72,8 @@ ADR-0004's invariant is **preserved structurally**: `createOsmClients` still bui
 
 This decision holds for as long as:
 
-- Nominatim's usage policy remains per-IP 1 req/s (ADR-0004 durability applies).
-- Overpass's 2-slot policy holds (verified against `/api/status`).
+- The **default public `nominatim.openstreetmap.org`** usage policy remains per-IP 1 req/s — the built-in defaults (`concurrency:1, intervalCap:1, interval:1100ms, strict`) are tuned to it (ADR-0004 durability applies). Self-hosted/custom Nominatim mirrors (`PIXIES_NOMINATIM_URL`) have their own limits, now configurable via `PIXIES_NOMINATIM_CONCURRENCY` / `PIXIES_NOMINATIM_INTERVAL_CAP` / `PIXIES_NOMINATIM_INTERVAL_MS`.
+- The **default public `overpass-api.de`** 2-slot policy holds (verified against `/api/status`) — the built-in defaults (`concurrency:2, intervalCap:2, interval:1000ms`) match it. Self-hosted/custom Overpass instances (`PIXIES_OVERPASS_URL`) have their own limits, now configurable via `PIXIES_OVERPASS_CONCURRENCY` / `PIXIES_OVERPASS_INTERVAL_CAP` / `PIXIES_OVERPASS_INTERVAL_MS`.
 - The server is a single process (ADR-0001); a multi-process future would need the throttle to live outside the process — the same caveat ADR-0004 records.
 
 ## Alternatives considered
