@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import {
 	createAgent,
 	createOsmClients,
+	type CreateAgentOptions,
 	type OsmClients,
 	type ResolvedPixiesConfig,
 } from "@pixies/core";
@@ -33,11 +34,17 @@ export class ConversationStore {
 	private readonly osmClients: OsmClients;
 	private readonly db: DbClient;
 	private readonly maxSize: number;
+	private readonly agentFactory: (opts: CreateAgentOptions) => Agent;
 
-	constructor(config: ResolvedPixiesConfig, db: DbClient) {
+	constructor(
+		config: ResolvedPixiesConfig,
+		db: DbClient,
+		agentFactory: (opts: CreateAgentOptions) => Agent = createAgent,
+	) {
 		this.config = config;
 		this.db = db;
 		this.maxSize = config.cacheSize;
+		this.agentFactory = agentFactory;
 		this.osmClients = createOsmClients({
 			overpassUrl: config.overpassUrl,
 			nominatimUrl: config.nominatimUrl,
@@ -51,7 +58,7 @@ export class ConversationStore {
 		const id = uuidv7();
 		const conv: Conversation = {
 			id,
-			agent: createAgent({ config: this.config, osmClients: this.osmClients }),
+			agent: this.agentFactory({ config: this.config, osmClients: this.osmClients }),
 			lastActivity: Date.now(),
 			inFlight: false,
 		};
@@ -86,7 +93,7 @@ export class ConversationStore {
 		const row = rows[0]!;
 		conv = {
 			id,
-			agent: createAgent({ config: this.config, osmClients: this.osmClients }),
+			agent: this.agentFactory({ config: this.config, osmClients: this.osmClients }),
 			lastActivity: Date.now(),
 			inFlight: false,
 		};
@@ -114,7 +121,7 @@ export class ConversationStore {
 			const row = rows[0]!;
 			conv = {
 				id,
-				agent: createAgent({ config: this.config, osmClients: this.osmClients }),
+				agent: this.agentFactory({ config: this.config, osmClients: this.osmClients }),
 				lastActivity: Date.now(),
 				inFlight: false,
 			};
@@ -208,7 +215,14 @@ export class ConversationStore {
 		}
 	}
 
-	private sweep(): void {
+	/**
+	 * TTL maintenance — evicts conversations idle > 24h.
+	 *
+	 * Public so tests can trigger it deterministically; the production trigger
+	 * is the constructor's `setInterval` (every `SWEEP_INTERVAL_MS`), which
+	 * `bun:test` cannot fast-forward.
+	 */
+	sweep(): void {
 		const now = Date.now();
 		for (const conv of this.map.values()) {
 			if (now - conv.lastActivity > 24 * 60 * 60 * 1000) {
