@@ -116,6 +116,7 @@ export function useChat() {
 	}, []);
 
 	const reset = useCallback(() => {
+		abortRef.current?.abort();
 		dispatch({ type: "RESET" });
 	}, []);
 
