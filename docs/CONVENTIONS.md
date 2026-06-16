@@ -42,3 +42,17 @@ Project-specific notes not covered by the skill:
 - `animate-pulse` from Tailwind for cursor/loading states.
 - `tw-animate-css` imported in `globals.css` for additional utilities.
 - Use `motion` (not `framer-motion`). Do NOT add `framer-motion`.
+
+## App assets
+
+Favicon, PWA icons, and manifest live under `packages/web/public/`. Source
+SVGs and the rasterization script are at `packages/web/scripts/`. To regenerate
+raster PNGs after modifying source SVGs:
+
+```sh
+bun run packages/web/scripts/generate-icons.mjs
+```
+
+The `favicon.svg` uses `currentColor` with a `@media (prefers-color-scheme: dark)`
+query for adaptive light/dark display. Static raster PNGs (used for PWA icons)
+use an opaque `#fafafa` background with baked `#262626` stroke — no media query.
