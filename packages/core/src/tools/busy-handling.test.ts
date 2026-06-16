@@ -51,9 +51,7 @@ test("reverse_geocode: generic error still propagates", async () => {
 		search: mock(() => Promise.reject(new Error("Network failure"))),
 	} as unknown as NominatimClient;
 	const tool = createReverseGeocodeTool(brokenNominatim);
-	await expect(
-		tool.execute("call-4", { lat: 52.5, lon: 13.4 }),
-	).rejects.toThrow("Network failure");
+	await expect(tool.execute("call-4", { lat: 52.5, lon: 13.4 })).rejects.toThrow("Network failure");
 });
 
 // ---- geocode: busy handling -------------------------------------------------
@@ -77,7 +75,5 @@ test("geocode: generic error still propagates", async () => {
 		reverse: mock(() => Promise.reject(new Error("Network failure"))),
 	} as unknown as NominatimClient;
 	const tool = createGeocodeTool(brokenNominatim);
-	await expect(
-		tool.execute("call-6", { query: "Berlin" }),
-	).rejects.toThrow("Network failure");
+	await expect(tool.execute("call-6", { query: "Berlin" })).rejects.toThrow("Network failure");
 });
