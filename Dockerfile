@@ -1,13 +1,14 @@
 FROM oven/bun:1 AS base
 
 FROM base AS install
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY packages/core/package.json ./packages/core/
 COPY packages/server/package.json ./packages/server/
 COPY packages/web/package.json ./packages/web/
 COPY packages/tui/package.json ./packages/tui/
-RUN bun install --frozen-lockfile --no-scripts
+RUN bun install --frozen-lockfile
 
 FROM base AS build-web
 WORKDIR /app
