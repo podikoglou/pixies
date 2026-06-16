@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useChatContext } from "@/contexts/chat-context";
-import { SparklesIcon } from "@/components/icons";
+import { CompassIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatInput } from "./chat-input";
@@ -95,7 +95,7 @@ export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 			<ScrollArea ref={rootRef} className="min-h-0 flex-1">
 				{isEmpty ? (
 					<div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-16 text-center">
-						<SparklesIcon size={32} className="text-muted-foreground" />
+						<CompassIcon size={32} className="text-muted-foreground" />
 						<p className="text-muted-foreground text-pretty text-sm">
 							Ask me anything about places. Try:
 						</p>
