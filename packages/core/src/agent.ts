@@ -43,6 +43,15 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 			process.env.PIXIES_CACHE_SIZE !== undefined
 				? Number(process.env.PIXIES_CACHE_SIZE)
 				: undefined,
+		httpRateLimit:
+			process.env.PIXIES_HTTP_RATE_LIMIT !== undefined
+				? Number(process.env.PIXIES_HTTP_RATE_LIMIT)
+				: undefined,
+		httpRateLimitWindowMs:
+			process.env.PIXIES_HTTP_RATE_LIMIT_WINDOW_MS !== undefined
+				? Number(process.env.PIXIES_HTTP_RATE_LIMIT_WINDOW_MS)
+				: undefined,
+		trustProxy: process.env.PIXIES_TRUST_PROXY === "true",
 	};
 
 	return PixiesConfigSchema.parse(raw);
