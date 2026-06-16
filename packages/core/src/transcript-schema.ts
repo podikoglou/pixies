@@ -2,36 +2,48 @@ import { Type } from "typebox";
 import type { Static } from "typebox";
 import { Value } from "typebox/value";
 
-export const TranscriptContentBlockSchema = Type.Object({
-	type: Type.String(),
-	text: Type.Optional(Type.String()),
-});
+export const TranscriptContentBlockSchema = Type.Object(
+	{
+		type: Type.String(),
+		text: Type.Optional(Type.String()),
+	},
+	{ additionalProperties: false },
+);
 
 export type TranscriptContentBlock = Static<typeof TranscriptContentBlockSchema>;
 
-export const TranscriptUserMessageSchema = Type.Object({
-	role: Type.Literal("user"),
-	content: Type.Union([Type.String(), Type.Array(TranscriptContentBlockSchema)]),
-});
+export const TranscriptUserMessageSchema = Type.Object(
+	{
+		role: Type.Literal("user"),
+		content: Type.Union([Type.String(), Type.Array(TranscriptContentBlockSchema)]),
+	},
+	{ additionalProperties: false },
+);
 
 export type TranscriptUserMessage = Static<typeof TranscriptUserMessageSchema>;
 
-export const TranscriptAssistantMessageSchema = Type.Object({
-	role: Type.Literal("assistant"),
-	content: Type.Array(TranscriptContentBlockSchema),
-	stopReason: Type.Optional(Type.String()),
-});
+export const TranscriptAssistantMessageSchema = Type.Object(
+	{
+		role: Type.Literal("assistant"),
+		content: Type.Array(TranscriptContentBlockSchema),
+		stopReason: Type.Optional(Type.String()),
+	},
+	{ additionalProperties: false },
+);
 
 export type TranscriptAssistantMessage = Static<typeof TranscriptAssistantMessageSchema>;
 
-export const TranscriptToolResultMessageSchema = Type.Object({
-	role: Type.Literal("toolResult"),
-	toolCallId: Type.String(),
-	toolName: Type.String(),
-	content: Type.Array(TranscriptContentBlockSchema),
-	details: Type.Optional(Type.Unknown()),
-	isError: Type.Boolean(),
-});
+export const TranscriptToolResultMessageSchema = Type.Object(
+	{
+		role: Type.Literal("toolResult"),
+		toolCallId: Type.String(),
+		toolName: Type.String(),
+		content: Type.Array(TranscriptContentBlockSchema),
+		details: Type.Optional(Type.Unknown()),
+		isError: Type.Boolean(),
+	},
+	{ additionalProperties: false },
+);
 
 export type TranscriptToolResultMessage = Static<typeof TranscriptToolResultMessageSchema>;
 

@@ -12,23 +12,30 @@ export const TextDeltaData = Type.Object({
 	delta: Type.String(),
 });
 
-export const TextContentBlock = Type.Object({
-	type: Type.Literal("text"),
-	text: Type.String(),
-});
+export const TextContentBlock = Type.Object(
+	{
+		type: Type.Literal("text"),
+		text: Type.String(),
+	},
+	{ additionalProperties: false },
+);
 
-export const UnknownContentBlock = Type.Object({
-	type: Type.String(),
-});
+export const UnknownContentBlock = Type.Object(
+	{ type: Type.String() },
+	{ additionalProperties: false },
+);
 
 export const ContentBlock = Type.Union([TextContentBlock, UnknownContentBlock]);
 export type ContentBlockType = Static<typeof ContentBlock>;
 
-export const AssistantMessageSchema = Type.Object({
-	role: Type.Literal("assistant"),
-	content: Type.Array(ContentBlock),
-	stopReason: Type.Optional(Type.String()),
-});
+export const AssistantMessageSchema = Type.Object(
+	{
+		role: Type.Literal("assistant"),
+		content: Type.Array(ContentBlock),
+		stopReason: Type.Optional(Type.String()),
+	},
+	{ additionalProperties: false },
+);
 
 export const MessageEndData = Type.Object({
 	message: AssistantMessageSchema,
