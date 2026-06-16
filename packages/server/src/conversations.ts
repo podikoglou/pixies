@@ -60,7 +60,9 @@ export class ConversationStore {
 		this.db
 			.insert(conversationsTable)
 			.values({ id, transcript: [] })
-			.catch(() => {});
+			.catch((err) =>
+				console.error(`[ConversationStore] failed to insert conversation ${id}:`, err),
+			);
 		return conv.id;
 	}
 
@@ -155,7 +157,9 @@ export class ConversationStore {
 								updatedAt: new Date(),
 							})
 							.where(eq(conversationsTable.id, id))
-							.catch(() => {});
+							.catch((err) =>
+								console.error(`[ConversationStore] failed to persist transcript for ${id}:`, err),
+							);
 					});
 			},
 		});
@@ -176,7 +180,9 @@ export class ConversationStore {
 		this.db
 			.delete(conversationsTable)
 			.where(eq(conversationsTable.id, id))
-			.catch(() => {});
+			.catch((err) =>
+				console.error(`[ConversationStore] failed to delete conversation ${id}:`, err),
+			);
 		return true;
 	}
 
