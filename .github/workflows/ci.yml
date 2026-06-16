@@ -41,10 +41,13 @@ jobs:
       - name: Lint
         run: bun run lint
 
-      # Only @pixies/core and @pixies/web have `test` scripts; @pixies/server
-      # and @pixies/tui do not, so tests are filtered explicitly.
+      # @pixies/core, @pixies/web, and @pixies/server have `test` scripts;
+      # only @pixies/tui does not, so tests are filtered explicitly.
       - name: Test @pixies/core
         run: bun run --filter '@pixies/core' test
+
+      - name: Test @pixies/server
+        run: bun run --filter '@pixies/server' test
 
       - name: Test @pixies/web
         run: bun run --filter '@pixies/web' test
