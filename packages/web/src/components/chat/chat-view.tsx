@@ -17,7 +17,15 @@ const WELCOME_EXAMPLES = [
 
 const PIN_THRESHOLD = 100;
 
-export function ChatView() {
+interface ChatViewProps {
+	/** Fired when a `conversation_created` SSE event arrives, with the new id.
+	 * Used by `NewConversationPage` to navigate to `/c/$id` from the event
+	 * source rather than a state-watching effect (issue #51). Optional —
+	 * `ConversationPage` (already on the URL) does not supply it. */
+	onConversationCreated?: (id: string) => void;
+}
+
+export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 	const { state, sendMessage, abort, reset } = useChatContext();
 	const navigate = useNavigate();
 	const [text, setText] = useState("");
@@ -33,7 +41,7 @@ export function ChatView() {
 	const handleSubmit = () => {
 		const trimmed = text.trim();
 		if (!trimmed || state.isStreaming) return;
-		sendMessage(trimmed);
+		sendMessage(trimmed, { onConversationCreated });
 		setText("");
 	};
 
@@ -71,7 +79,16 @@ export function ChatView() {
 		<div className="flex h-dvh flex-col">
 			<header className="border-border border-b">
 				<div className="mx-auto max-w-3xl px-4 py-2.5">
-					<button type="button" onClick={() => { reset(); navigate({ to: "/" }); }} className="text-muted-foreground text-sm font-medium tracking-tight">pixies</button>
+					<button
+						type="button"
+						onClick={() => {
+							reset();
+							navigate({ to: "/" });
+						}}
+						className="text-muted-foreground text-sm font-medium tracking-tight"
+					>
+						pixies
+					</button>
 				</div>
 			</header>
 

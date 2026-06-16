@@ -18,10 +18,17 @@ function isAbortError(err: unknown): boolean {
 	);
 }
 
-function dispatchSseEvent(evt: SSEEvent, dispatch: Dispatch<ChatAction>): void {
+export function dispatchSseEvent(
+	evt: SSEEvent,
+	dispatch: Dispatch<ChatAction>,
+	onConversationCreated?: (id: string) => void,
+): void {
 	switch (evt.event) {
 		case "conversation_created":
 			dispatch({ type: "CONVERSATION_CREATED", id: evt.data.id });
+			// Fire navigation intent here, from the event that produces the state
+			// change — not via a state-watching useEffect downstream (issue #51).
+			onConversationCreated?.(evt.data.id);
 			break;
 		case "message_start":
 			dispatch({ type: "MESSAGE_START" });
@@ -73,29 +80,36 @@ export function useChat() {
 	stateRef.current = state;
 	const abortRef = useRef<AbortController | null>(null);
 
-	const sendMessage = useCallback(async (message: string) => {
-		if (!message.trim()) return;
-		const controller = new AbortController();
-		abortRef.current = controller;
-		dispatch({ type: "SEND_MESSAGE", text: message });
+	const sendMessage = useCallback(
+		async (message: string, opts?: { onConversationCreated?: (id: string) => void }) => {
+			if (!message.trim()) return;
+			const controller = new AbortController();
+			abortRef.current = controller;
+			dispatch({ type: "SEND_MESSAGE", text: message });
 
-		const conversationId = stateRef.current.conversationId;
-		const stream = conversationId
-			? sendMessageStream(conversationId, message, controller.signal)
-			: createConversationStream(message, controller.signal);
+			const conversationId = stateRef.current.conversationId;
+			const stream = conversationId
+				? sendMessageStream(conversationId, message, controller.signal)
+				: createConversationStream(message, controller.signal);
 
-		try {
-			for await (const evt of stream) dispatchSseEvent(evt, dispatch);
-		} catch (err) {
-			if (isAbortError(err)) {
-				dispatch({ type: "STREAM_DONE" });
-			} else {
-				dispatch({ type: "SET_ERROR", message: err instanceof Error ? err.message : String(err) });
+			try {
+				for await (const evt of stream)
+					dispatchSseEvent(evt, dispatch, opts?.onConversationCreated);
+			} catch (err) {
+				if (isAbortError(err)) {
+					dispatch({ type: "STREAM_DONE" });
+				} else {
+					dispatch({
+						type: "SET_ERROR",
+						message: err instanceof Error ? err.message : String(err),
+					});
+				}
+			} finally {
+				abortRef.current = null;
 			}
-		} finally {
-			abortRef.current = null;
-		}
-	}, []);
+		},
+		[],
+	);
 
 	const abort = useCallback(() => {
 		abortRef.current?.abort();
