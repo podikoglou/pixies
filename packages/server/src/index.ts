@@ -1,4 +1,8 @@
-import { readConfigFromEnv, type ResolvedPixiesConfig } from "@pixies/core";
+import {
+	readConfigFromEnv,
+	toClientTranscriptMessage,
+	type ResolvedPixiesConfig,
+} from "@pixies/core";
 import { createDb } from "@pixies/core/db";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
@@ -133,7 +137,7 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 					const conv = await store.get(id);
 					if (!conv)
 						return Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
-					const messages = conv.agent.state.messages;
+					const messages = conv.agent.state.messages.map(toClientTranscriptMessage);
 					return Response.json({ id, messages });
 				},
 				DELETE: (req) => {

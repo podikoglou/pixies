@@ -1,6 +1,6 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import { isToolProgress, toClientAssistantMessage } from "@pixies/core";
 import type { SSEEvent } from "@pixies/core";
-import { isToolProgress } from "@pixies/core";
 
 export function translateAgentEvent(event: AgentEvent): SSEEvent[] {
 	switch (event.type) {
@@ -12,7 +12,7 @@ export function translateAgentEvent(event: AgentEvent): SSEEvent[] {
 				: [];
 		case "message_end":
 			return event.message.role === "assistant"
-				? [{ event: "message_end", data: { message: event.message } }]
+				? [{ event: "message_end", data: { message: toClientAssistantMessage(event.message) } }]
 				: [];
 		case "tool_execution_start":
 			return [
