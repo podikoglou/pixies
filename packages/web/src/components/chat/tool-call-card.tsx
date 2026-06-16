@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { formatToolName } from "@/lib/format-tool-name";
 import type { TimelineItem } from "@/state/chat-reducer";
 import { JsonTree } from "./json-tree";
+import { formatTime } from "./assistant-message";
 
 type ToolCallItem = Extract<TimelineItem, { kind: "tool-call" }>;
 
@@ -128,6 +129,9 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 				</Accordion>
 			) : (
 				<div className="px-4 py-3">{header}</div>
+			)}
+			{item.responseTimeMs !== undefined && (
+				<p className="text-muted-foreground px-4 pb-3 text-xs">{formatTime(item.responseTimeMs)}</p>
 			)}
 		</div>
 	);

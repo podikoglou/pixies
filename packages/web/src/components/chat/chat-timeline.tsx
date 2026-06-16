@@ -36,7 +36,7 @@ export function ChatTimeline({ state }: ChatTimelineProps) {
 				const animate = i >= skipCount;
 				let content;
 				if (item.kind === "user-message") {
-					content = <UserMessage text={item.text} />;
+					content = <UserMessage text={item.text} responseTimeMs={item.responseTimeMs} />;
 				} else if (item.kind === "assistant-message") {
 					content = <AssistantMessage text={item.text} responseTimeMs={item.responseTimeMs} />;
 				} else if (

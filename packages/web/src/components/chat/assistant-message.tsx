@@ -75,7 +75,7 @@ const components: Components = {
 	td: ({ children }) => <TableCell>{children}</TableCell>,
 };
 
-function formatTime(ms: number): string {
+export function formatTime(ms: number): string {
 	if (ms < 1000) return `${Math.round(ms)}ms`;
 	if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
 	const minutes = Math.floor(ms / 60000);
