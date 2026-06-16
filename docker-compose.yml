@@ -1,0 +1,14 @@
+services:
+  pixies:
+    build: .
+    ports:
+      - "${PIXIES_PORT:-3000}:3000"
+    environment:
+      PIXIES_DB_FILE: /app/data/pixies.db
+    env_file: ".env"
+    volumes:
+      - pixies-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  pixies-data:

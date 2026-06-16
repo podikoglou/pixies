@@ -1,0 +1,17 @@
+node_modules
+.git
+*.db
+*.log
+.env
+dist
+.agents
+.github
+docs
+CONTRIBUTING.md
+CLAUDE.md
+AGENTS.md
+lefthook.yml
+.oxfmtrc.json
+.oxlintrc.json
+skills-lock.json
+packages/tui/src
