@@ -8,5 +8,5 @@ to answer them and display results in a map widget.
 
 Services it uses:
 
-- [https://nominatim.org/](Nominatim)
-- [https://wiki.openstreetmap.org/wiki/Overpass](Overpass)
+- [Nominatim](https://nominatim.org/)
+- [Overpass](https://wiki.openstreetmap.org/wiki/Overpass)
