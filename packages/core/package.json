@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./src/index.ts",
@@ -15,6 +16,10 @@
     "./logging": {
       "types": "./src/logging/index.ts",
       "default": "./src/logging/index.ts"
+    },
+    "./logging/discord-transport": {
+      "types": "./src/logging/discord-transport.ts",
+      "default": "./src/logging/discord-transport.ts"
     }
   },
   "scripts": {

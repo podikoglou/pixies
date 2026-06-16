@@ -6,6 +6,7 @@ import {
 } from "@pixies/core";
 import { createDb } from "@pixies/core/db";
 import { createLogger, type Logger } from "@pixies/core/logging";
+import { DiscordTransport } from "@pixies/core/logging/discord-transport";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import path from "node:path";
@@ -179,7 +180,10 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 	}
 	const db = createDb(config.dbFile);
 	migrate(db, { migrationsFolder: "./drizzle" });
-	const logger = opts.logger ?? createLogger({ discordWebhookUrl: config.discordWebhookUrl });
+	const transport = config.discordWebhookUrl
+		? new DiscordTransport({ url: config.discordWebhookUrl })
+		: undefined;
+	const logger = opts.logger ?? createLogger({ discordTransport: transport });
 	registerGlobalHandlers(logger);
 	logResolvedConfig(logger, config);
 	const store = new ConversationStore(config, db, createAgent, logger);

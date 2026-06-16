@@ -1,9 +1,10 @@
 /**
  * Structured logger factory built on pino's `multistream`.
  *
- * Every log line goes to `process.stdout`. When a `discordWebhookUrl` is
- * provided, `error` and `fatal` lines are *additionally* forwarded to a
- * {@link DiscordTransport} (fire-and-forget, never blocks the request path).
+ * Every log line goes to `process.stdout`. When a `discordTransport` writable
+ * stream is provided (e.g. {@link DiscordTransport}), `error` and `fatal` lines
+ * are *additionally* forwarded to it (fire-and-forget, never blocks the request
+ * path).
  *
  * Why `multistream` and not worker-thread `pino.transport()`: worker transports
  * add Bun-compat risk and complicate `fetch` injection, and our transport is
@@ -13,8 +14,8 @@
  * works identically under Node and Bun; sonic-boom destinations would add Bun
  * surface area we don't need.
  */
+import type { Writable } from "node:stream";
 import pino, { type Level, type Logger, type StreamEntry } from "pino";
-import { DiscordTransport } from "./discord-transport.ts";
 
 export type { Logger } from "pino";
 
@@ -23,10 +24,8 @@ export interface CreateLoggerOptions {
 	name?: string;
 	/** Minimum level emitted to stdout. Default `"info"`. */
 	level?: Level;
-	/** When set, `error`+ lines are also POSTed to Discord. */
-	discordWebhookUrl?: string;
-	/** Injectable fetch for {@link DiscordTransport} (tests never hit network). */
-	fetch?: typeof globalThis.fetch;
+	/** Optional writable stream for `error`+ log lines (e.g. {@link DiscordTransport}). */
+	discordTransport?: Writable;
 }
 
 /**
@@ -38,10 +37,10 @@ export const silentLogger: Logger = pino({ level: "silent" });
 export function createLogger(opts: CreateLoggerOptions = {}): Logger {
 	const level = opts.level ?? "info";
 	const streams: StreamEntry<Level>[] = [{ level, stream: process.stdout }];
-	if (opts.discordWebhookUrl) {
+	if (opts.discordTransport) {
 		streams.push({
 			level: "error", // ONLY error & fatal reach Discord
-			stream: new DiscordTransport({ url: opts.discordWebhookUrl, fetch: opts.fetch }),
+			stream: opts.discordTransport,
 		});
 	}
 	return pino({ name: opts.name ?? "pixies", level }, pino.multistream(streams));
