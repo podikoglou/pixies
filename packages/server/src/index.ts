@@ -85,12 +85,13 @@ function pipeAgentStream(
 	const writer = new SseWriter(() => store.abort(abortId));
 	if (onOpen) onOpen(writer);
 
+	const startTime = Date.now();
 	void (async () => {
 		try {
 			for await (const event of result.stream) {
 				for (const sse of translateAgentEvent(event)) writer.write(sse.event, sse.data);
 			}
-			writer.write("done", {});
+			writer.write("done", { durationMs: Date.now() - startTime });
 		} catch (err) {
 			logger.error(
 				{ conversationId: abortId, err: err instanceof Error ? err : new Error(String(err)) },
