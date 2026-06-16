@@ -138,19 +138,7 @@ export function withRequestLogging(
 	};
 }
 
-export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined> {
-	let config: ResolvedPixiesConfig;
-	try {
-		config = opts.config ?? readConfigFromEnv();
-	} catch (e) {
-		if (e instanceof Error) {
-			throw new Error(`Server configuration error: ${e.message}`);
-		}
-		throw e;
-	}
-	const db = createDb(config.dbFile);
-	migrate(db, { migrationsFolder: "./drizzle" });
-	const logger = opts.logger ?? createLogger({ discordWebhookUrl: config.discordWebhookUrl });
+export function logResolvedConfig(logger: Logger, config: ResolvedPixiesConfig): void {
 	logger.info(
 		{
 			host: config.host,
@@ -177,11 +165,24 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 		},
 		"pixies server configuration",
 	);
+}
+
+export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined> {
+	let config: ResolvedPixiesConfig;
+	try {
+		config = opts.config ?? readConfigFromEnv();
+	} catch (e) {
+		if (e instanceof Error) {
+			throw new Error(`Server configuration error: ${e.message}`);
+		}
+		throw e;
+	}
+	const db = createDb(config.dbFile);
+	migrate(db, { migrationsFolder: "./drizzle" });
+	const logger = opts.logger ?? createLogger({ discordWebhookUrl: config.discordWebhookUrl });
 	registerGlobalHandlers(logger);
+	logResolvedConfig(logger, config);
 	const store = new ConversationStore(config, db, createAgent, logger);
-	// In-process per-IP limiter for the two LLM-cost POST endpoints. Works in
-	// dev and prod; Caddy-side limiting remains an optional future
-	// defense-in-depth (stock Caddy has no rate-limit plugin). See #91.
 	const rateLimiter = new IpRateLimiter({
 		maxRequests: config.httpRateLimit,
 		windowMs: config.httpRateLimitWindowMs,
