@@ -26,7 +26,7 @@ COPY packages/server ./packages/server
 COPY --from=build-web /app/packages/web/dist ./packages/web/dist
 COPY drizzle ./drizzle
 RUN mkdir -p /app/data && chown bun:bun /app/data
-ENV HOSTNAME=0.0.0.0
+ENV PIXIES_HOST=0.0.0.0
 EXPOSE 3000
 USER bun
 CMD ["bun", "run", "packages/server/src/index.ts"]
