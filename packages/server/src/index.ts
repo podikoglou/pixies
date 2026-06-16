@@ -19,7 +19,7 @@ const WEB_DIST = process.env.PIXIES_WEB_DIST ?? path.resolve(import.meta.dir, ".
 
 let globalHandlersRegistered = false;
 
-export function registerGlobalHandlers(logger: Logger): void {
+function registerGlobalHandlers(logger: Logger): void {
 	if (globalHandlersRegistered) return;
 	globalHandlersRegistered = true;
 	process.on("unhandledRejection", (reason) => {
@@ -74,7 +74,7 @@ async function readMessage(req: Request): Promise<MessageResult> {
  * @param onOpen   Optional preamble writer (e.g. `conversation_created`).
  * @param abortId  Conversation id to abort on client disconnect.
  */
-export function pipeAgentStream(
+function pipeAgentStream(
 	store: ConversationStore,
 	result: Extract<StreamPromptResult, { ok: true }>,
 	abortId: string,
@@ -118,7 +118,7 @@ function rejectStream(result: Extract<StreamPromptResult, { ok: false }>): Respo
 // input type so the wrapper works for both plain and parametric routes.
 type RouteHandler = (req: any, server: Bun.Server<undefined>) => Response | Promise<Response>;
 
-export function withRequestLogging(
+function withRequestLogging(
 	logger: Logger,
 	handler: RouteHandler,
 ): (req: any, server: Bun.Server<undefined>) => Promise<Response> {
@@ -138,7 +138,7 @@ export function withRequestLogging(
 	};
 }
 
-export function logResolvedConfig(logger: Logger, config: ResolvedPixiesConfig): void {
+function logResolvedConfig(logger: Logger, config: ResolvedPixiesConfig): void {
 	logger.info(
 		{
 			host: config.host,

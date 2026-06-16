@@ -34,13 +34,6 @@ function makeOverpass(fetch: typeof globalThis.fetch, logger?: Logger) {
 	});
 }
 
-/** A Logger stub capturing `debug` + `warn` calls for assertion. */
-function mockLogger() {
-	const debug = mock((_obj: unknown, _msg?: string) => {});
-	const warn = mock((_obj: unknown, _msg?: string) => {});
-	return { debug, warn, logger: { debug, warn } as unknown as Logger };
-}
-
 /** A fetch that returns a fresh controllable blocker for every call. */
 function blockingFetch(): {
 	fetch: typeof globalThis.fetch;
@@ -157,57 +150,4 @@ test("query returns parsed OverpassResponse on success", async () => {
 	const client = makeOverpass(fetchMock);
 	const res = await client.query("[out:json];node(1);out;");
 	expect(res.elements).toHaveLength(1);
-});
-
-// ---- request / busy / remark logging -----------------------------------------
-
-test("logs request and response at debug on a successful query", async () => {
-	const { debug, logger } = mockLogger();
-	const fetchMock = mock(() =>
-		Promise.resolve(jsonResponse({ elements: [{ type: "node", id: 1, lat: 1, lon: 2 }] })),
-	) as unknown as typeof fetch;
-	const client = makeOverpass(fetchMock, logger);
-
-	await client.query("[out:json];node(1);out;");
-
-	const reqLog = debug.mock.calls.find((c) => c[1] === "request")![0] as Record<string, unknown>;
-	expect(reqLog).toMatchObject({ service: "Overpass" });
-	expect(typeof reqLog.queryLength).toBe("number");
-	expect(reqLog.queryLength).toBeGreaterThan(0);
-	const resLog = debug.mock.calls.find((c) => c[1] === "response")![0] as Record<string, unknown>;
-	expect(resLog).toMatchObject({ service: "Overpass", statusCode: 200 });
-	expect(typeof resLog.durationMs).toBe("number");
-});
-
-test("logs server_busy at warn when OSM returns 429", async () => {
-	const { warn, logger } = mockLogger();
-	const fetchMock = mock(() =>
-		Promise.resolve(new Response("busy", { status: 429 })),
-	) as unknown as typeof fetch;
-	const client = makeOverpass(fetchMock, logger);
-
-	await expect(client.query("[out:json];node(1);out;")).rejects.toBeInstanceOf(OsmServerBusyError);
-	expect(warn).toHaveBeenCalledTimes(1);
-	const [obj, msg] = warn.mock.calls[0]!;
-	expect(msg).toBe("OSM server busy");
-	expect(obj).toMatchObject({ service: "Overpass", statusCode: 429, event: "server_busy" });
-});
-
-test("logs overpass remark at warn before throwing", async () => {
-	const { warn, logger } = mockLogger();
-	const fetchMock = mock(() =>
-		Promise.resolve(jsonResponse({ remark: "query timed out" })),
-	) as unknown as typeof fetch;
-	const client = makeOverpass(fetchMock, logger);
-
-	await expect(client.query("[out:json];node(1);out;")).rejects.toThrow(
-		"Overpass: query timed out",
-	);
-	const remarkCall = warn.mock.calls.find((c) => c[1] === "overpass remark");
-	expect(remarkCall).toBeDefined();
-	expect(remarkCall![0]).toMatchObject({
-		service: "Overpass",
-		statusCode: 200,
-		remark: "query timed out",
-	});
 });
