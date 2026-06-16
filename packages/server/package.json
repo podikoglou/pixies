@@ -15,7 +15,8 @@
     "format": "oxfmt src",
     "format:check": "oxfmt --check src",
     "lint": "oxlint src",
-    "lint:fix": "oxlint --fix src"
+    "lint:fix": "oxlint --fix src",
+    "test": "bun test"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.79.3",
