@@ -151,3 +151,25 @@ test("reverse() returns the parsed result", async () => {
 	const result = await client.reverse(52.5, 13.4);
 	expect(result?.display_name).toBe("Berlin");
 });
+
+// ---- invalid-shape error contract (pinned for #104 Value.Parse refactor) -----
+
+test("search() throws on invalid shape and tags the cause", async () => {
+	const fetchMock = mock(
+		() => Promise.resolve(jsonResponse([{ place_id: "not-a-number" }])), // bad place_id
+	) as unknown as typeof fetch;
+	const client = makeClient(fetchMock);
+	await expect(client.search("Berlin")).rejects.toThrow("Nominatim: invalid search response shape");
+});
+
+test("reverse() throws on invalid shape and tags the cause", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(
+			jsonResponse({ lat: "52.5" /* missing required lon, display_name, place_id */ }),
+		),
+	) as unknown as typeof fetch;
+	const client = makeClient(fetchMock);
+	await expect(client.reverse(52.5, 13.4)).rejects.toThrow(
+		"Nominatim: invalid reverse response shape",
+	);
+});
