@@ -5,6 +5,7 @@ import { OsmServerBusyError, OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
 import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
 import type { GeocodeToolDetails } from "./index.ts";
 import type { ToolProgress } from "./progress.ts";
+import { MAX_CONTENT_LINES } from "./limits.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -35,11 +36,17 @@ export function createGeocodeTool(
 						details: { top: "no results", data: [] },
 					};
 				}
-				const lines = results.map(formatNominatimResult);
 				const data = results.map(nominatimResultToData);
 				const top = results[0];
 				if (!top) throw new Error("No top result");
 				const topName = top.name || top.display_name?.split(",")[0] || "unknown";
+				const truncated = results.length > MAX_CONTENT_LINES;
+				const shown = truncated ? results.slice(0, MAX_CONTENT_LINES) : results;
+				const lines = shown.map(formatNominatimResult);
+				if (truncated) {
+					const rest = results.length - MAX_CONTENT_LINES;
+					lines.push(`…and ${rest} more result${rest !== 1 ? "s" : ""}.`);
+				}
 				return {
 					content: [{ type: "text", text: lines.join("\n") }],
 					details: { top: `${topName} (${top.lat},${top.lon})`, data },
