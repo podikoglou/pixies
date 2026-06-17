@@ -49,6 +49,7 @@ export class IpRateLimiter {
 	readonly trustedProxyHops: number;
 	readonly logger: Logger;
 	private readonly windows = new Map<string, WindowState>();
+	private readonly sweeper: ReturnType<typeof setInterval>;
 
 	constructor(opts: IpRateLimiterOptions) {
 		this.maxRequests = opts.maxRequests;
@@ -56,6 +57,9 @@ export class IpRateLimiter {
 		this.trustProxy = opts.trustProxy;
 		this.trustedProxyHops = opts.trustedProxyHops;
 		this.logger = opts.logger ?? silentLogger;
+		// Sweep once per window — any entry whose window elapsed gets reaped no
+		// later than the end of the next sweep. Mirrors ConversationStore.
+		this.sweeper = setInterval(() => this.sweep(), this.windowMs);
 	}
 
 	/**
@@ -79,6 +83,41 @@ export class IpRateLimiter {
 			return { allowed: false, retryAfterMs };
 		}
 		return { allowed: true, retryAfterMs: 0 };
+	}
+
+	/**
+	 * Evict windows whose fixed window has elapsed. Returns the count of
+	 * evicted entries and the resulting map size, for observability.
+	 *
+	 * Public so tests can trigger it deterministically; the production trigger
+	 * is the constructor's `setInterval` (every `windowMs`), which `bun:test`
+	 * cannot fast-forward. Mirrors `ConversationStore.sweep()`.
+	 *
+	 * The predicate (`now - state.windowStart >= windowMs`) MUST match
+	 * `consume()` so sweep and consume agree on when a window has elapsed.
+	 */
+	sweep(now: number = Date.now()): { evictedCount: number; windowCount: number } {
+		let evictedCount = 0;
+		for (const [ip, state] of this.windows) {
+			if (now - state.windowStart >= this.windowMs) {
+				this.windows.delete(ip);
+				evictedCount++;
+			}
+		}
+		const windowCount = this.windows.size;
+		// Only log when something was evicted — avoids spamming on every idle tick.
+		if (evictedCount > 0) {
+			this.logger.info(
+				{ evictedCount, windowCount, event: "rate_limit_windows_cleaned" },
+				"rate-limit windows cleaned",
+			);
+		}
+		return { evictedCount, windowCount };
+	}
+
+	/** Clear the sweep interval. Idempotent via `clearInterval` semantics. */
+	stop(): void {
+		clearInterval(this.sweeper);
 	}
 }
 
