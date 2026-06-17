@@ -9,7 +9,16 @@ export function OsmDisclaimer() {
 		>
 			<InfoIcon size={12} className="shrink-0" />
 			<AlertDescription className="text-xs">
-				OpenStreetMap data is community-maintained and may not always be up to date.
+				{"© "}
+				<a
+					href="https://www.openstreetmap.org/copyright"
+					target="_blank"
+					rel="noopener noreferrer"
+					className="text-primary underline"
+				>
+					OpenStreetMap contributors
+				</a>
+				. Data is community-maintained and may not always be up to date.
 			</AlertDescription>
 		</Alert>
 	);
