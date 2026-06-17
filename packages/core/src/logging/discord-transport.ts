@@ -133,8 +133,14 @@ export function formatDiscordPayload(entry: PinoLogEntry): {
 
 	const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
 
+	// When a stack will be appended below, reserve one of the 25 slots so the
+	// stack (the most important field for an error alert) is never dropped and
+	// the embed never exceeds Discord's 25-field limit (#95).
+	const hasStack = Boolean(entry.err?.stack);
+	const contextCap = hasStack ? MAX_FIELDS - 1 : MAX_FIELDS;
+
 	for (const [key, value] of Object.entries(entry)) {
-		if (fields.length >= MAX_FIELDS) break;
+		if (fields.length >= contextCap) break;
 		if (RESERVED_KEYS.has(key)) continue;
 		fields.push({
 			name: truncate(key, 256),
