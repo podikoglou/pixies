@@ -8,9 +8,19 @@ import { createGeocodeTool } from "./geocode.ts";
 import { createQueryOsmTool } from "./query-osm.ts";
 import { createReverseGeocodeTool } from "./reverse-geocode.ts";
 import { createDisplayMapTool } from "./display-map.ts";
-import type { ToolName } from "./presentation.ts";
-export type { ToolName } from "./presentation.ts";
-export { ToolNameSchema, isToolName } from "./presentation.ts";
+
+export const ToolNameSchema = Type.Union([
+	Type.Literal("geocode"),
+	Type.Literal("reverse_geocode"),
+	Type.Literal("query_osm"),
+	Type.Literal("display_map"),
+]);
+
+export type ToolName = Static<typeof ToolNameSchema>;
+
+export function isToolName(value: unknown): value is ToolName {
+	return Value.Check(ToolNameSchema, value);
+}
 
 export type { ToolProgress } from "./progress.ts";
 export { ToolProgressSchema, isToolProgress } from "./progress.ts";
