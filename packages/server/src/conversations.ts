@@ -15,16 +15,28 @@ import {
 import { conversations as conversationsTable, type DbClient } from "@pixies/core/db";
 import { silentLogger, type Logger } from "@pixies/core/logging";
 
+function computeTokensUsed(messages: AgentMessage[]): number {
+	let total = 0;
+	for (const msg of messages) {
+		if (msg.role === "assistant" && typeof (msg as any).usage?.totalTokens === "number") {
+			total += (msg as any).usage.totalTokens;
+		}
+	}
+	return total;
+}
+
 interface Conversation {
 	readonly id: string;
 	readonly agent: Agent;
 	lastActivity: number;
 	inFlight: boolean;
+	tokensUsed: number;
 }
 
 export type StreamPromptResult =
 	| { ok: true; stream: ReadableStream<AgentEvent> }
-	| { ok: false; reason: "not_found" | "conflict" };
+	| { ok: false; reason: "not_found" | "conflict" }
+	| { ok: false; reason: "budget_exceeded"; used: number; budget: number };
 
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -72,6 +84,7 @@ export class ConversationStore {
 			agent: this.agentFactory({ config: this.config, osmClients: this.osmClients }),
 			lastActivity: Date.now(),
 			inFlight: false,
+			tokensUsed: 0,
 		};
 		this.map.set(conv.id, conv);
 		this.evictIfNeeded();
@@ -107,10 +120,12 @@ export class ConversationStore {
 			agent: this.agentFactory({ config: this.config, osmClients: this.osmClients }),
 			lastActivity: Date.now(),
 			inFlight: false,
+			tokensUsed: 0,
 		};
 
 		if (row.transcript && row.transcript.length > 0) {
 			conv.agent.state.messages = row.transcript as AgentMessage[];
+			conv.tokensUsed = computeTokensUsed(conv.agent.state.messages);
 		}
 
 		this.map.set(id, conv);
@@ -135,16 +150,29 @@ export class ConversationStore {
 				agent: this.agentFactory({ config: this.config, osmClients: this.osmClients }),
 				lastActivity: Date.now(),
 				inFlight: false,
+				tokensUsed: 0,
 			};
 
 			if (row.transcript && row.transcript.length > 0) {
 				conv.agent.state.messages = row.transcript as AgentMessage[];
+				conv.tokensUsed = computeTokensUsed(conv.agent.state.messages);
 			}
 
 			this.map.set(id, conv);
 			this.evictIfNeeded();
 		}
 		if (conv.inFlight) return { ok: false, reason: "conflict" };
+
+		const budget = this.config.conversationTokenBudget;
+		if (budget > 0 && conv.tokensUsed >= budget) {
+			return {
+				ok: false,
+				reason: "budget_exceeded",
+				used: conv.tokensUsed,
+				budget,
+			};
+		}
+
 		conv.inFlight = true;
 		conv.lastActivity = Date.now();
 		this.map.delete(id);
@@ -167,6 +195,7 @@ export class ConversationStore {
 					)
 					.finally(() => {
 						unsubscribe();
+						conv.tokensUsed = computeTokensUsed(conv.agent.state.messages);
 						conv.inFlight = false;
 						this.db
 							.update(conversationsTable)

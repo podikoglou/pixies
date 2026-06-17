@@ -115,6 +115,16 @@ function rejectStream(result: Extract<StreamPromptResult, { ok: false }>): Respo
 			{ error: "conversation already has an in-flight prompt" },
 			{ status: 409 },
 		);
+	if (result.reason === "budget_exceeded") {
+		return Response.json(
+			{
+				error: `conversation token budget (${result.budget}) exceeded: used ${result.used}`,
+				used: result.used,
+				budget: result.budget,
+			},
+			{ status: 403 },
+		);
+	}
 	return Response.json({ error: "conversation not found" }, { status: 404 });
 }
 
@@ -155,6 +165,7 @@ function logResolvedConfig(logger: Logger, config: ResolvedPixiesConfig): void {
 			httpRateLimitWindowMs: config.httpRateLimitWindowMs,
 			trustProxy: config.trustProxy,
 			trustedProxyHops: config.trustedProxyHops,
+			conversationTokenBudget: config.conversationTokenBudget,
 			discordWebhookUrl: config.discordWebhookUrl ? "set" : "unset",
 			apiKey: config.apiKey ? "set" : "unset",
 			contactEmail: config.contactEmail ?? "unset",

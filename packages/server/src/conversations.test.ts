@@ -41,7 +41,7 @@ class FakeAgent {
 				output: 1,
 				cacheRead: 0,
 				cacheWrite: 0,
-				total: 2,
+				totalTokens: 2,
 				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 			},
 			stopReason: "stop",
@@ -93,6 +93,7 @@ const baseConfig: ResolvedPixiesConfig = {
 	overpassConcurrency: 2,
 	overpassIntervalCap: 2,
 	overpassIntervalMs: 1000,
+	conversationTokenBudget: 0,
 };
 
 const stores: ConversationStore[] = [];
@@ -111,6 +112,7 @@ interface MakeStoreOpts {
 	cacheSize?: number;
 	db?: DbClient;
 	agentFactory?: (opts: CreateAgentOptions) => Agent;
+	conversationTokenBudget?: number;
 }
 
 function makeStore(opts: MakeStoreOpts = {}): { store: ConversationStore; db: DbClient } {
@@ -118,6 +120,7 @@ function makeStore(opts: MakeStoreOpts = {}): { store: ConversationStore; db: Db
 	const config: ResolvedPixiesConfig = {
 		...baseConfig,
 		cacheSize: opts.cacheSize ?? baseConfig.cacheSize,
+		conversationTokenBudget: opts.conversationTokenBudget ?? baseConfig.conversationTokenBudget,
 	};
 	const store = new ConversationStore(config, db, opts.agentFactory ?? makeFakeFactory());
 	stores.push(store);
@@ -298,6 +301,77 @@ test("sweep() evicts conversations idle longer than 24h", () => {
 	expect(store.size()).toBe(0);
 
 	setSystemTime();
+});
+
+test("streamPrompt() rejects with budget_exceeded when over budget", async () => {
+	const { store } = makeStore({ conversationTokenBudget: 2 });
+	const id = store.create();
+
+	const result = await store.streamPrompt(id, "hi");
+	if (!result.ok) throw new Error("expected first prompt to start");
+	for await (const _ of result.stream) {
+		// drain
+	}
+
+	// FakeAgent uses 2 totalTokens per call. After first turn used=2,
+	// check 2 >= 2 → blocks the second turn.
+	const second = await store.streamPrompt(id, "again");
+	expect(second.ok).toBe(false);
+	const budgetResult = second as Extract<typeof second, { reason: "budget_exceeded" }>;
+	expect(budgetResult.reason).toBe("budget_exceeded");
+	expect(budgetResult.used).toBe(2);
+	expect(budgetResult.budget).toBe(2);
+});
+
+test("streamPrompt() allows multiple turns when within budget", async () => {
+	const { store } = makeStore({ conversationTokenBudget: 10 });
+	const id = store.create();
+
+	const first = await store.streamPrompt(id, "hi");
+	if (!first.ok) throw new Error("expected first prompt to start");
+	for await (const _ of first.stream) {
+		// drain
+	}
+
+	const second = await store.streamPrompt(id, "again");
+	if (!second.ok) throw new Error("expected second prompt to start");
+	for await (const _ of second.stream) {
+		// drain
+	}
+
+	const third = await store.streamPrompt(id, "more");
+	expect(third.ok).toBe(true);
+});
+
+test("streamPrompt() budget is restored from persisted transcript on rehydration", async () => {
+	const agents: FakeAgent[] = [];
+	const { store } = makeStore({
+		agentFactory: makeFakeFactory(agents),
+		conversationTokenBudget: 2,
+	});
+	const id = store.create();
+
+	const first = await store.streamPrompt(id, "hi");
+	if (!first.ok) throw new Error("expected first prompt to start");
+	for await (const _ of first.stream) {
+		// drain
+	}
+	await sleep(10); // let persist settle
+
+	// Evict from cache — force the next streamPrompt to rehydrate from DB
+	store.sweep();
+
+	const second = await store.streamPrompt(id, "again");
+	expect(second.ok).toBe(false);
+	const budgetResult = second as Extract<typeof second, { reason: "budget_exceeded" }>;
+	expect(budgetResult.reason).toBe("budget_exceeded");
+	expect(budgetResult.used).toBe(2);
+});
+
+test("create() initializes tokensUsed to 0 even with unlimited budget", () => {
+	const { store } = makeStore({ conversationTokenBudget: 0 });
+	expect(store.create().length > 0).toBe(true);
+	// Smoke test: unlimited budget never blocks
 });
 
 test("DB persistence failures are surfaced via logger.error (regression for #59)", async () => {

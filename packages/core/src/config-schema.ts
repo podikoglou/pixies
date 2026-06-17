@@ -97,6 +97,14 @@ export const PixiesConfigSchema = z.object({
 		.url()
 		.optional()
 		.describe("Discord webhook URL to receive error/fatal log alerts"),
+	conversationTokenBudget: z.coerce
+		.number()
+		.int()
+		.min(0)
+		.default(0)
+		.describe(
+			"Max tokens (input + output) a single conversation may consume across all turns. 0 = unlimited.",
+		),
 });
 
 export type ResolvedPixiesConfig = z.output<typeof PixiesConfigSchema>;
