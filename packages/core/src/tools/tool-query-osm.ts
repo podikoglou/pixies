@@ -1,10 +1,16 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
+import { Value } from "typebox/value";
 import type { OverpassClient } from "../osm/overpass.ts";
 import { OsmServerBusyError, OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
 import { formatElement, overpassElementToData } from "../osm/format.ts";
-import type { QueryOsmToolDetails } from "./index.ts";
+import {
+	QueryOsmToolDetailsSchema,
+	type OverpassResultEntry,
+	type QueryOsmToolDetails,
+} from "./schemas.ts";
 import type { ToolProgress } from "./progress.ts";
+import type { ToolModule } from "./tool-module.ts";
 import { MAX_CONTENT_LINES } from "./limits.ts";
 
 const schema = Type.Object({
@@ -59,3 +65,13 @@ export function createQueryOsmTool(
 		},
 	};
 }
+
+export const queryOsmModule: ToolModule<{ kind: "query_osm"; entries: OverpassResultEntry[] }> = {
+	factory: (clients) => createQueryOsmTool(clients.overpass),
+	detailsSchema: QueryOsmToolDetailsSchema,
+	parse: (details) => {
+		if (!Value.Check(QueryOsmToolDetailsSchema, details)) return null;
+		return { kind: "query_osm", entries: details.data };
+	},
+	summarize: (result) => `${result.entries.length} elements`,
+};
