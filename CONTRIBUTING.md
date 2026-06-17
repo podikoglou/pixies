@@ -63,11 +63,11 @@ Some architecture decisions are documented in [docs/adr/](docs/adr/).
    
    See [tool-geocode.ts](./packages/core/src/tools/tool-geocode.ts) for an example.
 
-2. Register in `packages/core/src/tools/index.ts` — add one entry to the `TOOL_MODULES` const and update `ToolNameSchema` and `ToolDetailsMap`.
+2. Register in `packages/core/src/tools/index.ts` — add one entry to the `TOOL_MODULES` const.
 
 3. Preferably test: `packages/core/src/tools/<name>.test.ts` (see [display-map.test.ts](./packages/core/src/tools/display-map.test.ts))
 
-That's it. The compiler derives `ToolName`, `ToolResult`, `ToolRegistry`, and the discriminated union from `TOOL_MODULES`. Missing `parse` or `summarize` on your module is a type error — you can't forget them.
+
 
 ## Testing
 
