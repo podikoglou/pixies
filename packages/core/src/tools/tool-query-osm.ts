@@ -24,7 +24,7 @@ const schema = Type.Object({
 
 export function createQueryOsmTool(
 	overpass: OverpassClient,
-): AgentTool<typeof schema, ToolProgress | QueryOsmToolDetails | undefined> {
+): AgentTool<typeof schema, ToolProgress | QueryOsmToolDetails | { busy: true } | undefined> {
 	return {
 		name: "query_osm",
 		label: "Query OSM",
@@ -70,7 +70,7 @@ export function createQueryOsmTool(
 				{
 					OsmBusy: () => ({
 						content: [{ type: "text" as const, text: OSM_SERVER_BUSY_MESSAGE }],
-						details: undefined,
+						details: { busy: true },
 					}),
 				},
 				(err) => {

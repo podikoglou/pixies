@@ -27,7 +27,7 @@ const schema = Type.Object({
 
 export function createReverseGeocodeTool(
 	nominatim: NominatimClient,
-): AgentTool<typeof schema, ToolProgress | ReverseGeocodeToolDetails | undefined> {
+): AgentTool<typeof schema, ToolProgress | ReverseGeocodeToolDetails | { busy: true } | undefined> {
 	return {
 		name: "reverse_geocode",
 		label: "Reverse geocode",
@@ -63,7 +63,7 @@ export function createReverseGeocodeTool(
 				{
 					OsmBusy: () => ({
 						content: [{ type: "text" as const, text: OSM_SERVER_BUSY_MESSAGE }],
-						details: undefined,
+						details: { busy: true },
 					}),
 				},
 				(err) => {
