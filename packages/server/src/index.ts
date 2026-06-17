@@ -17,6 +17,8 @@ import { SseWriter } from "./sse.ts";
 import { IpRateLimiter, checkRateLimit } from "./rate-limit.ts";
 
 const WEB_DIST = process.env.PIXIES_WEB_DIST ?? path.resolve(import.meta.dir, "../../web/dist");
+const MIGRATIONS_FOLDER =
+	process.env.PIXIES_MIGRATIONS_FOLDER ?? path.resolve(import.meta.dir, "../../../drizzle");
 
 let globalHandlersRegistered = false;
 
@@ -180,7 +182,7 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 		throw e;
 	}
 	const db = createDb(config.dbFile);
-	migrate(db, { migrationsFolder: "./drizzle" });
+	migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
 	const transport = config.discordWebhookUrl
 		? new DiscordTransport({ url: config.discordWebhookUrl })
 		: undefined;
