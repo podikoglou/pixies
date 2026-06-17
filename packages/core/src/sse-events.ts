@@ -94,8 +94,22 @@ export const DoneData = Type.Object({
 	durationMs: Type.Optional(Type.Number()),
 });
 
+/**
+ * `"error"` event payload.
+ *
+ * `message` is always present (the wire contract since launch). `errorTag` and
+ * `details` are **additive** (issue #109): when the server catches a
+ * `TaggedError` it forwards its `_tag` (e.g. `"OsmBusy"`, `"BudgetExceeded"`)
+ * and a `toJSON()` snapshot of its props so clients can render tag-specific
+ * copy. Old clients ignore the unknown fields; new clients fall back to
+ * `message` when `errorTag` is absent. The schema does NOT set
+ * `additionalProperties: false`, matching the permissive style already used by
+ * `ToolResultSchema.details`.
+ */
 export const ErrorData = Type.Object({
 	message: Type.String(),
+	errorTag: Type.Optional(Type.String()),
+	details: Type.Optional(Type.Unknown()),
 });
 
 export const SSEEventSchema = Type.Union([

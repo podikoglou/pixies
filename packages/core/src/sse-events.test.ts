@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
 import { Value } from "typebox/value";
-import { toClientAssistantMessage, AssistantMessageSchema } from "./sse-events.ts";
+import { toClientAssistantMessage, AssistantMessageSchema, ErrorData } from "./sse-events.ts";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 
 /** Build a realistic pi-ai shaped AssistantMessage with all internal metadata. */
@@ -101,4 +101,18 @@ test("toClientAssistantMessage passes through empty content array", () => {
 test("toClientAssistantMessage output satisfies the strict AssistantMessageSchema", () => {
 	const out = toClientAssistantMessage(makePiAiAssistantMessage());
 	expect(Value.Check(AssistantMessageSchema, out)).toBe(true);
+});
+
+// --- ErrorData backward-compatibility (issue #109) ---------------------------
+// The `errorTag` / `details` fields are additive; legacy { message }-only
+// payloads must still validate so old clients keep working.
+
+test("ErrorData accepts a legacy { message } payload (back-compat)", () => {
+	expect(Value.Check(ErrorData, { message: "boom" })).toBe(true);
+});
+
+test("ErrorData accepts the enriched { message, errorTag, details } payload", () => {
+	expect(
+		Value.Check(ErrorData, { message: "boom", errorTag: "OsmBusy", details: { status: 429 } }),
+	).toBe(true);
 });
