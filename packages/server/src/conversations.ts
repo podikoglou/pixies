@@ -69,6 +69,8 @@ export class ConversationStore {
 			nominatimConcurrency: config.nominatimConcurrency,
 			nominatimIntervalCap: config.nominatimIntervalCap,
 			nominatimIntervalMs: config.nominatimIntervalMs,
+			nominatimCacheTtlMs: config.nominatimCacheTtlMs,
+			nominatimCacheMaxEntries: config.nominatimCacheMaxEntries,
 			overpassConcurrency: config.overpassConcurrency,
 			overpassIntervalCap: config.overpassIntervalCap,
 			overpassIntervalMs: config.overpassIntervalMs,

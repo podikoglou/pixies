@@ -56,6 +56,8 @@ to be exposed directly for the pixies service in production.
 | `PIXIES_NOMINATIM_CONCURRENCY` | no | `1` | Max concurrent in-flight Nominatim requests |
 | `PIXIES_NOMINATIM_INTERVAL_CAP` | no | `1` | Max Nominatim requests started per interval window |
 | `PIXIES_NOMINATIM_INTERVAL_MS` | no | `1100` | Nominatim interval window length (ms) |
+| `PIXIES_NOMINATIM_CACHE_TTL_MS` | no | `86400000` | TTL for cached Nominatim responses (ms; `0` disables) |
+| `PIXIES_NOMINATIM_CACHE_MAX_ENTRIES` | no | `1000` | Max cached Nominatim responses (LRU eviction; `0` disables) |
 | `PIXIES_USER_AGENT` | no | `Pixies/1.0 (https://github.com/podikoglou/pixies)` | User-Agent header for OSM requests |
 | `PIXIES_CONVERSATION_TOKEN_BUDGET` | no | `0` | Max tokens (input + output) per conversation across all turns (`0` = unlimited) |
 | `PIXIES_TRUST_PROXY` | no | `false` | Honor `X-Forwarded-For` for client IP — set `true` behind Caddy/Nginx |

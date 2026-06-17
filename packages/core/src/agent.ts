@@ -62,6 +62,8 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 		nominatimConcurrency: env("PIXIES_NOMINATIM_CONCURRENCY"),
 		nominatimIntervalCap: env("PIXIES_NOMINATIM_INTERVAL_CAP"),
 		nominatimIntervalMs: env("PIXIES_NOMINATIM_INTERVAL_MS"),
+		nominatimCacheTtlMs: env("PIXIES_NOMINATIM_CACHE_TTL_MS"),
+		nominatimCacheMaxEntries: env("PIXIES_NOMINATIM_CACHE_MAX_ENTRIES"),
 		overpassConcurrency: env("PIXIES_OVERPASS_CONCURRENCY"),
 		overpassIntervalCap: env("PIXIES_OVERPASS_INTERVAL_CAP"),
 		overpassIntervalMs: env("PIXIES_OVERPASS_INTERVAL_MS"),
@@ -92,6 +94,8 @@ export interface CreateOsmClientsOptions
 				| "nominatimConcurrency"
 				| "nominatimIntervalCap"
 				| "nominatimIntervalMs"
+				| "nominatimCacheTtlMs"
+				| "nominatimCacheMaxEntries"
 				| "overpassConcurrency"
 				| "overpassIntervalCap"
 				| "overpassIntervalMs"
@@ -112,6 +116,8 @@ export function createOsmClients(options: CreateOsmClientsOptions): OsmClients {
 			concurrency: options.nominatimConcurrency,
 			intervalCap: options.nominatimIntervalCap,
 			intervalMs: options.nominatimIntervalMs,
+			cacheTtlMs: options.nominatimCacheTtlMs,
+			cacheMaxEntries: options.nominatimCacheMaxEntries,
 			logger,
 		}),
 		overpass: new OverpassClient({
@@ -142,6 +148,8 @@ export function createAgent(options: CreateAgentOptions): Agent {
 			nominatimConcurrency: config.nominatimConcurrency,
 			nominatimIntervalCap: config.nominatimIntervalCap,
 			nominatimIntervalMs: config.nominatimIntervalMs,
+			nominatimCacheTtlMs: config.nominatimCacheTtlMs,
+			nominatimCacheMaxEntries: config.nominatimCacheMaxEntries,
 			overpassConcurrency: config.overpassConcurrency,
 			overpassIntervalCap: config.overpassIntervalCap,
 			overpassIntervalMs: config.overpassIntervalMs,

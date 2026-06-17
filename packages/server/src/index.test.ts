@@ -36,6 +36,8 @@ const config: ResolvedPixiesConfig = {
 	nominatimConcurrency: 1,
 	nominatimIntervalCap: 1,
 	nominatimIntervalMs: 1100,
+	nominatimCacheTtlMs: 86_400_000,
+	nominatimCacheMaxEntries: 1000,
 	overpassConcurrency: 2,
 	overpassIntervalCap: 2,
 	overpassIntervalMs: 1000,

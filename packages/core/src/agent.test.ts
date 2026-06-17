@@ -31,6 +31,12 @@ const NUMERIC_ENV_KEYS = [
 	"PIXIES_HTTP_RATE_LIMIT_WINDOW_MS",
 ] as const;
 
+/** Nominatim response-cache env keys (#127). */
+const NOMINATIM_CACHE_ENV_KEYS = [
+	"PIXIES_NOMINATIM_CACHE_TTL_MS",
+	"PIXIES_NOMINATIM_CACHE_MAX_ENTRIES",
+] as const;
+
 /** URL/email env keys covered by #103 part 2. */
 const URL_EMAIL_ENV_KEYS = [
 	"PIXIES_OVERPASS_URL",
@@ -46,6 +52,7 @@ const SNAPSHOT_KEYS = [
 	"PIXIES_MODEL",
 	"PIXIES_API_KEY",
 	...OSM_RATE_ENV_KEYS,
+	...NOMINATIM_CACHE_ENV_KEYS,
 	...NUMERIC_ENV_KEYS,
 	...URL_EMAIL_ENV_KEYS,
 	...USER_AGENT_ENV_KEYS,
@@ -72,6 +79,7 @@ function setEnv(overrides: Record<string, string> = {}) {
 	process.env.PIXIES_API_KEY = "test-key";
 	for (const key of [
 		...OSM_RATE_ENV_KEYS,
+		...NOMINATIM_CACHE_ENV_KEYS,
 		...NUMERIC_ENV_KEYS,
 		...URL_EMAIL_ENV_KEYS,
 		...USER_AGENT_ENV_KEYS,
@@ -91,6 +99,8 @@ test("readConfigFromEnv applies the default-instance policy when OSM rate env va
 	expect(config.nominatimConcurrency).toBe(1);
 	expect(config.nominatimIntervalCap).toBe(1);
 	expect(config.nominatimIntervalMs).toBe(1100);
+	expect(config.nominatimCacheTtlMs).toBe(86_400_000);
+	expect(config.nominatimCacheMaxEntries).toBe(1000);
 	expect(config.overpassConcurrency).toBe(2);
 	expect(config.overpassIntervalCap).toBe(2);
 	expect(config.overpassIntervalMs).toBe(1000);
@@ -103,11 +113,13 @@ test("readConfigFromEnv applies the descriptive default User-Agent when PIXIES_U
 	expect(config.userAgent).toBe("Pixies/1.0 (https://github.com/podikoglou/pixies)");
 });
 
-test("readConfigFromEnv coerces the 6 OSM rate env vars with Number()", () => {
+test("readConfigFromEnv coerces the 8 OSM env vars with Number()", () => {
 	setEnv({
 		PIXIES_NOMINATIM_CONCURRENCY: "5",
 		PIXIES_NOMINATIM_INTERVAL_CAP: "4",
 		PIXIES_NOMINATIM_INTERVAL_MS: "250",
+		PIXIES_NOMINATIM_CACHE_TTL_MS: "3600000",
+		PIXIES_NOMINATIM_CACHE_MAX_ENTRIES: "500",
 		PIXIES_OVERPASS_CONCURRENCY: "8",
 		PIXIES_OVERPASS_INTERVAL_CAP: "7",
 		PIXIES_OVERPASS_INTERVAL_MS: "900",
@@ -116,6 +128,8 @@ test("readConfigFromEnv coerces the 6 OSM rate env vars with Number()", () => {
 	expect(config.nominatimConcurrency).toBe(5);
 	expect(config.nominatimIntervalCap).toBe(4);
 	expect(config.nominatimIntervalMs).toBe(250);
+	expect(config.nominatimCacheTtlMs).toBe(3_600_000);
+	expect(config.nominatimCacheMaxEntries).toBe(500);
 	expect(config.overpassConcurrency).toBe(8);
 	expect(config.overpassIntervalCap).toBe(7);
 	expect(config.overpassIntervalMs).toBe(900);
@@ -261,6 +275,18 @@ const NUMERIC_FIELD_SPECS: readonly NumericFieldSpec[] = [
 		field: "nominatimIntervalMs",
 		defaultValue: 1100,
 		min: 1,
+	},
+	{
+		envKey: "PIXIES_NOMINATIM_CACHE_TTL_MS",
+		field: "nominatimCacheTtlMs",
+		defaultValue: 86_400_000,
+		min: 0,
+	},
+	{
+		envKey: "PIXIES_NOMINATIM_CACHE_MAX_ENTRIES",
+		field: "nominatimCacheMaxEntries",
+		defaultValue: 1000,
+		min: 0,
 	},
 	{ envKey: "PIXIES_OVERPASS_CONCURRENCY", field: "overpassConcurrency", defaultValue: 2, min: 1 },
 	{ envKey: "PIXIES_OVERPASS_INTERVAL_CAP", field: "overpassIntervalCap", defaultValue: 2, min: 1 },
