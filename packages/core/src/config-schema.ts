@@ -17,7 +17,10 @@ export const PixiesConfigSchema = z.object({
 		.url()
 		.default("https://nominatim.openstreetmap.org")
 		.describe("Custom Nominatim API URL"),
-	userAgent: z.string().default("Pixies").describe("Custom User-Agent for OSM requests"),
+	userAgent: z
+		.string()
+		.default("Pixies/1.0 (https://github.com/podikoglou/pixies)")
+		.describe("Custom User-Agent for OSM requests"),
 	host: z.string().default("127.0.0.1").describe("Server listen hostname"),
 	port: z.coerce.number().int().min(1).max(65535).default(3000).describe("Server listen port"),
 	thinkingLevel: z
