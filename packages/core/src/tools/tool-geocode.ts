@@ -1,8 +1,10 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { Result, matchErrorPartial } from "better-result";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import type { NominatimClient } from "../osm/nominatim.ts";
-import { OsmServerBusyError, OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
+import { OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
+import { ToolAbortedError } from "../errors.ts";
 import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
 import {
 	GeocodeToolDetailsSchema,
@@ -31,16 +33,18 @@ export function createGeocodeTool(
 		parameters: schema,
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal, onUpdate) {
-			if (signal?.aborted) throw new Error("Operation aborted");
-			try {
-				const results = await nominatim.search(params.query, { limit: params.limit }, signal, {
-					onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
-				});
+			if (signal?.aborted) throw new ToolAbortedError({ message: "Operation aborted" });
+			const result = await Result.gen(async function* () {
+				const results = yield* Result.await(
+					nominatim.search(params.query, { limit: params.limit }, signal, {
+						onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
+					}),
+				);
 				if (results.length === 0) {
-					return {
-						content: [{ type: "text", text: "No results." }],
+					return Result.ok({
+						content: [{ type: "text" as const, text: "No results." }],
 						details: { top: "no results", data: [] },
-					};
+					});
 				}
 				const data = results.map(nominatimResultToData);
 				const top = results[0];
@@ -53,19 +57,26 @@ export function createGeocodeTool(
 					const rest = results.length - MAX_CONTENT_LINES;
 					lines.push(`…and ${rest} more result${rest !== 1 ? "s" : ""}.`);
 				}
-				return {
-					content: [{ type: "text", text: lines.join("\n") }],
+				return Result.ok({
+					content: [{ type: "text" as const, text: lines.join("\n") }],
 					details: { top: `${topName} (${top.lat},${top.lon})`, data },
-				};
-			} catch (err) {
-				if (err instanceof OsmServerBusyError) {
-					return {
-						content: [{ type: "text", text: OSM_SERVER_BUSY_MESSAGE }],
+				});
+			});
+			if (Result.isOk(result)) return result.value;
+			// OSM-busy → non-error result (do not retry); everything else re-throws
+			// so the agent marks the tool call `isError: true` (issue #109).
+			return matchErrorPartial(
+				result.error,
+				{
+					OsmBusy: () => ({
+						content: [{ type: "text" as const, text: OSM_SERVER_BUSY_MESSAGE }],
 						details: { top: "osm server busy", data: [] },
-					};
-				}
-				throw err;
-			}
+					}),
+				},
+				(err) => {
+					throw err;
+				},
+			);
 		},
 	};
 }

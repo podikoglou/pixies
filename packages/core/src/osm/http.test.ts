@@ -1,12 +1,13 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
+import { Result } from "better-result";
 import {
 	osmFetch,
 	isServerBusyResponse,
-	OsmServerBusyError,
 	SERVER_BUSY_BODY_MARKERS,
 	OSM_SERVER_BUSY_MESSAGE,
 } from "./http.ts";
+import { OsmBusyError, OsmHttpError } from "../errors.ts";
 
 // ---- isServerBusyResponse ---------------------------------------------------
 
@@ -52,70 +53,70 @@ test("isServerBusyResponse: SERVER_BUSY_BODY_MARKERS is non-empty", () => {
 	expect(SERVER_BUSY_BODY_MARKERS.length).toBeGreaterThan(0);
 });
 
-// ---- OsmServerBusyError -----------------------------------------------------
+// ---- osmFetch Result contract (issue #109) ----------------------------------
 
-test("OsmServerBusyError is an Error instance", () => {
-	const err = new OsmServerBusyError(429, "Overpass");
-	expect(err).toBeInstanceOf(Error);
-});
-
-test("OsmServerBusyError has correct name", () => {
-	const err = new OsmServerBusyError(503, "Nominatim");
-	expect(err.name).toBe("OsmServerBusyError");
-});
-
-test("OsmServerBusyError carries status", () => {
-	const err = new OsmServerBusyError(429, "Overpass");
-	expect(err.status).toBe(429);
-});
-
-test("OsmServerBusyError includes service name in message", () => {
-	const err = new OsmServerBusyError(503, "Nominatim");
-	expect(err.message).toContain("Nominatim");
-});
-
-// ---- osmFetch with server-busy responses ------------------------------------
-
-test("osmFetch: 429 throws OsmServerBusyError", async () => {
+test("osmFetch: 429 returns Err(OsmBusyError)", async () => {
 	const fakeFetch = mock(() =>
 		Promise.resolve(new Response("too busy", { status: 429 })),
 	) as unknown as typeof fetch;
-	await expect(osmFetch("http://example.com", fakeFetch, { service: "Overpass" })).rejects.toThrow(
-		OsmServerBusyError,
-	);
+	const result = await osmFetch("http://example.com", fakeFetch, { service: "Overpass" });
+	expect(Result.isError(result)).toBe(true);
+	if (Result.isError(result)) {
+		expect(result.error._tag).toBe("OsmBusy");
+		expect(result.error).toBeInstanceOf(OsmBusyError);
+		expect(result.error.status).toBe(429);
+		expect(result.error.service).toBe("Overpass");
+	}
 });
 
-test("osmFetch: 503 with busy body throws OsmServerBusyError", async () => {
+test("osmFetch: 503 with busy body returns Err(OsmBusyError)", async () => {
 	const fakeFetch = mock(() =>
 		Promise.resolve(
 			new Response("The server is probably too busy to handle your request", { status: 503 }),
 		),
 	) as unknown as typeof fetch;
-	await expect(osmFetch("http://example.com", fakeFetch, { service: "Overpass" })).rejects.toThrow(
-		OsmServerBusyError,
-	);
+	const result = await osmFetch("http://example.com", fakeFetch, { service: "Overpass" });
+	expect(Result.isError(result)).toBe(true);
+	if (Result.isError(result)) expect(result.error._tag).toBe("OsmBusy");
 });
 
-test("osmFetch: 500 throws generic Error (not OsmServerBusyError)", async () => {
+test("osmFetch: 500 returns Err(OsmHttpError), not OsmBusyError", async () => {
 	const fakeFetch = mock(() =>
 		Promise.resolve(new Response("Internal Server Error", { status: 500 })),
 	) as unknown as typeof fetch;
-	await expect(osmFetch("http://example.com", fakeFetch, { service: "Overpass" })).rejects.toThrow(
-		Error,
-	);
-	await expect(
-		osmFetch("http://example.com", fakeFetch, { service: "Overpass" }),
-	).rejects.not.toThrow(OsmServerBusyError);
+	const result = await osmFetch("http://example.com", fakeFetch, { service: "Overpass" });
+	expect(Result.isError(result)).toBe(true);
+	if (Result.isError(result)) {
+		expect(result.error._tag).toBe("OsmHttp");
+		expect(result.error).toBeInstanceOf(OsmHttpError);
+		expect(result.error).not.toBeInstanceOf(OsmBusyError);
+	}
 });
 
-test("osmFetch: 200 returns Response (body unconsumed)", async () => {
+test("osmFetch: network failure returns Err(OsmHttpError) wrapping the cause", async () => {
+	const fakeFetch = mock(() =>
+		Promise.reject(new Error("network down")),
+	) as unknown as typeof fetch;
+	const result = await osmFetch("http://example.com", fakeFetch, { service: "Nominatim" });
+	expect(Result.isError(result)).toBe(true);
+	if (Result.isError(result)) {
+		expect(result.error._tag).toBe("OsmHttp");
+		expect(result.error.cause).toBeInstanceOf(Error);
+		expect(result.error.message).toContain("network error");
+	}
+});
+
+test("osmFetch: 200 returns Ok(Response) (body unconsumed)", async () => {
 	const fakeFetch = mock(() =>
 		Promise.resolve(new Response('{"elements":[]}', { status: 200 })),
 	) as unknown as typeof fetch;
-	const res = await osmFetch("http://example.com", fakeFetch);
-	expect(res.status).toBe(200);
-	// Body should be consumable (not yet read by osmFetch)
-	await expect(res.json()).resolves.toEqual({ elements: [] });
+	const result = await osmFetch("http://example.com", fakeFetch);
+	expect(Result.isOk(result)).toBe(true);
+	if (Result.isOk(result)) {
+		expect(result.value.status).toBe(200);
+		// Body should be consumable (not yet read by osmFetch)
+		await expect(result.value.json()).resolves.toEqual({ elements: [] });
+	}
 });
 
 // ---- OSM_SERVER_BUSY_MESSAGE -------------------------------------------------

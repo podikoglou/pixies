@@ -112,8 +112,8 @@ export function createRateLimiter(opts: RateLimiterOptions): RateLimiter {
 				)
 				.catch((err: unknown) => {
 					// CAVEAT #1 / #3: normalize aborts to the historical shape;
-					// let every other rejection (OsmServerBusyError, osmFetch
-					// errors, etc.) pass through untouched.
+					// let every other rejection (OsmBusyError, OsmHttpError,
+					// osmFetch errors, etc.) pass through untouched.
 					if (signal?.aborted) throw signal.reason ?? new Error("Aborted");
 					throw err;
 				}) as Promise<T>;

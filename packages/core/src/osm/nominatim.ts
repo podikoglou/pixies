@@ -1,6 +1,8 @@
-import { osmFetch, OsmServerBusyError } from "./http.ts";
+import { Result } from "better-result";
+import { osmFetch, toOsmError } from "./http.ts";
 import { createRateLimiter, type RateLimitCallbacks } from "./rate-limiter.ts";
 import { silentLogger, type Logger } from "../logging/index.ts";
+import { OsmParseError, type OsmError } from "../errors.ts";
 import { Type } from "typebox";
 import type { Static } from "typebox";
 import { Value } from "typebox/value";
@@ -148,22 +150,21 @@ export class NominatimClient {
 			async () => {
 				this.logger.debug({ service, url: url.toString() }, "request");
 				const start = Date.now();
-				let res: Response;
-				try {
-					res = await osmFetch(url, this.fetchFn, {
-						service,
-						headers: { "User-Agent": this.userAgent },
-						signal,
-					});
-				} catch (err) {
-					if (err instanceof OsmServerBusyError) {
+				const fetchResult = await osmFetch(url, this.fetchFn, {
+					service,
+					headers: { "User-Agent": this.userAgent },
+					signal,
+				});
+				if (Result.isError(fetchResult)) {
+					if (fetchResult.error._tag === "OsmBusy") {
 						this.logger.warn(
-							{ service, statusCode: err.status, event: "server_busy" },
+							{ service, statusCode: fetchResult.error.status, event: "server_busy" },
 							"OSM server busy",
 						);
 					}
-					throw err;
+					throw fetchResult.error;
 				}
+				const res = fetchResult.value;
 				this.logger.debug(
 					{ service, statusCode: res.status, durationMs: Date.now() - start },
 					"response",
@@ -182,7 +183,7 @@ export class NominatimClient {
 		opts: SearchOptions = {},
 		signal?: AbortSignal,
 		callbacks: RateLimitCallbacks = {},
-	): Promise<NominatimResult[]> {
+	): Promise<Result<NominatimResult[], OsmError>> {
 		// Cache hit short-circuits before the rate-limit queue — a repeat query
 		// never consumes a 1 req/s slot. Query is trimmed + lowercased because
 		// Nominatim search is case-insensitive.
@@ -190,7 +191,7 @@ export class NominatimClient {
 		const cached = this.cache?.get(key);
 		if (cached !== undefined) {
 			this.logger.debug({ service: "Nominatim", event: "cache_hit" }, "cache hit");
-			return cached as NominatimResult[];
+			return Result.ok(cached as NominatimResult[]);
 		}
 		const url = this.buildUrl("/search", {
 			q: query,
@@ -198,18 +199,32 @@ export class NominatimClient {
 			limit: opts.limit,
 			addressdetails: 1,
 		});
-		const { json, statusCode, contentType } = await this.fetchJson(url, signal, callbacks);
-		try {
-			const results = Value.Parse(NominatimSearchResponseSchema, json);
-			this.cache?.set(key, results);
-			return results;
-		} catch (err) {
-			this.logger.warn(
-				{ service: "Nominatim", statusCode, contentType, cause: err },
-				"invalid search response shape",
-			);
-			throw new Error("Nominatim: invalid search response shape", { cause: err });
-		}
+		const cache = this.cache;
+		const logger = this.logger;
+		const fetchResult = await Result.tryPromise({
+			try: () => this.fetchJson(url, signal, callbacks),
+			catch: toOsmError,
+		});
+		if (Result.isError(fetchResult)) return Result.err(fetchResult.error);
+		const { json, statusCode, contentType } = fetchResult.value;
+		return Result.try({
+			try: () => {
+				const parsed = Value.Parse(NominatimSearchResponseSchema, json);
+				cache?.set(key, parsed);
+				return parsed;
+			},
+			catch: (err) => {
+				logger.warn(
+					{ service: "Nominatim", statusCode, contentType, cause: err },
+					"invalid search response shape",
+				);
+				return new OsmParseError({
+					service: "Nominatim",
+					message: "Nominatim: invalid search response shape",
+					cause: err,
+				});
+			},
+		});
 	}
 
 	async reverse(
@@ -218,7 +233,7 @@ export class NominatimClient {
 		opts: ReverseOptions = {},
 		signal?: AbortSignal,
 		callbacks: RateLimitCallbacks = {},
-	): Promise<NominatimResult | null> {
+	): Promise<Result<NominatimResult | null, OsmError>> {
 		// Cache hit short-circuits before the rate-limit queue. Coordinates are
 		// quantized to 5 decimals (~1.1m): exact-float repeats are rare, but
 		// nearby points resolve to the same address.
@@ -226,7 +241,7 @@ export class NominatimClient {
 		const cached = this.cache?.get(key);
 		if (cached !== undefined) {
 			this.logger.debug({ service: "Nominatim", event: "cache_hit" }, "cache hit");
-			return cached as NominatimResult;
+			return Result.ok(cached as NominatimResult);
 		}
 		const url = this.buildUrl("/reverse", {
 			lat,
@@ -235,29 +250,51 @@ export class NominatimClient {
 			zoom: opts.zoom,
 			addressdetails: 1,
 		});
-		const { json, statusCode, contentType } = await this.fetchJson(url, signal, callbacks);
-		if (typeof json !== "object" || json === null) {
-			this.logger.warn(
-				{ service: "Nominatim", statusCode, contentType },
-				"invalid reverse response",
-			);
-			throw new Error("Nominatim: invalid reverse response");
-		}
-		const result = json as NominatimResult | { error?: string };
-		if ("error" in result && result.error) {
-			this.logger.warn({ service: "Nominatim", statusCode, contentType }, "reverse error response");
-			throw new Error(`Nominatim: ${result.error}`);
-		}
-		try {
-			const parsed = Value.Parse(NominatimResultSchema, result);
-			this.cache?.set(key, parsed);
-			return parsed;
-		} catch (err) {
-			this.logger.warn(
-				{ service: "Nominatim", statusCode, contentType, cause: err },
-				"invalid reverse response shape",
-			);
-			throw new Error("Nominatim: invalid reverse response shape", { cause: err });
-		}
+		const cache = this.cache;
+		const logger = this.logger;
+		const fetchResult = await Result.tryPromise({
+			try: () => this.fetchJson(url, signal, callbacks),
+			catch: toOsmError,
+		});
+		if (Result.isError(fetchResult)) return Result.err(fetchResult.error);
+		const { json, statusCode, contentType } = fetchResult.value;
+		return Result.try({
+			try: () => {
+				if (typeof json !== "object" || json === null) {
+					logger.warn(
+						{ service: "Nominatim", statusCode, contentType },
+						"invalid reverse response",
+					);
+					throw new OsmParseError({
+						service: "Nominatim",
+						message: "Nominatim: invalid reverse response",
+					});
+				}
+				const result = json as NominatimResult | { error?: string };
+				if ("error" in result && result.error) {
+					logger.warn({ service: "Nominatim", statusCode, contentType }, "reverse error response");
+					throw new OsmParseError({ service: "Nominatim", message: `Nominatim: ${result.error}` });
+				}
+				try {
+					const parsed = Value.Parse(NominatimResultSchema, result);
+					cache?.set(key, parsed);
+					return parsed;
+				} catch (err) {
+					logger.warn(
+						{ service: "Nominatim", statusCode, contentType, cause: err },
+						"invalid reverse response shape",
+					);
+					throw new OsmParseError({
+						service: "Nominatim",
+						message: "Nominatim: invalid reverse response shape",
+						cause: err,
+					});
+				}
+			},
+			catch: (err): OsmError =>
+				err instanceof OsmParseError
+					? err
+					: new OsmParseError({ service: "Nominatim", message: String(err), cause: err }),
+		});
 	}
 }

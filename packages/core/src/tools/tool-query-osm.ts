@@ -1,8 +1,10 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { Result, matchErrorPartial } from "better-result";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import type { OverpassClient } from "../osm/overpass.ts";
-import { OsmServerBusyError, OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
+import { OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
+import { ToolAbortedError } from "../errors.ts";
 import { formatElement, overpassElementToData } from "../osm/format.ts";
 import {
 	QueryOsmToolDetailsSchema,
@@ -30,17 +32,19 @@ export function createQueryOsmTool(
 			"Run an Overpass QL query against OpenStreetMap data. Use for finding features by tag, area, or geometry. Always include '[out:json]' prefix and a timeout. Use 'out center;' for ways/relations to get center coordinates.",
 		parameters: schema,
 		async execute(_toolCallId, params, signal, onUpdate) {
-			if (signal?.aborted) throw new Error("Operation aborted");
-			try {
-				const response = await overpass.query(params.query, signal, {
-					onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
-				});
+			if (signal?.aborted) throw new ToolAbortedError({ message: "Operation aborted" });
+			const result = await Result.gen(async function* () {
+				const response = yield* Result.await(
+					overpass.query(params.query, signal, {
+						onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
+					}),
+				);
 				const elements = response.elements ?? [];
 				if (elements.length === 0) {
-					return {
-						content: [{ type: "text", text: "No results." }],
+					return Result.ok({
+						content: [{ type: "text" as const, text: "No results." }],
 						details: { count: 0, data: [] },
-					};
+					});
 				}
 				const data = elements.map(overpassElementToData);
 				const truncated = elements.length > MAX_CONTENT_LINES;
@@ -52,16 +56,27 @@ export function createQueryOsmTool(
 						`…and ${rest} more result${rest !== 1 ? "s" : ""}. All results are shown on the map. Refine the query to narrow down.`,
 					);
 				}
-				return {
-					content: [{ type: "text", text: lines.join("\n") }],
+				return Result.ok({
+					content: [{ type: "text" as const, text: lines.join("\n") }],
 					details: { count: elements.length, data },
-				};
-			} catch (err) {
-				if (err instanceof OsmServerBusyError) {
-					return { content: [{ type: "text", text: OSM_SERVER_BUSY_MESSAGE }], details: undefined };
-				}
-				throw err;
-			}
+				});
+			});
+			if (Result.isOk(result)) return result.value;
+			// OSM-busy is converted into a normal (non-error) result so the model
+			// does not retry; every other error re-throws so the agent marks the
+			// tool call `isError: true` exactly as before (issue #109).
+			return matchErrorPartial(
+				result.error,
+				{
+					OsmBusy: () => ({
+						content: [{ type: "text" as const, text: OSM_SERVER_BUSY_MESSAGE }],
+						details: undefined,
+					}),
+				},
+				(err) => {
+					throw err;
+				},
+			);
 		},
 	};
 }

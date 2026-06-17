@@ -1,8 +1,9 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
+import { Result } from "better-result";
 import { OverpassClient } from "./overpass.ts";
-import { OsmServerBusyError } from "./http.ts";
 import { type Logger } from "../logging/index.ts";
+import { ToolAbortedError, OsmBusyError, OsmParseError } from "../errors.ts";
 
 /** Build a JSON `Response` osmFetch treats as a success. */
 function jsonResponse(data: unknown): Response {
@@ -71,8 +72,13 @@ test("max 2 concurrent — third query is queued and does not start while two ru
 
 	// Abort the queued third (also avoids waiting on the 1s rate window for
 	// cleanup) and assert it never reached fetch.
-	c3.abort(new Error("cancelled"));
-	await expect(p3).rejects.toThrow("cancelled");
+	c3.abort();
+	const r3 = await p3;
+	expect(Result.isError(r3)).toBe(true);
+	if (Result.isError(r3)) {
+		expect(r3.error._tag).toBe("ToolAborted");
+		expect(r3.error).toBeInstanceOf(ToolAbortedError);
+	}
 	expect(fetchMock).toHaveBeenCalledTimes(2);
 
 	releaseAll(blockers);
@@ -82,7 +88,7 @@ test("max 2 concurrent — third query is queued and does not start while two ru
 
 // ---- abort while queued -----------------------------------------------------
 
-test("abort while queued rejects and the task never runs", async () => {
+test("abort while queued returns Err and the task never runs", async () => {
 	const { fetch: fetchMock, blockers } = blockingFetch();
 	const client = makeOverpass(fetchMock);
 
@@ -95,8 +101,10 @@ test("abort while queued rejects and the task never runs", async () => {
 
 	const c = new AbortController();
 	const p3 = client.query("[out:json];node(3);out;", c.signal);
-	c.abort(new Error("cancelled"));
-	await expect(p3).rejects.toThrow("cancelled");
+	c.abort();
+	const r3 = await p3;
+	expect(Result.isError(r3)).toBe(true);
+	if (Result.isError(r3)) expect(r3.error._tag).toBe("ToolAborted");
 	expect(fetchMock).toHaveBeenCalledTimes(2);
 
 	releaseAll(blockers);
@@ -106,7 +114,7 @@ test("abort while queued rejects and the task never runs", async () => {
 
 // ---- abort while running threads the signal into osmFetch -------------------
 
-test("abort while running rejects and the signal threaded to fetch is aborted", async () => {
+test("abort while running returns Err and the signal threaded to fetch is aborted", async () => {
 	const seenSignals: AbortSignal[] = [];
 	const blocker = deferred<Response>();
 	const fetchMock = mock((_url: unknown, init: { signal?: AbortSignal }) => {
@@ -122,8 +130,10 @@ test("abort while running rejects and the signal threaded to fetch is aborted", 
 	expect(fetchMock).toHaveBeenCalledTimes(1);
 	expect(seenSignals[0]!.aborted).toBe(false);
 
-	c.abort(new Error("user-cancelled"));
-	await expect(p).rejects.toThrow("user-cancelled");
+	c.abort();
+	const r = await p;
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) expect(r.error._tag).toBe("ToolAborted");
 	// The parent signal is merged into the fetch signal inside osmFetch; once
 	// the parent aborts, the merged signal passed to fetch is aborted too.
 	expect(seenSignals[0]!.aborted).toBe(true);
@@ -131,14 +141,19 @@ test("abort while running rejects and the signal threaded to fetch is aborted", 
 	blocker.resolve(jsonResponse({ elements: [] }));
 });
 
-// ---- OsmServerBusyError passthrough (CAVEAT #3) -----------------------------
+// ---- OsmBusyError (429) surfaces as Err (CAVEAT #3) -------------------------
 
-test("OsmServerBusyError passes through unchanged", async () => {
+test("429 returns Err(OsmBusyError)", async () => {
 	const fetchMock = mock(() =>
 		Promise.resolve(new Response("busy", { status: 429 })),
 	) as unknown as typeof fetch;
 	const client = makeOverpass(fetchMock);
-	await expect(client.query("[out:json];node(1);out;")).rejects.toBeInstanceOf(OsmServerBusyError);
+	const r = await client.query("[out:json];node(1);out;");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("OsmBusy");
+		expect(r.error).toBeInstanceOf(OsmBusyError);
+	}
 });
 
 // ---- success ----------------------------------------------------------------
@@ -148,18 +163,24 @@ test("query returns parsed OverpassResponse on success", async () => {
 		Promise.resolve(jsonResponse({ elements: [{ type: "node", id: 1, lat: 1, lon: 2 }] })),
 	) as unknown as typeof fetch;
 	const client = makeOverpass(fetchMock);
-	const res = await client.query("[out:json];node(1);out;");
-	expect(res.elements).toHaveLength(1);
+	const r = await client.query("[out:json];node(1);out;");
+	expect(Result.isOk(r)).toBe(true);
+	if (Result.isOk(r)) expect(r.value.elements).toHaveLength(1);
 });
 
 // ---- invalid-shape error contract (pinned for #104 Value.Parse refactor) -----
 
-test("query() throws on invalid shape and tags the cause", async () => {
+test("query() returns Err(OsmParseError) on invalid shape and tags the cause", async () => {
 	const fetchMock = mock(
 		() => Promise.resolve(jsonResponse({ elements: "not-an-array" })), // bad elements
 	) as unknown as typeof fetch;
 	const client = makeOverpass(fetchMock);
-	await expect(client.query("[out:json];node(1);out;")).rejects.toThrow(
-		"Overpass: invalid response shape",
-	);
+	const r = await client.query("[out:json];node(1);out;");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("OsmParse");
+		expect(r.error).toBeInstanceOf(OsmParseError);
+		expect(r.error.message).toBe("Overpass: invalid response shape");
+		expect(r.error.cause).toBeDefined();
+	}
 });
