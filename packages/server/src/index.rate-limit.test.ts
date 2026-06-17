@@ -52,6 +52,7 @@ test("POST /conversations and /conversations/:id/messages return 429 once the pe
 		expect(r3.headers.get("retry-after")).toMatch(/^\d+$/);
 		expect(r4.headers.get("retry-after")).toMatch(/^\d+$/);
 	} finally {
+		limiter.stop(); // tear down the sweep interval (see rate-limit.ts)
 		server.stop(true);
 	}
 });
