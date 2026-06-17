@@ -4,8 +4,8 @@ import {
 	ReverseGeocodeToolDetailsSchema,
 	QueryOsmToolDetailsSchema,
 	DisplayMapToolDetailsSchema,
-} from "./index.ts";
-import type { GeocodeResultEntry, OverpassResultEntry, DisplayMapData } from "./index.ts";
+} from "./schemas.ts";
+import type { GeocodeResultEntry, OverpassResultEntry, DisplayMapData } from "./schemas.ts";
 
 /**
  * Typed, validated tool result. This is what downstream consumers
