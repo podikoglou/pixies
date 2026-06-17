@@ -97,4 +97,5 @@ export {
 	OSM_SERVER_BUSY_MESSAGE,
 	isServerBusyResponse,
 	SERVER_BUSY_BODY_MARKERS,
+	isAbortError,
 } from "./osm/http.ts";
