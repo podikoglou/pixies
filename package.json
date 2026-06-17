@@ -18,6 +18,7 @@
     "format:check": "bun run --filter '@pixies/*' format:check",
     "lint": "bun run --filter '@pixies/*' lint",
     "lint:fix": "bun run --filter '@pixies/*' lint:fix",
+    "test": "bun run --filter '@pixies/*' test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
