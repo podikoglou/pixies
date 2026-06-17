@@ -30,7 +30,6 @@ export type {
 export {
 	createToolRegistry,
 	createTools,
-	toolLabel,
 	ToolProgressSchema,
 	isToolProgress,
 	ToolNameSchema,
