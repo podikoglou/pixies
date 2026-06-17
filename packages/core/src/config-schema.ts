@@ -50,6 +50,12 @@ export const PixiesConfigSchema = z.object({
 		.boolean()
 		.default(false)
 		.describe("Honor X-Forwarded-For for client IP (set true behind Caddy/Nginx)"),
+	trustedProxyHops: z.coerce
+		.number()
+		.int()
+		.min(0)
+		.default(1)
+		.describe("Number of trusted proxy hops when parsing X-Forwarded-For"),
 	nominatimConcurrency: z.coerce
 		.number()
 		.int()

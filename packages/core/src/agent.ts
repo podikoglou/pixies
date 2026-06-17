@@ -58,6 +58,7 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 		// Boolean coercion must NOT use the env() helper or z.coerce.boolean() —
 		// both would coerce "false" → true. Keep the explicit === "true" check.
 		trustProxy: process.env.PIXIES_TRUST_PROXY === "true",
+		trustedProxyHops: env("PIXIES_TRUSTED_PROXY_HOPS"),
 		nominatimConcurrency: env("PIXIES_NOMINATIM_CONCURRENCY"),
 		nominatimIntervalCap: env("PIXIES_NOMINATIM_INTERVAL_CAP"),
 		nominatimIntervalMs: env("PIXIES_NOMINATIM_INTERVAL_MS"),
