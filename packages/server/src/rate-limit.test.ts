@@ -1,6 +1,13 @@
 /// <reference types="bun" />
-import { test, expect } from "bun:test";
-import { IpRateLimiter, getClientIp, rateLimitResponse, checkRateLimit } from "./rate-limit.ts";
+import { afterEach, expect, mock, test } from "bun:test";
+import type { Logger } from "@pixies/core/logging";
+import {
+	IpRateLimiter,
+	getClientIp,
+	rateLimitResponse,
+	checkRateLimit,
+	type IpRateLimiterOptions,
+} from "./rate-limit.ts";
 
 /** Minimal Bun.Server stand-in exposing only `requestIP`. */
 function fakeServer(address: string | null) {
@@ -9,10 +16,26 @@ function fakeServer(address: string | null) {
 	} as unknown as Parameters<typeof getClientIp>[1];
 }
 
+// Every IpRateLimiter owns a live `setInterval` (the sweep loop). Track them
+// so afterEach can tear the intervals down — mirrors the ConversationStore
+// test-cleanup pattern (conversations.test.ts). Without this, intervals leak
+// across tests and can fire spuriously.
+const limiters: IpRateLimiter[] = [];
+
+function makeLimiter(opts: IpRateLimiterOptions): IpRateLimiter {
+	const limiter = new IpRateLimiter(opts);
+	limiters.push(limiter);
+	return limiter;
+}
+
+afterEach(() => {
+	while (limiters.length) limiters.pop()?.stop();
+});
+
 // ---- IpRateLimiter.consume --------------------------------------------------
 
 test("consume: allows up to maxRequests then denies with retryAfterMs", () => {
-	const limiter = new IpRateLimiter({
+	const limiter = makeLimiter({
 		maxRequests: 2,
 		windowMs: 1000,
 		trustProxy: false,
@@ -29,7 +52,7 @@ test("consume: allows up to maxRequests then denies with retryAfterMs", () => {
 });
 
 test("consume: window resets after windowMs", () => {
-	const limiter = new IpRateLimiter({
+	const limiter = makeLimiter({
 		maxRequests: 1,
 		windowMs: 1000,
 		trustProxy: false,
@@ -43,7 +66,7 @@ test("consume: window resets after windowMs", () => {
 });
 
 test("consume: each IP has an independent window", () => {
-	const limiter = new IpRateLimiter({
+	const limiter = makeLimiter({
 		maxRequests: 1,
 		windowMs: 1000,
 		trustProxy: false,
@@ -56,7 +79,7 @@ test("consume: each IP has an independent window", () => {
 });
 
 test("consume: maxRequests <= 0 disables limiting", () => {
-	const limiter = new IpRateLimiter({
+	const limiter = makeLimiter({
 		maxRequests: 0,
 		windowMs: 1000,
 		trustProxy: false,
@@ -129,7 +152,7 @@ test("rateLimitResponse: 429 with integer Retry-After (seconds, min 1)", async (
 test("checkRateLimit: returns null when under the limit", () => {
 	const server = fakeServer("1.2.3.4");
 	const req = new Request("https://x.example/", { method: "POST" });
-	const limiter = new IpRateLimiter({
+	const limiter = makeLimiter({
 		maxRequests: 5,
 		windowMs: 1000,
 		trustProxy: false,
@@ -141,7 +164,7 @@ test("checkRateLimit: returns null when under the limit", () => {
 test("checkRateLimit: returns 429 once over the limit", () => {
 	const server = fakeServer("1.2.3.4");
 	const req = new Request("https://x.example/", { method: "POST" });
-	const limiter = new IpRateLimiter({
+	const limiter = makeLimiter({
 		maxRequests: 1,
 		windowMs: 1000,
 		trustProxy: false,
@@ -151,4 +174,149 @@ test("checkRateLimit: returns 429 once over the limit", () => {
 	const denied = checkRateLimit(req, server, limiter);
 	expect(denied).toBeInstanceOf(Response);
 	expect(denied!.status).toBe(429);
+});
+
+// ---- sweep / stop ----------------------------------------------------------
+//
+// The sweep loop reaps per-IP windows once their fixed window elapses, so the
+// `windows` Map cannot grow unboundedly with unique client IPs. Mirrors the
+// ConversationStore TTL sweeper (conversations.ts).
+
+test("sweep: evicts entries whose window has elapsed (>= boundary matches consume)", () => {
+	const limiter = makeLimiter({
+		maxRequests: 5,
+		windowMs: 1000,
+		trustProxy: false,
+		trustedProxyHops: 1,
+	});
+	limiter.consume("1.1.1.1", 0);
+	limiter.consume("2.2.2.2", 500);
+	// At t=1000: 1.1.1.1 elapsed (1000-0 >= 1000), 2.2.2.2 still active (1000-500 < 1000).
+	const result = limiter.sweep(1000);
+	expect(result).toEqual({ evictedCount: 1, windowCount: 1 });
+});
+
+test("sweep: preserves entries within their active window", () => {
+	const limiter = makeLimiter({
+		maxRequests: 5,
+		windowMs: 1000,
+		trustProxy: false,
+		trustedProxyHops: 1,
+	});
+	limiter.consume("3.3.3.3", 0);
+	const result = limiter.sweep(500);
+	expect(result).toEqual({ evictedCount: 0, windowCount: 1 });
+});
+
+test("sweep: returns { evictedCount, windowCount } counts accurately", () => {
+	const limiter = makeLimiter({
+		maxRequests: 10,
+		windowMs: 1000,
+		trustProxy: false,
+		trustedProxyHops: 1,
+	});
+	limiter.consume("1.1.1.1", 0);
+	limiter.consume("2.2.2.2", 0);
+	limiter.consume("3.3.3.3", 0);
+	limiter.consume("4.4.4.4", 800); // within window at t=1000 (1000-800=200 < 1000)
+	const result = limiter.sweep(1000);
+	expect(result.evictedCount).toBe(3);
+	expect(result.windowCount).toBe(1);
+});
+
+test("sweep: is idempotent (consecutive sweeps on an idle map evict nothing)", () => {
+	const limiter = makeLimiter({
+		maxRequests: 5,
+		windowMs: 1000,
+		trustProxy: false,
+		trustedProxyHops: 1,
+	});
+	limiter.consume("1.1.1.1", 0);
+	limiter.consume("2.2.2.2", 100);
+	// First sweep at t=1000 evicts only 1.1.1.1.
+	expect(limiter.sweep(1000)).toEqual({ evictedCount: 1, windowCount: 1 });
+	// Re-sweep at the same clock: 1.1.1.1 already gone, 2.2.2.2 still active.
+	expect(limiter.sweep(1000)).toEqual({ evictedCount: 0, windowCount: 1 });
+});
+
+test("sweep: empty map is a no-op", () => {
+	const limiter = makeLimiter({
+		maxRequests: 5,
+		windowMs: 1000,
+		trustProxy: false,
+		trustedProxyHops: 1,
+	});
+	expect(limiter.sweep(1_000_000)).toEqual({ evictedCount: 0, windowCount: 0 });
+});
+
+test("sweep: logs rate_limit_windows_cleaned with exact fields on non-zero eviction", () => {
+	const info = mock((_fields: Record<string, unknown>, _msg?: string) => {});
+	const logger = { info } as unknown as Logger;
+	const limiter = makeLimiter({
+		maxRequests: 5,
+		windowMs: 1000,
+		trustProxy: false,
+		trustedProxyHops: 1,
+		logger,
+	});
+	limiter.consume("1.1.1.1", 0);
+	limiter.sweep(1000);
+	expect(info).toHaveBeenCalledWith(
+		{ evictedCount: 1, windowCount: 0, event: "rate_limit_windows_cleaned" },
+		"rate-limit windows cleaned",
+	);
+});
+
+test("sweep: does not log when nothing was evicted (avoid log spam)", () => {
+	const info = mock((_fields: Record<string, unknown>, _msg?: string) => {});
+	const logger = { info } as unknown as Logger;
+	const limiter = makeLimiter({
+		maxRequests: 5,
+		windowMs: 1000,
+		trustProxy: false,
+		trustedProxyHops: 1,
+		logger,
+	});
+	limiter.consume("1.1.1.1", 0);
+	limiter.sweep(500); // entry still within its window → no eviction
+	expect(info).not.toHaveBeenCalled();
+});
+
+test("background interval calls sweep automatically", async () => {
+	// bun:test cannot fast-forward `setInterval` (see conversations.ts sweep
+	// comment), so this uses a short windowMs + real wall-clock wait to prove
+	// the constructor's interval fires sweep without an explicit call.
+	const info = mock((_fields: Record<string, unknown>, _msg?: string) => {});
+	const logger = { info } as unknown as Logger;
+	const limiter = makeLimiter({
+		maxRequests: 5,
+		windowMs: 50,
+		trustProxy: false,
+		trustedProxyHops: 1,
+		logger,
+	});
+	limiter.consume("1.1.1.1"); // windowStart = now
+	// Wait long enough for >=2 interval ticks; the entry's window elapses at
+	// +50ms, so at least one auto-sweep must evict it and emit the log.
+	await new Promise((r) => setTimeout(r, 130));
+	const cleanupCall = info.mock.calls.find((c) => c[0]?.event === "rate_limit_windows_cleaned");
+	expect(cleanupCall).toBeDefined();
+	expect(cleanupCall?.[0]?.evictedCount).toBeGreaterThanOrEqual(1);
+});
+
+test("stop: clears the interval (no further sweeps after stop)", async () => {
+	const info = mock((_fields: Record<string, unknown>, _msg?: string) => {});
+	const logger = { info } as unknown as Logger;
+	const limiter = makeLimiter({
+		maxRequests: 5,
+		windowMs: 50,
+		trustProxy: false,
+		trustedProxyHops: 1,
+		logger,
+	});
+	limiter.stop();
+	limiter.consume("1.1.1.1"); // would be evicted by an auto-sweep if the interval were live
+	await new Promise((r) => setTimeout(r, 130));
+	const cleanupCall = info.mock.calls.find((c) => c[0]?.event === "rate_limit_windows_cleaned");
+	expect(cleanupCall).toBeUndefined();
 });
