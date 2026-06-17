@@ -24,3 +24,8 @@ See [docs/DOCKER.md](docs/DOCKER.md).
 ## Public Instance
 
 I'm running a public instance, we'll see how this goes. [pixies.aleep.lol](https://pixies.aleep.lol)
+
+## AI Notice
+
+This is fully vibe coded. I don't have much time to work on this, I just wanted
+to get something working.
