@@ -55,11 +55,19 @@ Some architecture decisions are documented in [docs/adr/](docs/adr/).
 
 ## Adding a tool
 
-1. Make tool File - `packages/core/src/tools/tool-<name>.ts` (see [tool-geocode](./packages/core/src/tools/tool-geocode.ts))
-2. Create details schema - `packages/core/src/tools/schemas.ts` (see `GeocodeToolDetailsSchema`)
-3. Register in [tools/index.ts](./packages/core/src/tools/index.ts)
-4. Add case in [parse-result.ts](./packages/core/src/tools/parse-result.ts) (see `case "geocode"`)
-5. Preferably test: `packages/core/src/tools/<name>.test.ts` (see [display-map.test](./packages/core/src/tools/display-map.test.ts))
+1. Create `packages/core/src/tools/tool-<name>.ts` — export a `ToolModule` and a factory function. The module bundles everything the tool needs:
+   - `factory` — creates the `AgentTool` with OSM clients injected
+   - `detailsSchema` — TypeBox schema for the structured result
+   - `parse` — validates `unknown` details against the schema and returns a typed result variant (or `null`)
+   - `summarize` — produces a one-line display summary from the parsed result
+   
+   See [tool-geocode.ts](./packages/core/src/tools/tool-geocode.ts) for an example.
+
+2. Register in `packages/core/src/tools/index.ts` — add one entry to the `TOOL_MODULES` const and update `ToolNameSchema` and `ToolDetailsMap`.
+
+3. Preferably test: `packages/core/src/tools/<name>.test.ts` (see [display-map.test.ts](./packages/core/src/tools/display-map.test.ts))
+
+That's it. The compiler derives `ToolName`, `ToolResult`, `ToolRegistry`, and the discriminated union from `TOOL_MODULES`. Missing `parse` or `summarize` on your module is a type error — you can't forget them.
 
 ## Testing
 
