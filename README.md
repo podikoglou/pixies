@@ -14,3 +14,9 @@ OpenStreetMap Services it uses:
 - [Nominatim](https://nominatim.org/)
 - [Overpass](https://wiki.openstreetmap.org/wiki/Overpass)
 - [Tile Server](https://tile.openstreetmap.org/)
+
+## Hosting
+
+Despite this being a very simple single container app, Docker is suggested.
+
+See [docs/DOCKER.md](docs/DOCKER.md).
