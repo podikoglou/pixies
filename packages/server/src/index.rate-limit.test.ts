@@ -14,7 +14,12 @@ import { IpRateLimiter, checkRateLimit } from "./rate-limit.ts";
  * integer `Retry-After`, shared across both LLM-cost POST endpoints.
  */
 test("POST /conversations and /conversations/:id/messages return 429 once the per-IP limit is exceeded", async () => {
-	const limiter = new IpRateLimiter({ maxRequests: 2, windowMs: 60_000, trustProxy: false });
+	const limiter = new IpRateLimiter({
+		maxRequests: 2,
+		windowMs: 60_000,
+		trustProxy: false,
+		trustedProxyHops: 1,
+	});
 	const server = Bun.serve({
 		port: 0,
 		fetch(req, srv) {

@@ -154,6 +154,7 @@ function logResolvedConfig(logger: Logger, config: ResolvedPixiesConfig): void {
 			httpRateLimit: config.httpRateLimit,
 			httpRateLimitWindowMs: config.httpRateLimitWindowMs,
 			trustProxy: config.trustProxy,
+			trustedProxyHops: config.trustedProxyHops,
 			discordWebhookUrl: config.discordWebhookUrl ? "set" : "unset",
 			apiKey: config.apiKey ? "set" : "unset",
 			contactEmail: config.contactEmail ?? "unset",
@@ -194,6 +195,7 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 		maxRequests: config.httpRateLimit,
 		windowMs: config.httpRateLimitWindowMs,
 		trustProxy: config.trustProxy,
+		trustedProxyHops: config.trustedProxyHops,
 		logger,
 	});
 	const hostname = opts.hostname ?? config.host;

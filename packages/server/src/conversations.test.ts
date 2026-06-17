@@ -86,6 +86,7 @@ const baseConfig: ResolvedPixiesConfig = {
 	httpRateLimit: 30,
 	httpRateLimitWindowMs: 60_000,
 	trustProxy: false,
+	trustedProxyHops: 1,
 	nominatimConcurrency: 1,
 	nominatimIntervalCap: 1,
 	nominatimIntervalMs: 1100,

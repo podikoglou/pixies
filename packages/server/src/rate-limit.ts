@@ -16,8 +16,13 @@ export interface IpRateLimiterOptions {
 	maxRequests: number;
 	/** Window length in ms. */
 	windowMs: number;
-	/** When true, prefer the first `X-Forwarded-For` entry (set behind Caddy/Nginx). */
+	/** When true, parse `X-Forwarded-For` for the client IP (set behind Caddy/Nginx). */
 	trustProxy: boolean;
+	/**
+	 * Number of trusted proxy hops (from the right of X-Forwarded-For).
+	 * Only used when `trustProxy` is true. Default 1 for a single reverse proxy.
+	 */
+	trustedProxyHops: number;
 	/** Structured logger; defaults to silent. */
 	logger?: Logger;
 }
@@ -41,6 +46,7 @@ export class IpRateLimiter {
 	readonly maxRequests: number;
 	readonly windowMs: number;
 	readonly trustProxy: boolean;
+	readonly trustedProxyHops: number;
 	readonly logger: Logger;
 	private readonly windows = new Map<string, WindowState>();
 
@@ -48,6 +54,7 @@ export class IpRateLimiter {
 		this.maxRequests = opts.maxRequests;
 		this.windowMs = opts.windowMs;
 		this.trustProxy = opts.trustProxy;
+		this.trustedProxyHops = opts.trustedProxyHops;
 		this.logger = opts.logger ?? silentLogger;
 	}
 
@@ -78,20 +85,32 @@ export class IpRateLimiter {
 /**
  * Resolve the client IP for a request.
  *
- * With `trustProxy`, prefer the first `X-Forwarded-For` entry (Caddy sets XFF
- * by default). Otherwise use the direct peer via `server.requestIP`. Returns
- * `null` if no IP can be determined (unix socket / closed connection).
+ * When `trustProxy` is true, the rightmost `trustedProxyHops` entries of
+ * `X-Forwarded-For` are treated as trusted proxies; the entry immediately
+ * preceding them is the client IP. This prevents spoofing by ignoring
+ * attacker-controlled leftmost entries.
+ *
+ * Without `trustProxy`, the direct peer IP from `server.requestIP` is used.
+ * Returns `null` if no IP can be determined (unix socket / closed connection).
  */
 export function getClientIp(
 	req: Request,
 	server: { requestIP: (req: Request) => { address: string } | null },
 	trustProxy: boolean,
+	trustedProxyHops: number,
 ): string | null {
 	if (trustProxy) {
 		const xff = req.headers.get("x-forwarded-for");
 		if (xff) {
-			const first = xff.split(",")[0]?.trim();
-			if (first) return first;
+			const parts = xff
+				.split(",")
+				.map((s) => s.trim())
+				.filter(Boolean);
+			const clientIdx = parts.length - trustedProxyHops - 1;
+			if (clientIdx >= 0) {
+				const clientIp = parts[clientIdx];
+				if (clientIp) return clientIp;
+			}
 		}
 	}
 	return server.requestIP(req)?.address ?? null;
@@ -118,7 +137,7 @@ export function checkRateLimit(
 	server: { requestIP: (req: Request) => { address: string } | null },
 	limiter: IpRateLimiter,
 ): Response | null {
-	const ip = getClientIp(req, server, limiter.trustProxy);
+	const ip = getClientIp(req, server, limiter.trustProxy, limiter.trustedProxyHops);
 	if (!ip) {
 		limiter.logger.warn(
 			{ event: "rate_limit_no_ip" },
