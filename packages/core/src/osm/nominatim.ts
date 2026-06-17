@@ -23,6 +23,7 @@ export const NominatimResultSchema = Type.Object({
 	),
 });
 export type NominatimResult = Static<typeof NominatimResultSchema>;
+export const NominatimSearchResponseSchema = Type.Array(NominatimResultSchema);
 
 export interface SearchOptions {
 	limit?: number;
@@ -153,14 +154,15 @@ export class NominatimClient {
 			addressdetails: 1,
 		});
 		const { json, statusCode, contentType } = await this.fetchJson(url, signal, callbacks);
-		if (!Array.isArray(json) || !json.every((item) => Value.Check(NominatimResultSchema, item))) {
+		try {
+			return Value.Parse(NominatimSearchResponseSchema, json);
+		} catch (err) {
 			this.logger.warn(
-				{ service: "Nominatim", statusCode, contentType },
+				{ service: "Nominatim", statusCode, contentType, cause: err },
 				"invalid search response shape",
 			);
-			throw new Error("Nominatim: invalid search response shape");
+			throw new Error("Nominatim: invalid search response shape", { cause: err });
 		}
-		return json as NominatimResult[];
 	}
 
 	async reverse(
@@ -190,13 +192,14 @@ export class NominatimClient {
 			this.logger.warn({ service: "Nominatim", statusCode, contentType }, "reverse error response");
 			throw new Error(`Nominatim: ${result.error}`);
 		}
-		if (!Value.Check(NominatimResultSchema, result)) {
+		try {
+			return Value.Parse(NominatimResultSchema, result);
+		} catch (err) {
 			this.logger.warn(
-				{ service: "Nominatim", statusCode, contentType },
+				{ service: "Nominatim", statusCode, contentType, cause: err },
 				"invalid reverse response shape",
 			);
-			throw new Error("Nominatim: invalid reverse response shape");
+			throw new Error("Nominatim: invalid reverse response shape", { cause: err });
 		}
-		return result;
 	}
 }

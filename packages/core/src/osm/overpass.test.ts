@@ -151,3 +151,15 @@ test("query returns parsed OverpassResponse on success", async () => {
 	const res = await client.query("[out:json];node(1);out;");
 	expect(res.elements).toHaveLength(1);
 });
+
+// ---- invalid-shape error contract (pinned for #104 Value.Parse refactor) -----
+
+test("query() throws on invalid shape and tags the cause", async () => {
+	const fetchMock = mock(
+		() => Promise.resolve(jsonResponse({ elements: "not-an-array" })), // bad elements
+	) as unknown as typeof fetch;
+	const client = makeOverpass(fetchMock);
+	await expect(client.query("[out:json];node(1);out;")).rejects.toThrow(
+		"Overpass: invalid response shape",
+	);
+});
