@@ -44,10 +44,19 @@ to be exposed directly for the pixies service in production.
 | `PIXIES_DB_FILE` | no | `pixies.db` | SQLite database path (set to `/app/data/pixies.db` in compose to persist via volume) |
 | `PIXIES_CACHE_SIZE` | no | `50` | Max in-memory conversation cache |
 | `PIXIES_THINKING_LEVEL` | no | `off` | AI thinking level: `off`, `low`, `medium`, `high` |
+| `PIXIES_HTTP_RATE_LIMIT` | no | `30` | Max POST requests per IP per window (`0` disables) |
+| `PIXIES_HTTP_RATE_LIMIT_WINDOW_MS` | no | `60000` | Per-IP HTTP rate-limit window length (ms) |
 | `PIXIES_CONTACT_EMAIL` | no | — | Contact email sent in OSM API requests |
 | `PIXIES_OVERPASS_URL` | no | `https://overpass-api.de/api/interpreter` | Custom Overpass API endpoint |
+| `PIXIES_OVERPASS_CONCURRENCY` | no | `2` | Max concurrent in-flight Overpass requests |
+| `PIXIES_OVERPASS_INTERVAL_CAP` | no | `2` | Max Overpass requests started per interval window |
+| `PIXIES_OVERPASS_INTERVAL_MS` | no | `1000` | Overpass interval window length (ms) |
 | `PIXIES_NOMINATIM_URL` | no | `https://nominatim.openstreetmap.org` | Custom Nominatim endpoint |
+| `PIXIES_NOMINATIM_CONCURRENCY` | no | `1` | Max concurrent in-flight Nominatim requests |
+| `PIXIES_NOMINATIM_INTERVAL_CAP` | no | `1` | Max Nominatim requests started per interval window |
+| `PIXIES_NOMINATIM_INTERVAL_MS` | no | `1100` | Nominatim interval window length (ms) |
 | `PIXIES_USER_AGENT` | no | `Pixies/1.0 (https://github.com/podikoglou/pixies)` | User-Agent header for OSM requests |
+| `PIXIES_TRUST_PROXY` | no | `false` | Honor `X-Forwarded-For` for client IP — set `true` behind Caddy/Nginx |
 
 ## Persistence
 
