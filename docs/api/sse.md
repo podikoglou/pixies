@@ -15,28 +15,7 @@ The API is optimized for streaming chat UIs (web, mobile). It is **not** a state
 http://<host>:<port>/
 ```
 
-Server configuration via env vars:
-
-| Var | Default | Purpose |
-|---|---|---|
-| `PIXIES_HOST` | `127.0.0.1` | Bind address |
-| `PIXIES_PORT` | `3000` | Bind port |
-| `PIXIES_API_KEY` | (required) | LLM provider API key, shared across all conversations |
-| `PIXIES_MODEL` | (required) | `provider/model-id` (e.g. `anthropic/claude-sonnet-4-20250514`) |
-| `PIXIES_CONTACT_EMAIL` | (optional) | Passed to Nominatim/Overpass as `email=` per OSM usage policy |
-| `PIXIES_OVERPASS_URL` | (optional) | Override Overpass endpoint |
-| `PIXIES_NOMINATIM_URL` | (optional) | Override Nominatim endpoint |
-| `PIXIES_USER_AGENT` | `Pixies/1.0 (https://github.com/podikoglou/pixies)` | `User-Agent` header sent to OSM APIs |
-| `PIXIES_THINKING_LEVEL` | `off` | LLM reasoning level: `off` \| `low` \| `medium` \| `high` |
-| `PIXIES_NOMINATIM_CONCURRENCY` | `1` | Max concurrent in-flight Nominatim requests (public-instance policy; raise for self-hosted mirrors) |
-| `PIXIES_NOMINATIM_INTERVAL_CAP` | `1` | Max Nominatim requests started per interval window |
-| `PIXIES_NOMINATIM_INTERVAL_MS` | `1100` | Nominatim interval window length (ms) — ~1 req/s on the public instance |
-| `PIXIES_OVERPASS_CONCURRENCY` | `2` | Max concurrent in-flight Overpass requests (public-instance policy; raise for self-hosted mirrors) |
-| `PIXIES_OVERPASS_INTERVAL_CAP` | `2` | Max Overpass requests started per interval window |
-| `PIXIES_OVERPASS_INTERVAL_MS` | `1000` | Overpass interval window length (ms) |
-| `PIXIES_HTTP_RATE_LIMIT` | `30` | Max POST requests per IP per window on `/conversations` and `/conversations/:id/messages` (`0` disables) |
-| `PIXIES_HTTP_RATE_LIMIT_WINDOW_MS` | `60000` | Per-IP HTTP rate-limit window length (ms) |
-| `PIXIES_TRUST_PROXY` | `false` | Honor `X-Forwarded-For` for client IP — set `true` behind Caddy/Nginx |
+Server configuration via env vars — see [docs/DOCKER.md](../DOCKER.md#environment-variables) for the full table.
 
 ## Authentication
 
