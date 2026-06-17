@@ -155,5 +155,5 @@ export function createTools(clients: OsmClients): AgentTool[] {
 	return [registry.geocode, registry.reverse_geocode, registry.query_osm, registry.display_map];
 }
 
-export { parseToolResult, summarizeResult } from "./parse-result.ts";
+export { parseToolResult } from "./parse-result.ts";
 export type { ToolResult } from "./parse-result.ts";

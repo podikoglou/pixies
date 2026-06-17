@@ -44,7 +44,6 @@ export {
 	DisplayMapToolDetailsSchema,
 	ToolDetailsDiscriminatedUnionSchema,
 	parseToolResult,
-	summarizeResult,
 } from "./tools/index.ts";
 export type {
 	GeocodeToolDetails,

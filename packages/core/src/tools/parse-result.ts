@@ -59,30 +59,3 @@ export function parseToolResult(toolName: string, details: unknown): ToolResult 
 			return { kind: "empty" };
 	}
 }
-
-/**
- * Produce a human-readable summary from a typed {@link ToolResult}, or `null`
- * when no summary is meaningful.
- *
- * Consumes the validated union directly, so there are no `as` casts and
- * no defensive `undefined` checks. The discriminated union guarantees every
- * accessed field exists.
- */
-export function summarizeResult(result: ToolResult): string | null {
-	switch (result.kind) {
-		case "geocode": {
-			const top = result.entries[0];
-			if (!top) return null;
-			const name = top.name || top.displayName?.split(",")[0] || "unknown";
-			return `${name} (${top.lat},${top.lon})`;
-		}
-		case "reverse_geocode":
-			return result.entry.name;
-		case "query_osm":
-			return `${result.entries.length} elements`;
-		case "display_map":
-			return `${result.data.markers.length} marker(s)`;
-		case "empty":
-			return null;
-	}
-}
