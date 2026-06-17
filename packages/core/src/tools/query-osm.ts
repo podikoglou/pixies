@@ -5,6 +5,7 @@ import { OsmServerBusyError, OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
 import { formatElement, overpassElementToData } from "../osm/format.ts";
 import type { QueryOsmToolDetails } from "./index.ts";
 import type { ToolProgress } from "./progress.ts";
+import { MAX_CONTENT_LINES } from "./limits.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -35,8 +36,16 @@ export function createQueryOsmTool(
 						details: { count: 0, data: [] },
 					};
 				}
-				const lines = elements.map(formatElement);
 				const data = elements.map(overpassElementToData);
+				const truncated = elements.length > MAX_CONTENT_LINES;
+				const shown = truncated ? elements.slice(0, MAX_CONTENT_LINES) : elements;
+				const lines = shown.map(formatElement);
+				if (truncated) {
+					const rest = elements.length - MAX_CONTENT_LINES;
+					lines.push(
+						`…and ${rest} more result${rest !== 1 ? "s" : ""}. All results are shown on the map. Refine the query to narrow down.`,
+					);
+				}
 				return {
 					content: [{ type: "text", text: lines.join("\n") }],
 					details: { count: elements.length, data },
