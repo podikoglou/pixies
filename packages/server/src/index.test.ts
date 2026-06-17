@@ -42,7 +42,7 @@ const config: ResolvedPixiesConfig = {
 	conversationTokenBudget: 0,
 };
 
-const server = startServer({ config, logger: silentLogger, hostname: "127.0.0.1", port: 0 });
+const server = startServer({ config, logger: silentLogger, host: "127.0.0.1", port: 0 });
 
 afterAll(() => server.stop(true));
 
