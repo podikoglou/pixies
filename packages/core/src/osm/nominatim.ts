@@ -4,6 +4,7 @@ import { silentLogger, type Logger } from "../logging/index.ts";
 import { Type } from "typebox";
 import type { Static } from "typebox";
 import { Value } from "typebox/value";
+import { LRUCache } from "lru-cache";
 
 export const NominatimResultSchema = Type.Object({
 	place_id: Type.Number(),
@@ -56,6 +57,19 @@ export interface NominatimConfig {
 	intervalMs?: number;
 	/** Structured logger; defaults to silent. */
 	logger?: Logger;
+	/**
+	 * TTL for cached search/reverse responses, in ms. When > 0 (and
+	 * {@link cacheMaxEntries} > 0) successful parsed responses are cached so
+	 * repeat queries skip the network and the rate-limit queue entirely.
+	 * Defaults to 0 (disabled at the client layer); the config schema
+	 * (`PIXIES_NOMINATIM_CACHE_TTL_MS`, default 24h) enables it in production.
+	 */
+	cacheTtlMs?: number;
+	/**
+	 * Max cached responses before LRU eviction. Must be > 0 (alongside
+	 * {@link cacheTtlMs}) to enable caching. Defaults to 0 (disabled).
+	 */
+	cacheMaxEntries?: number;
 }
 
 export class NominatimClient {
@@ -73,6 +87,21 @@ export class NominatimClient {
 	 * an internal default (not env-exposed).
 	 */
 	private readonly limiter: ReturnType<typeof createRateLimiter>;
+	/**
+	 * LRU+TTL cache for successful search/reverse responses. `undefined` when
+	 * caching is disabled (either knob is 0).
+	 *
+	 * The cache lives on the single shared client, so by ADR-0004 it is
+	 * process-global — one client ⇒ one cache ⇒ every conversation shares
+	 * the hit rate. Cache hits are checked **before** `fetchJson`, so a hit
+	 * never enters the rate-limit queue and never consumes a 1 req/s slot;
+	 * do not move the lookup inside `fetchJson`.
+	 *
+	 * Only successful parsed results are stored; errors (`OsmServerBusyError`,
+	 * invalid-shape, network) propagate uncached so a transient failure is
+	 * retried on the next call rather than served stale.
+	 */
+	private readonly cache?: LRUCache<string, NominatimResult[] | NominatimResult>;
 
 	constructor(config: NominatimConfig) {
 		this.baseUrl = config.baseUrl;
@@ -91,6 +120,13 @@ export class NominatimClient {
 			service: "Nominatim",
 			logger: this.logger,
 		});
+		// Enable caching only when both knobs are > 0. Client-layer default is
+		// off (0); production turns it on via config-schema defaults.
+		const ttl = config.cacheTtlMs ?? 0;
+		const max = config.cacheMaxEntries ?? 0;
+		if (ttl > 0 && max > 0) {
+			this.cache = new LRUCache({ max, ttl });
+		}
 	}
 
 	private buildUrl(path: string, params: Record<string, string | number | undefined>): URL {
@@ -147,6 +183,15 @@ export class NominatimClient {
 		signal?: AbortSignal,
 		callbacks: RateLimitCallbacks = {},
 	): Promise<NominatimResult[]> {
+		// Cache hit short-circuits before the rate-limit queue — a repeat query
+		// never consumes a 1 req/s slot. Query is trimmed + lowercased because
+		// Nominatim search is case-insensitive.
+		const key = `search:${query.trim().toLowerCase()}:${opts.limit ?? ""}`;
+		const cached = this.cache?.get(key);
+		if (cached !== undefined) {
+			this.logger.debug({ service: "Nominatim", event: "cache_hit" }, "cache hit");
+			return cached as NominatimResult[];
+		}
 		const url = this.buildUrl("/search", {
 			q: query,
 			format: "jsonv2",
@@ -155,7 +200,9 @@ export class NominatimClient {
 		});
 		const { json, statusCode, contentType } = await this.fetchJson(url, signal, callbacks);
 		try {
-			return Value.Parse(NominatimSearchResponseSchema, json);
+			const results = Value.Parse(NominatimSearchResponseSchema, json);
+			this.cache?.set(key, results);
+			return results;
 		} catch (err) {
 			this.logger.warn(
 				{ service: "Nominatim", statusCode, contentType, cause: err },
@@ -172,6 +219,15 @@ export class NominatimClient {
 		signal?: AbortSignal,
 		callbacks: RateLimitCallbacks = {},
 	): Promise<NominatimResult | null> {
+		// Cache hit short-circuits before the rate-limit queue. Coordinates are
+		// quantized to 5 decimals (~1.1m): exact-float repeats are rare, but
+		// nearby points resolve to the same address.
+		const key = `reverse:${lat.toFixed(5)}:${lon.toFixed(5)}:${opts.zoom ?? ""}`;
+		const cached = this.cache?.get(key);
+		if (cached !== undefined) {
+			this.logger.debug({ service: "Nominatim", event: "cache_hit" }, "cache hit");
+			return cached as NominatimResult;
+		}
 		const url = this.buildUrl("/reverse", {
 			lat,
 			lon,
@@ -193,7 +249,9 @@ export class NominatimClient {
 			throw new Error(`Nominatim: ${result.error}`);
 		}
 		try {
-			return Value.Parse(NominatimResultSchema, result);
+			const parsed = Value.Parse(NominatimResultSchema, result);
+			this.cache?.set(key, parsed);
+			return parsed;
 		} catch (err) {
 			this.logger.warn(
 				{ service: "Nominatim", statusCode, contentType, cause: err },
