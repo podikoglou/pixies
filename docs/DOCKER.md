@@ -47,7 +47,7 @@ to be exposed directly for the pixies service in production.
 | `PIXIES_CONTACT_EMAIL` | no | — | Contact email sent in OSM API requests |
 | `PIXIES_OVERPASS_URL` | no | `https://overpass-api.de/api/interpreter` | Custom Overpass API endpoint |
 | `PIXIES_NOMINATIM_URL` | no | `https://nominatim.openstreetmap.org` | Custom Nominatim endpoint |
-| `PIXIES_USER_AGENT` | no | `Pixies` | User-Agent header for OSM requests |
+| `PIXIES_USER_AGENT` | no | `Pixies/1.0 (https://github.com/podikoglou/pixies)` | User-Agent header for OSM requests |
 
 ## Persistence
 
