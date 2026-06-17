@@ -82,7 +82,8 @@ export interface CreateAgentOptions {
 }
 
 export interface CreateOsmClientsOptions
-	extends Pick<ResolvedPixiesConfig, "overpassUrl" | "nominatimUrl" | "contactEmail" | "userAgent">,
+	extends
+		Pick<ResolvedPixiesConfig, "overpassUrl" | "nominatimUrl" | "contactEmail" | "userAgent">,
 		Partial<
 			Pick<
 				ResolvedPixiesConfig,

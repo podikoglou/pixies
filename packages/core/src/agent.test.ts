@@ -228,12 +228,32 @@ const NUMERIC_FIELD_SPECS: readonly NumericFieldSpec[] = [
 		defaultValue: 60_000,
 		min: 1,
 	},
-	{ envKey: "PIXIES_NOMINATIM_CONCURRENCY", field: "nominatimConcurrency", defaultValue: 1, min: 1 },
-	{ envKey: "PIXIES_NOMINATIM_INTERVAL_CAP", field: "nominatimIntervalCap", defaultValue: 1, min: 1 },
-	{ envKey: "PIXIES_NOMINATIM_INTERVAL_MS", field: "nominatimIntervalMs", defaultValue: 1100, min: 1 },
+	{
+		envKey: "PIXIES_NOMINATIM_CONCURRENCY",
+		field: "nominatimConcurrency",
+		defaultValue: 1,
+		min: 1,
+	},
+	{
+		envKey: "PIXIES_NOMINATIM_INTERVAL_CAP",
+		field: "nominatimIntervalCap",
+		defaultValue: 1,
+		min: 1,
+	},
+	{
+		envKey: "PIXIES_NOMINATIM_INTERVAL_MS",
+		field: "nominatimIntervalMs",
+		defaultValue: 1100,
+		min: 1,
+	},
 	{ envKey: "PIXIES_OVERPASS_CONCURRENCY", field: "overpassConcurrency", defaultValue: 2, min: 1 },
 	{ envKey: "PIXIES_OVERPASS_INTERVAL_CAP", field: "overpassIntervalCap", defaultValue: 2, min: 1 },
-	{ envKey: "PIXIES_OVERPASS_INTERVAL_MS", field: "overpassIntervalMs", defaultValue: 1000, min: 1 },
+	{
+		envKey: "PIXIES_OVERPASS_INTERVAL_MS",
+		field: "overpassIntervalMs",
+		defaultValue: 1000,
+		min: 1,
+	},
 ];
 
 for (const spec of NUMERIC_FIELD_SPECS) {
