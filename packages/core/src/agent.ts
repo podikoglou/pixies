@@ -8,7 +8,7 @@ import { OverpassClient } from "./osm/overpass.ts";
 import { createTools, type OsmClients } from "./tools/index.ts";
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 
-export type { PixiesConfig, ResolvedPixiesConfig } from "./config-schema.ts";
+export type { ResolvedPixiesConfig } from "./config-schema.ts";
 
 function resolveModel(modelRef: string): Model<Api> {
 	const slashIndex = modelRef.indexOf("/");

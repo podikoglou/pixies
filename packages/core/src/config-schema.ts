@@ -91,5 +91,4 @@ export const PixiesConfigSchema = z.object({
 		.describe("Discord webhook URL to receive error/fatal log alerts"),
 });
 
-export type PixiesConfig = z.input<typeof PixiesConfigSchema>;
 export type ResolvedPixiesConfig = z.output<typeof PixiesConfigSchema>;
