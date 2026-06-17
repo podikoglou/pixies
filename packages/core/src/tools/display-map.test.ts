@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import { createDisplayMapTool } from "./display-map.ts";
+import { createDisplayMapTool } from "./tool-display-map.ts";
 
 const tool = createDisplayMapTool();
 

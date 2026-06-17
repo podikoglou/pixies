@@ -1,9 +1,9 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
 import { OsmServerBusyError, OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
-import { createQueryOsmTool } from "./query-osm.ts";
-import { createReverseGeocodeTool } from "./reverse-geocode.ts";
-import { createGeocodeTool } from "./geocode.ts";
+import { createQueryOsmTool } from "./tool-query-osm.ts";
+import { createReverseGeocodeTool } from "./tool-reverse-geocode.ts";
+import { createGeocodeTool } from "./tool-geocode.ts";
 import type { OverpassClient } from "../osm/overpass.ts";
 import type { NominatimClient } from "../osm/nominatim.ts";
 

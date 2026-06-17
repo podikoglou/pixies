@@ -4,10 +4,10 @@ import type { Static } from "typebox";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { NominatimClient } from "../osm/nominatim.ts";
 import type { OverpassClient } from "../osm/overpass.ts";
-import { createGeocodeTool } from "./geocode.ts";
-import { createQueryOsmTool } from "./query-osm.ts";
-import { createReverseGeocodeTool } from "./reverse-geocode.ts";
-import { createDisplayMapTool } from "./display-map.ts";
+import { createGeocodeTool } from "./tool-geocode.ts";
+import { createQueryOsmTool } from "./tool-query-osm.ts";
+import { createReverseGeocodeTool } from "./tool-reverse-geocode.ts";
+import { createDisplayMapTool } from "./tool-display-map.ts";
 import type {
 	DisplayMapToolDetails,
 	GeocodeResultEntry,

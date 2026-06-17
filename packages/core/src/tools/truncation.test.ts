@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
-import { createQueryOsmTool } from "./query-osm.ts";
-import { createGeocodeTool } from "./geocode.ts";
+import { createQueryOsmTool } from "./tool-query-osm.ts";
+import { createGeocodeTool } from "./tool-geocode.ts";
 import { MAX_CONTENT_LINES } from "./limits.ts";
 import type { OverpassClient, OverpassResponse } from "../osm/overpass.ts";
 import type { NominatimClient, NominatimResult } from "../osm/nominatim.ts";
