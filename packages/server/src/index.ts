@@ -2,16 +2,21 @@ import {
 	createAgent,
 	readConfigFromEnv,
 	toClientTranscriptMessage,
+	Result,
+	matchError,
+	isTaggedError,
 	type ResolvedPixiesConfig,
+	type StreamPromptError,
 } from "@pixies/core";
 import { createDb } from "@pixies/core/db";
 import { createLogger, type Logger } from "@pixies/core/logging";
 import { DiscordTransport } from "@pixies/core/logging/discord-transport";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import path from "node:path";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
-import { ConversationStore, type StreamPromptResult } from "./conversations.ts";
+import { ConversationStore } from "./conversations.ts";
 import { translateAgentEvent } from "./events.ts";
 import { SseWriter } from "./sse.ts";
 import { IpRateLimiter, checkRateLimit } from "./rate-limit.ts";
@@ -77,7 +82,7 @@ async function readMessage(req: Request): Promise<MessageResult> {
  */
 function pipeAgentStream(
 	store: ConversationStore,
-	result: Extract<StreamPromptResult, { ok: true }>,
+	result: { stream: ReadableStream<AgentEvent> },
 	abortId: string,
 	logger: Logger,
 	onOpen?: (writer: SseWriter) => void,
@@ -93,11 +98,23 @@ function pipeAgentStream(
 			}
 			writer.write("done", { durationMs: Date.now() - startTime });
 		} catch (err) {
-			logger.error(
-				{ conversationId: abortId, err: err instanceof Error ? err : new Error(String(err)) },
-				"agent stream error",
-			);
-			writer.write("error", { message: err instanceof Error ? err.message : String(err) });
+			const loggedErr = err instanceof Error ? err : new Error(String(err));
+			logger.error({ conversationId: abortId, err: loggedErr }, "agent stream error");
+			// Forward structured error metadata when the agent rejected with a
+			// TaggedError (issue #109). Non-tagged errors emit only `message`,
+			// which is byte-identical to the pre-#109 wire format.
+			const tag = isTaggedError(err) ? err._tag : undefined;
+			// `isTaggedError` narrows to the loose `AnyTaggedError` shape (which
+			// omits `toJSON` from its type), but every TaggedError instance
+			// carries a safe `toJSON()` serializer at runtime.
+			const details = isTaggedError(err)
+				? ((err as unknown as { toJSON(): object }).toJSON() as Record<string, unknown>)
+				: undefined;
+			writer.write("error", {
+				message: err instanceof Error ? err.message : String(err),
+				...(tag !== undefined ? { errorTag: tag } : {}),
+				...(details !== undefined ? { details } : {}),
+			});
 		} finally {
 			writer.close();
 		}
@@ -106,24 +123,23 @@ function pipeAgentStream(
 	return writer.response;
 }
 
-/** Map a non-ok {@link StreamPromptResult} to its HTTP response. */
-function rejectStream(result: Extract<StreamPromptResult, { ok: false }>): Response {
-	if (result.reason === "conflict")
-		return Response.json(
-			{ error: "conversation already has an in-flight prompt" },
-			{ status: 409 },
-		);
-	if (result.reason === "budget_exceeded") {
-		return Response.json(
-			{
-				error: `conversation token budget (${result.budget}) exceeded: used ${result.used}`,
-				used: result.used,
-				budget: result.budget,
-			},
-			{ status: 403 },
-		);
-	}
-	return Response.json({ error: "conversation not found" }, { status: 404 });
+/** Map a non-ok {@link StreamPromptError} to its HTTP response. */
+function rejectStream(err: StreamPromptError): Response {
+	return matchError(err, {
+		ConversationNotFound: (e) =>
+			Response.json({ error: `conversation not found: ${e.id}` }, { status: 404 }),
+		PromptConflict: () =>
+			Response.json({ error: "conversation already has an in-flight prompt" }, { status: 409 }),
+		BudgetExceeded: (e) =>
+			Response.json(
+				{
+					error: `conversation token budget (${e.budget}) exceeded: used ${e.used}`,
+					used: e.used,
+					budget: e.budget,
+				},
+				{ status: 403 },
+			),
+	});
 }
 
 // Bun augments route handler Request objects with `params`. Use a permissive
@@ -226,8 +242,8 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 					const id = store.create();
 					server.timeout(req, 0);
 					const result = await store.streamPrompt(id, parsed.message);
-					if (!result.ok) return rejectStream(result);
-					return pipeAgentStream(store, result, id, logger, (w) =>
+					if (Result.isError(result)) return rejectStream(result.error);
+					return pipeAgentStream(store, result.value, id, logger, (w) =>
 						w.write("conversation_created", { id }),
 					);
 				}),
@@ -241,8 +257,8 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
 					server.timeout(req, 0);
 					const result = await store.streamPrompt(id, parsed.message);
-					if (!result.ok) return rejectStream(result);
-					return pipeAgentStream(store, result, id, logger);
+					if (Result.isError(result)) return rejectStream(result.error);
+					return pipeAgentStream(store, result.value, id, logger);
 				}),
 			},
 			"/conversations/:id": {

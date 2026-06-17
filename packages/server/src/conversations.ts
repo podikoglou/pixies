@@ -8,9 +8,14 @@ import { eq } from "drizzle-orm";
 import {
 	createAgent,
 	createOsmClients,
+	Result,
+	ConversationNotFoundError,
+	PromptConflictError,
+	BudgetExceededError,
 	type CreateAgentOptions,
 	type OsmClients,
 	type ResolvedPixiesConfig,
+	type StreamPromptError,
 } from "@pixies/core";
 import { conversations as conversationsTable, type DbClient } from "@pixies/core/db";
 import { silentLogger, type Logger } from "@pixies/core/logging";
@@ -32,11 +37,6 @@ interface Conversation {
 	inFlight: boolean;
 	tokensUsed: number;
 }
-
-export type StreamPromptResult =
-	| { ok: true; stream: ReadableStream<AgentEvent> }
-	| { ok: false; reason: "not_found" | "conflict" }
-	| { ok: false; reason: "budget_exceeded"; used: number; budget: number };
 
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -135,7 +135,10 @@ export class ConversationStore {
 		return conv;
 	}
 
-	async streamPrompt(id: string, message: string): Promise<StreamPromptResult> {
+	async streamPrompt(
+		id: string,
+		message: string,
+	): Promise<Result<{ stream: ReadableStream<AgentEvent> }, StreamPromptError>> {
 		let conv = this.map.get(id);
 		if (!conv) {
 			const rows = await this.db
@@ -144,7 +147,10 @@ export class ConversationStore {
 				.where(eq(conversationsTable.id, id))
 				.limit(1);
 
-			if (rows.length === 0) return { ok: false, reason: "not_found" };
+			if (rows.length === 0)
+				return Result.err(
+					new ConversationNotFoundError({ id, message: `conversation not found: ${id}` }),
+				);
 
 			const row = rows[0]!;
 			conv = {
@@ -163,16 +169,14 @@ export class ConversationStore {
 			this.map.set(id, conv);
 			this.evictIfNeeded();
 		}
-		if (conv.inFlight) return { ok: false, reason: "conflict" };
+		if (conv.inFlight)
+			return Result.err(
+				new PromptConflictError({ id, message: "conversation already has an in-flight prompt" }),
+			);
 
 		const budget = this.config.conversationTokenBudget;
 		if (budget > 0 && conv.tokensUsed >= budget) {
-			return {
-				ok: false,
-				reason: "budget_exceeded",
-				used: conv.tokensUsed,
-				budget,
-			};
+			return Result.err(new BudgetExceededError({ used: conv.tokensUsed, budget }));
 		}
 
 		conv.inFlight = true;
@@ -213,7 +217,7 @@ export class ConversationStore {
 			},
 		});
 
-		return { ok: true, stream };
+		return Result.ok({ stream });
 	}
 
 	abort(id: string): void {
