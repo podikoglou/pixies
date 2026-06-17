@@ -182,7 +182,11 @@ const REVERSE_RESULT = { place_id: 1, lat: "52.5", lon: "13.4", display_name: "B
 /** Build a NominatimClient with caching enabled. */
 function makeCachedClient(
 	fetch: typeof globalThis.fetch,
-	{ max = 1000, ttl = 3_600_000, intervalMs = 40 }: { max?: number; ttl?: number; intervalMs?: number } = {},
+	{
+		max = 1000,
+		ttl = 3_600_000,
+		intervalMs = 40,
+	}: { max?: number; ttl?: number; intervalMs?: number } = {},
 ) {
 	return new NominatimClient({
 		baseUrl: "https://nominatim.example.com",
@@ -197,7 +201,9 @@ function makeCachedClient(
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 test("search() caches a successful response — second identical query skips fetch (#127)", async () => {
-	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse(SEARCH_RESULT)),
+	) as unknown as typeof fetch;
 	const client = makeCachedClient(fetchMock);
 
 	await client.search("Berlin");
@@ -207,7 +213,9 @@ test("search() caches a successful response — second identical query skips fet
 });
 
 test("cache hit skips the rate-limit queue entirely (no fetch, no wait) (#127)", async () => {
-	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse(SEARCH_RESULT)),
+	) as unknown as typeof fetch;
 	const client = makeCachedClient(fetchMock, { intervalMs: 60_000 }); // huge interval
 
 	await client.search("Berlin"); // populates cache
@@ -220,7 +228,9 @@ test("cache hit skips the rate-limit queue entirely (no fetch, no wait) (#127)",
 });
 
 test("different search queries are cache misses", async () => {
-	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse(SEARCH_RESULT)),
+	) as unknown as typeof fetch;
 	const client = makeCachedClient(fetchMock);
 
 	await client.search("Berlin");
@@ -230,7 +240,9 @@ test("different search queries are cache misses", async () => {
 });
 
 test("search cache key is case- and whitespace-insensitive", async () => {
-	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse(SEARCH_RESULT)),
+	) as unknown as typeof fetch;
 	const client = makeCachedClient(fetchMock);
 
 	await client.search("Berlin");
@@ -276,7 +288,9 @@ test("reverse() with a different coordinate bucket is a miss", async () => {
 });
 
 test("LRU eviction drops the least-recently-used entry at maxEntries", async () => {
-	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse(SEARCH_RESULT)),
+	) as unknown as typeof fetch;
 	const client = makeCachedClient(fetchMock, { max: 2 });
 
 	await client.search("Berlin"); // [Berlin]
@@ -288,7 +302,9 @@ test("LRU eviction drops the least-recently-used entry at maxEntries", async () 
 });
 
 test("TTL expiry evicts a stale entry", async () => {
-	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse(SEARCH_RESULT)),
+	) as unknown as typeof fetch;
 	const client = makeCachedClient(fetchMock, { ttl: 30 }); // 30ms TTL
 
 	await client.search("Berlin");
@@ -299,7 +315,9 @@ test("TTL expiry evicts a stale entry", async () => {
 });
 
 test("caching is disabled when cacheTtlMs is 0 (default client-layer behavior)", async () => {
-	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse(SEARCH_RESULT)),
+	) as unknown as typeof fetch;
 	const client = new NominatimClient({
 		baseUrl: "https://nominatim.example.com",
 		userAgent: "pixies-test",
