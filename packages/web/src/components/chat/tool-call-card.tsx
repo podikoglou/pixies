@@ -1,10 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
-import {
-	CheckIcon,
-	LoaderCircleIcon,
-	type LoaderCircleIconHandle,
-	XIcon,
-} from "@/components/icons";
+import { type ReactNode } from "react";
 import {
 	Accordion,
 	AccordionContent,
@@ -13,11 +7,11 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
 import { formatToolName } from "@/lib/format-tool-name";
 import type { TimelineItem } from "@/state/chat-reducer";
 import { JsonTree } from "./json-tree";
 import { formatTime } from "./assistant-message";
+import { StatusIcon } from "./status-icon";
 
 type ToolCallItem = Extract<TimelineItem, { kind: "tool-call" }>;
 
@@ -134,44 +128,5 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 				<p className="text-muted-foreground px-4 pb-3 text-xs">{formatTime(item.responseTimeMs)}</p>
 			)}
 		</div>
-	);
-}
-
-function StatusIcon({ status }: { status: "running" | "done" | "error" }) {
-	const loaderRef = useRef<LoaderCircleIconHandle>(null);
-
-	useEffect(() => {
-		if (status === "running") {
-			loaderRef.current?.startAnimation();
-		} else {
-			loaderRef.current?.stopAnimation();
-		}
-	}, [status]);
-
-	return (
-		<span className="relative flex size-4 items-center justify-center">
-			<LoaderCircleIcon
-				ref={loaderRef}
-				size={16}
-				className={cn(
-					"text-muted-foreground absolute inset-0 flex items-center justify-center transition-all duration-200 ease-out",
-					status === "running" ? "scale-100 opacity-100" : "scale-75 opacity-0",
-				)}
-			/>
-			<CheckIcon
-				size={16}
-				className={cn(
-					"absolute inset-0 flex items-center justify-center text-emerald-500 transition-all duration-200 ease-out dark:text-emerald-400",
-					status === "done" ? "scale-100 opacity-100" : "scale-75 opacity-0",
-				)}
-			/>
-			<XIcon
-				size={16}
-				className={cn(
-					"text-destructive absolute inset-0 flex items-center justify-center transition-all duration-200 ease-out",
-					status === "error" ? "scale-100 opacity-100" : "scale-75 opacity-0",
-				)}
-			/>
-		</span>
 	);
 }

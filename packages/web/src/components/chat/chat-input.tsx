@@ -3,7 +3,7 @@ import { PauseIcon, SendIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { IconCrossfade } from "@/components/ui/icon-crossfade";
 
 interface ChatInputProps {
 	value: string;
@@ -55,22 +55,16 @@ export function ChatInput({ value, onChange, onSubmit, isStreaming, onAbort }: C
 								aria-label={isStreaming ? "Stop" : "Send"}
 								className="shrink-0"
 							>
-								<span className="relative flex size-4 items-center justify-center">
-									<SendIcon
-										size={16}
-										className={cn(
-											"absolute inset-0 flex items-center justify-center transition-all duration-200 ease-out",
-											isStreaming ? "scale-75 opacity-0 blur-sm" : "scale-100 opacity-100 blur-0",
-										)}
-									/>
-									<PauseIcon
-										size={16}
-										className={cn(
-											"absolute inset-0 flex items-center justify-center transition-all duration-200 ease-out",
-											isStreaming ? "scale-100 opacity-100 blur-0" : "scale-75 opacity-0 blur-sm",
-										)}
-									/>
-								</span>
+								<IconCrossfade
+									activeIndex={isStreaming ? 1 : 0}
+									slotClassNames={[
+										isStreaming ? "blur-sm" : "blur-0",
+										isStreaming ? "blur-0" : "blur-sm",
+									]}
+								>
+									<SendIcon size={16} />
+									<PauseIcon size={16} />
+								</IconCrossfade>
 							</Button>
 						}
 					/>
