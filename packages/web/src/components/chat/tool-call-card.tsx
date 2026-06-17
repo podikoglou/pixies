@@ -40,6 +40,7 @@ function isLongValue(value: unknown): boolean {
 export function ToolCallCard({ item }: ToolCallCardProps) {
 	const isRunning = item.status === "running";
 	const isError = item.status === "error";
+	const isWarning = item.status === "warning";
 	const entries = argEntries(item.args);
 	const hasDetails = entries.length > 0 || item.resultText !== null;
 
@@ -62,6 +63,8 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 				) : (
 					<Badge variant="secondary">running</Badge>
 				)
+			) : isWarning ? (
+				<Badge variant="warning">unavailable</Badge>
 			) : isError ? (
 				<Badge variant="danger">error</Badge>
 			) : (

@@ -10,7 +10,7 @@ export type TimelineItem =
 			toolCallId: string;
 			toolName: string;
 			args: unknown;
-			status: "running" | "done" | "error";
+			status: "running" | "done" | "error" | "warning";
 			queued: boolean;
 			resultText: string | null;
 			result: ToolResult;
@@ -116,7 +116,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 					const parsed = parseToolResult(it.toolName, action.details);
 					return {
 						...it,
-						status: action.isError ? "error" : "done",
+						status: action.isError
+							? "error"
+							: (action.details as Record<string, unknown>)?.["busy"]
+								? "warning"
+								: "done",
 						queued: false,
 						resultText: action.resultText,
 						result: parsed,
@@ -173,7 +177,11 @@ export function transcriptToItems(transcript: ConversationTranscript): TimelineI
 					toolCallId: msg.toolCallId,
 					toolName: msg.toolName,
 					args: undefined,
-					status: msg.isError ? "error" : "done",
+					status: msg.isError
+						? "error"
+						: (msg.details as Record<string, unknown>)?.["busy"]
+							? "warning"
+							: "done",
 					queued: false,
 					resultText: joinContentText(msg.content, "\n") || null,
 					result: parsed,
