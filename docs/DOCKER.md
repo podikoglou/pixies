@@ -43,6 +43,7 @@ to be exposed directly for the pixies service in production.
 | `PIXIES_PORT` | no | `3000` | Listen port |
 | `PIXIES_DB_FILE` | no | `pixies.db` | SQLite database path (set to `/app/data/pixies.db` in compose to persist via volume) |
 | `PIXIES_CACHE_SIZE` | no | `50` | Max in-memory conversation cache |
+| `PIXIES_DISCORD_WEBHOOK_URL` | no | — | Discord webhook URL for error/fatal log alerts (optional) |
 | `PIXIES_THINKING_LEVEL` | no | `off` | AI thinking level: `off`, `low`, `medium`, `high` |
 | `PIXIES_HTTP_RATE_LIMIT` | no | `30` | Max POST requests per IP per window (`0` disables) |
 | `PIXIES_HTTP_RATE_LIMIT_WINDOW_MS` | no | `60000` | Per-IP HTTP rate-limit window length (ms) |
@@ -57,6 +58,8 @@ to be exposed directly for the pixies service in production.
 | `PIXIES_NOMINATIM_INTERVAL_MS` | no | `1100` | Nominatim interval window length (ms) |
 | `PIXIES_USER_AGENT` | no | `Pixies/1.0 (https://github.com/podikoglou/pixies)` | User-Agent header for OSM requests |
 | `PIXIES_TRUST_PROXY` | no | `false` | Honor `X-Forwarded-For` for client IP — set `true` behind Caddy/Nginx |
+| `PIXIES_WEB_DIST` | no | `../../web/dist` (relative to server) | Path to static web files (resolved at startup) |
+| `PIXIES_MIGRATIONS_FOLDER` | no | `../../../drizzle` (relative to server) | Path to Drizzle SQLite migration files |
 
 ## Persistence
 
