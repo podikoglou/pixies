@@ -38,6 +38,9 @@ const URL_EMAIL_ENV_KEYS = [
 	"PIXIES_CONTACT_EMAIL",
 ] as const;
 
+/** User-Agent env key (string default, covered by #108). */
+const USER_AGENT_ENV_KEYS = ["PIXIES_USER_AGENT"] as const;
+
 /** Keys readConfigFromEnv consults; snapshot/restore keeps tests hermetic. */
 const SNAPSHOT_KEYS = [
 	"PIXIES_MODEL",
@@ -45,6 +48,7 @@ const SNAPSHOT_KEYS = [
 	...OSM_RATE_ENV_KEYS,
 	...NUMERIC_ENV_KEYS,
 	...URL_EMAIL_ENV_KEYS,
+	...USER_AGENT_ENV_KEYS,
 ] as const;
 
 const snapshot: Record<string, string | undefined> = {};
@@ -66,7 +70,12 @@ afterEach(() => {
 function setEnv(overrides: Record<string, string> = {}) {
 	process.env.PIXIES_MODEL = "anthropic/claude-3-5-sonnet";
 	process.env.PIXIES_API_KEY = "test-key";
-	for (const key of [...OSM_RATE_ENV_KEYS, ...NUMERIC_ENV_KEYS, ...URL_EMAIL_ENV_KEYS]) {
+	for (const key of [
+		...OSM_RATE_ENV_KEYS,
+		...NUMERIC_ENV_KEYS,
+		...URL_EMAIL_ENV_KEYS,
+		...USER_AGENT_ENV_KEYS,
+	]) {
 		delete process.env[key];
 	}
 	for (const [key, value] of Object.entries(overrides)) {
@@ -85,6 +94,13 @@ test("readConfigFromEnv applies the default-instance policy when OSM rate env va
 	expect(config.overpassConcurrency).toBe(2);
 	expect(config.overpassIntervalCap).toBe(2);
 	expect(config.overpassIntervalMs).toBe(1000);
+});
+
+test("readConfigFromEnv applies the descriptive default User-Agent when PIXIES_USER_AGENT is unset [#108]", () => {
+	setEnv();
+	delete process.env.PIXIES_USER_AGENT;
+	const config = readConfigFromEnv();
+	expect(config.userAgent).toBe("Pixies/1.0 (https://github.com/podikoglou/pixies)");
 });
 
 test("readConfigFromEnv coerces the 6 OSM rate env vars with Number()", () => {
