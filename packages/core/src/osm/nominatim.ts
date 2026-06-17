@@ -99,7 +99,7 @@ export class NominatimClient {
 	 * never enters the rate-limit queue and never consumes a 1 req/s slot;
 	 * do not move the lookup inside `fetchJson`.
 	 *
-	 * Only successful parsed results are stored; errors (`OsmServerBusyError`,
+	 * Only successful parsed results are stored; errors (`OsmBusyError`,
 	 * invalid-shape, network) propagate uncached so a transient failure is
 	 * retried on the next call rather than served stale.
 	 */

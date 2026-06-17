@@ -25,7 +25,7 @@ test("OsmBusyError carries status, optional service, and computed message", () =
 	expect(e._tag).toBe("OsmBusy");
 	expect(e.status).toBe(429);
 	expect(e.service).toBe("Overpass");
-	// Message text matches the historical OsmServerBusyError string.
+	// Message text matches the historical busy-error string.
 	expect(e.message).toBe("Overpass: OSM server busy (HTTP 429)");
 	expect(e).toBeInstanceOf(Error);
 	// TaggedError base sets `name` to the _tag (not the class name).
