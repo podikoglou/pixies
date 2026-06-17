@@ -53,6 +53,14 @@ Generally:
 
 Some architecture decisions are documented in [docs/adr/](docs/adr/).
 
+## Adding a tool
+
+1. Make tool File - `packages/core/src/tools/tool-<name>.ts` (see [tool-geocode](./packages/core/src/tools/tool-geocode.ts))
+2. Create details schema - `packages/core/src/tools/schemas.ts` (see `GeocodeToolDetailsSchema`)
+3. Register in [tools/index.ts](./packages/core/src/tools/index.ts)
+4. Add case in [parse-result.ts](./packages/core/src/tools/parse-result.ts) (see `case "geocode"`)
+5. Preferably test: `packages/core/src/tools/<name>.test.ts` (see [display-map.test](./packages/core/src/tools/display-map.test.ts))
+
 ## Testing
 
 Each package has its own test suite:
