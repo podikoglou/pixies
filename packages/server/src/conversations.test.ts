@@ -186,6 +186,11 @@ test("get() cache miss rehydrates a non-empty transcript from the DB", async () 
 	expect(conv?.agent.state.messages[0]).toEqual(seeded[0]);
 });
 
+test("get() returns undefined for an unknown id", async () => {
+	const { store } = makeStore();
+	expect(await store.get("never-existed")).toBeUndefined();
+});
+
 test("streamPrompt() returns not_found for an unknown id", async () => {
 	const { store } = makeStore();
 	const result = await store.streamPrompt("does-not-exist", "hi");
