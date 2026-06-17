@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
+import "leaflet.markercluster";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { cn } from "@/lib/utils";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -28,7 +31,7 @@ const DEFAULT_ZOOM = 2;
 export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const mapRef = useRef<L.Map | null>(null);
-	const markersLayerRef = useRef<L.LayerGroup | null>(null);
+	const markersLayerRef = useRef<L.MarkerClusterGroup | null>(null);
 
 	useEffect(() => {
 		const container = containerRef.current;
@@ -44,7 +47,9 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 			maxZoom: 19,
 		}).addTo(map);
 
-		markersLayerRef.current = L.layerGroup().addTo(map);
+		const cluster = L.markerClusterGroup({ chunkedLoading: true });
+		cluster.addTo(map);
+		markersLayerRef.current = cluster;
 
 		const observer = new ResizeObserver(() => {
 			map.invalidateSize();
@@ -76,20 +81,21 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 
 	useEffect(() => {
 		const map = mapRef.current;
-		const layer = markersLayerRef.current;
-		if (!layer || !map) return;
+		const cluster = markersLayerRef.current;
+		if (!cluster || !map) return;
 
-		layer.clearLayers();
+		cluster.clearLayers();
 
 		if (!markers) return;
 
-		for (const { lat, lon, label } of markers) {
+		const leafletMarkers = markers.map(({ lat, lon, label }) => {
 			const marker = L.marker([lat, lon]);
 			if (label) {
 				marker.bindPopup(label);
 			}
-			marker.addTo(layer);
-		}
+			return marker;
+		});
+		cluster.addLayers(leafletMarkers);
 
 		if (bounds === undefined && markers.length > 0) {
 			if (markers.length === 1) {
