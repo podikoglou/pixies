@@ -39,9 +39,8 @@ function registerGlobalHandlers(logger: Logger): void {
 	});
 }
 
-export interface StartServerOptions {
-	hostname?: string;
-	port?: number;
+export interface StartServerOptions
+	extends Partial<Pick<ResolvedPixiesConfig, "host" | "port">> {
 	config?: ResolvedPixiesConfig;
 	logger?: Logger;
 	onReady?: (url: string) => void;
@@ -209,7 +208,7 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 		trustedProxyHops: config.trustedProxyHops,
 		logger,
 	});
-	const hostname = opts.hostname ?? config.host;
+	const hostname = opts.host ?? config.host;
 	const port = opts.port ?? config.port;
 
 	const server = Bun.serve({
