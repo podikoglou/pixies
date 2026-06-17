@@ -1,6 +1,5 @@
 import { Type } from "typebox";
 import type { Static } from "typebox";
-import { Value } from "typebox/value";
 
 export const GeocodeResultEntrySchema = Type.Object({
 	placeId: Type.Number(),
@@ -66,10 +65,6 @@ export const DisplayMapDataSchema = Type.Object({
 	),
 });
 export type DisplayMapData = Static<typeof DisplayMapDataSchema>;
-
-export function isDisplayMapData(data: unknown): data is DisplayMapData {
-	return Value.Check(DisplayMapDataSchema, data);
-}
 
 export const DisplayMapToolDetailsSchema = Type.Object({
 	data: DisplayMapDataSchema,

@@ -1,10 +1,16 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
+import { Value } from "typebox/value";
 import type { NominatimClient } from "../osm/nominatim.ts";
 import { OsmServerBusyError, OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
 import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
-import type { GeocodeToolDetails } from "./index.ts";
+import {
+	GeocodeToolDetailsSchema,
+	type GeocodeResultEntry,
+	type GeocodeToolDetails,
+} from "./schemas.ts";
 import type { ToolProgress } from "./progress.ts";
+import type { ToolModule } from "./tool-module.ts";
 import { MAX_CONTENT_LINES } from "./limits.ts";
 
 const schema = Type.Object({
@@ -63,3 +69,18 @@ export function createGeocodeTool(
 		},
 	};
 }
+
+export const geocodeModule: ToolModule<{ kind: "geocode"; entries: GeocodeResultEntry[] }> = {
+	factory: (clients) => createGeocodeTool(clients.nominatim),
+	detailsSchema: GeocodeToolDetailsSchema,
+	parse: (details) => {
+		if (!Value.Check(GeocodeToolDetailsSchema, details)) return null;
+		return { kind: "geocode", entries: details.data };
+	},
+	summarize: (result) => {
+		const top = result.entries[0];
+		if (!top) return null;
+		const name = top.name || top.displayName?.split(",")[0] || "unknown";
+		return `${name} (${top.lat},${top.lon})`;
+	},
+};

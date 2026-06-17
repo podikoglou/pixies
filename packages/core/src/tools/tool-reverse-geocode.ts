@@ -1,10 +1,16 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
+import { Value } from "typebox/value";
 import type { NominatimClient } from "../osm/nominatim.ts";
 import { OsmServerBusyError, OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
 import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
-import type { ReverseGeocodeToolDetails } from "./index.ts";
+import {
+	ReverseGeocodeToolDetailsSchema,
+	type GeocodeResultEntry,
+	type ReverseGeocodeToolDetails,
+} from "./schemas.ts";
 import type { ToolProgress } from "./progress.ts";
+import type { ToolModule } from "./tool-module.ts";
 
 const schema = Type.Object({
 	lat: Type.Number({ description: "Latitude" }),
@@ -59,3 +65,16 @@ export function createReverseGeocodeTool(
 		},
 	};
 }
+
+export const reverseGeocodeModule: ToolModule<{
+	kind: "reverse_geocode";
+	entry: GeocodeResultEntry;
+}> = {
+	factory: (clients) => createReverseGeocodeTool(clients.nominatim),
+	detailsSchema: ReverseGeocodeToolDetailsSchema,
+	parse: (details) => {
+		if (!Value.Check(ReverseGeocodeToolDetailsSchema, details)) return null;
+		return { kind: "reverse_geocode", entry: details.data };
+	},
+	summarize: (result) => result.entry.name,
+};
