@@ -24,8 +24,6 @@ This is a monorepo with four packages:
 - **`@pixies/core`** — Shared kernel: config, agent factory, SSE event types, OSM clients, tools.
 - **`@pixies/server`** — Bun HTTP server: conversation API, SSE streaming, static web serving.
 - **`@pixies/web`** — React SPA: the primary chat interface.
-- **`@pixies/tui`** — Legacy terminal interface (unmaintained).
-
 Verify every changed file respects package boundaries. Core should not depend on server or web. Server should not depend on web. Web should not depend on server internals.
 
 Read `docs/CONVENTIONS.md` and `docs/adr/` for architectural decisions and naming conventions.

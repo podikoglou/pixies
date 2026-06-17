@@ -9,9 +9,7 @@
   },
   "workspaces": ["packages/*"],
   "scripts": {
-    "start": "bun run --filter '@pixies/tui' start",
-    "dev": "bun run --filter '@pixies/tui' start",
-    "dev:tui": "bun run --watch packages/tui/src/index.ts",
+
     "dev:server": "bun run --watch packages/server/src/index.ts",
     "dev:web": "bun run --filter '@pixies/web' dev",
     "build:web": "bun run --filter '@pixies/web' build",
