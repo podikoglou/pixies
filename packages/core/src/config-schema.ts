@@ -1,9 +1,35 @@
 import { z } from "zod";
+import { getProviders } from "@earendil-works/pi-ai";
+
+/**
+ * Snapshot of pi-ai's known-provider registry, taken at module load.
+ *
+ * The registry is built once at pi-ai import time and never mutated, so a
+ * module-load snapshot documents that assumption and avoids recomputing the
+ * set on every config parse. Used by the `model` field's superRefine below and
+ * by the defense-in-depth guard in `agent.ts` `resolveModel`.
+ */
+const KNOWN_PROVIDERS: ReadonlySet<string> = new Set(getProviders());
 
 export const PixiesConfigSchema = z.object({
 	model: z
 		.string()
 		.regex(/^[^/]+\/.+/)
+		// Defense-in-depth alongside the runtime guard in agent.ts `resolveModel`.
+		// The regex above only checks the "provider/model-id" shape; this superRefine
+		// additionally validates the provider prefix against pi-ai's registry, so a
+		// typo'd provider (e.g. `PIXIES_MODEL=antrophic/...`) fails fast at boot with
+		// a message naming the valid providers. superRefine (rather than refine with a
+		// message factory) because Zod v4's refine params type omits the dynamic-error
+		// field; addIssue(string) gives the same dynamic message cleanly.
+		.superRefine((val, ctx) => {
+			const provider = val.slice(0, val.indexOf("/"));
+			if (!KNOWN_PROVIDERS.has(provider)) {
+				ctx.addIssue(
+					`Unknown provider "${provider}". Valid providers: ${[...KNOWN_PROVIDERS].join(", ")}`,
+				);
+			}
+		})
 		.describe('Model in "provider/model-id" format'),
 	apiKey: z.string().describe("API key for the AI provider"),
 	contactEmail: z.string().email().optional().describe("Contact email for OSM usage policy"),

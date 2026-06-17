@@ -1,5 +1,5 @@
 import { Agent } from "@earendil-works/pi-agent-core";
-import { getModels } from "@earendil-works/pi-ai";
+import { getModels, getProviders } from "@earendil-works/pi-ai";
 import type { Api, KnownProvider, Model } from "@earendil-works/pi-ai";
 import { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
 import { silentLogger, type Logger } from "./logging/index.ts";
@@ -10,6 +10,18 @@ import { SYSTEM_PROMPT } from "./system-prompt.ts";
 
 export type { ResolvedPixiesConfig } from "./config-schema.ts";
 
+/**
+ * Known-provider registry snapshot (see `config-schema.ts` for rationale).
+ * Mirrored here so `resolveModel` stays a pure, self-contained guard without
+ * reaching across into the config module.
+ */
+const KNOWN_PROVIDERS: ReadonlySet<string> = new Set(getProviders());
+
+/** Type guard: narrows a free-form string to pi-ai's `KnownProvider` union. */
+function isKnownProvider(value: string): value is KnownProvider {
+	return KNOWN_PROVIDERS.has(value);
+}
+
 function resolveModel(modelRef: string): Model<Api> {
 	const slashIndex = modelRef.indexOf("/");
 	if (slashIndex === -1) {
@@ -19,7 +31,18 @@ function resolveModel(modelRef: string): Model<Api> {
 	const provider = modelRef.slice(0, slashIndex);
 	const modelId = modelRef.slice(slashIndex + 1);
 
-	const models = getModels(provider as KnownProvider) as Model<Api>[];
+	// Defense-in-depth: the Zod schema in config-schema.ts already rejects
+	// unknown providers at boot, but `resolveModel` is exported-reachable
+	// (and unit-testable) on its own, so it must not trust its input. The guard
+	// also narrows `provider` to `KnownProvider`, removing the `as` cast on the
+	// `getModels` call.
+	if (!isKnownProvider(provider)) {
+		throw new Error(
+			`Unknown provider "${provider}". Valid providers: ${[...KNOWN_PROVIDERS].join(", ")}`,
+		);
+	}
+
+	const models = getModels(provider) as Model<Api>[];
 	const model = models.find((m) => m.id === modelId);
 	if (!model) {
 		throw new Error(`Unknown model: "${modelRef}". Check provider and model ID.`);
