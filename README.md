@@ -20,3 +20,7 @@ OpenStreetMap Services it uses:
 Despite this being a very simple single container app, Docker is suggested.
 
 See [docs/DOCKER.md](docs/DOCKER.md).
+
+## Public Instance
+
+I'm running a public instance, we'll see how this goes. [pixies.aleep.lol](https://pixies.aleep.lol)
