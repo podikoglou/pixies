@@ -1,3 +1,23 @@
+// --- better-result primitives + TaggedError hierarchy (issue #109) ---
+export { Result, TaggedError, matchError, matchErrorPartial, isTaggedError } from "better-result";
+export type { SerializedResult } from "better-result";
+export {
+	OsmBusyError,
+	OsmHttpError,
+	OsmParseError,
+	OsmRemarkError,
+	ToolAbortedError,
+	DisplayMapValidationError,
+	ConversationNotFoundError,
+	PromptConflictError,
+	BudgetExceededError,
+	InvalidJsonError,
+	ValidationError,
+	ConfigError,
+	InvalidTranscriptError,
+} from "./errors.ts";
+export type { OsmError, StreamPromptError, PixiesError, PixiesErrorTag } from "./errors.ts";
+
 export { createAgent, createOsmClients, readConfigFromEnv } from "./agent.ts";
 export type { CreateAgentOptions, CreateOsmClientsOptions } from "./agent.ts";
 export { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
