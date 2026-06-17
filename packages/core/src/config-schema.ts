@@ -74,6 +74,20 @@ export const PixiesConfigSchema = z.object({
 		.min(1)
 		.default(1100)
 		.describe("Nominatim interval window length in ms (default-instance policy: 1100 → ~1 req/s)"),
+	nominatimCacheTtlMs: z.coerce
+		.number()
+		.int()
+		.min(0)
+		.default(86_400_000)
+		.describe(
+			"TTL for cached Nominatim search/reverse responses in ms (default: 24h). 0 disables caching.",
+		),
+	nominatimCacheMaxEntries: z.coerce
+		.number()
+		.int()
+		.min(0)
+		.default(1000)
+		.describe("Max cached Nominatim responses (LRU eviction). 0 disables caching."),
 	overpassConcurrency: z.coerce
 		.number()
 		.int()
