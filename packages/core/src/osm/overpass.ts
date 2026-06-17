@@ -143,21 +143,24 @@ export class OverpassClient {
 					throw new Error("Only [out:json] is supported");
 				}
 				const json = await res.json();
-				if (!Value.Check(OverpassResponseSchema, json)) {
+				let parsed: OverpassResponse;
+				try {
+					parsed = Value.Parse(OverpassResponseSchema, json);
+				} catch (err) {
 					this.logger.warn(
-						{ service, statusCode: res.status, contentType },
+						{ service, statusCode: res.status, contentType, cause: err },
 						"invalid response shape",
 					);
-					throw new Error("Overpass: invalid response shape");
+					throw new Error("Overpass: invalid response shape", { cause: err });
 				}
-				if (json.remark) {
+				if (parsed.remark) {
 					this.logger.warn(
-						{ service, statusCode: res.status, contentType, remark: json.remark },
+						{ service, statusCode: res.status, contentType, remark: parsed.remark },
 						"overpass remark",
 					);
-					throw new Error(`Overpass: ${json.remark}`);
+					throw new Error(`Overpass: ${parsed.remark}`);
 				}
-				return json;
+				return parsed;
 			},
 			parentSignal,
 			callbacks,
