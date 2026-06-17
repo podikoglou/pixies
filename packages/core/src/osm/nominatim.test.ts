@@ -173,3 +173,144 @@ test("reverse() throws on invalid shape and tags the cause", async () => {
 		"Nominatim: invalid reverse response shape",
 	);
 });
+
+// ---- response caching (#127) ------------------------------------------------
+
+const SEARCH_RESULT = [{ place_id: 1, lat: "52.5", lon: "13.4", display_name: "Berlin" }];
+const REVERSE_RESULT = { place_id: 1, lat: "52.5", lon: "13.4", display_name: "Berlin" };
+
+/** Build a NominatimClient with caching enabled. */
+function makeCachedClient(
+	fetch: typeof globalThis.fetch,
+	{ max = 1000, ttl = 3_600_000, intervalMs = 40 }: { max?: number; ttl?: number; intervalMs?: number } = {},
+) {
+	return new NominatimClient({
+		baseUrl: "https://nominatim.example.com",
+		userAgent: "pixies-test",
+		fetch,
+		intervalMs,
+		cacheTtlMs: ttl,
+		cacheMaxEntries: max,
+	});
+}
+
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+test("search() caches a successful response — second identical query skips fetch (#127)", async () => {
+	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const client = makeCachedClient(fetchMock);
+
+	await client.search("Berlin");
+	await client.search("Berlin");
+
+	expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test("cache hit skips the rate-limit queue entirely (no fetch, no wait) (#127)", async () => {
+	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const client = makeCachedClient(fetchMock, { intervalMs: 60_000 }); // huge interval
+
+	await client.search("Berlin"); // populates cache
+	const start = Date.now();
+	await client.search("Berlin"); // cache hit — would block ~60s if it entered the limiter
+	const elapsed = Date.now() - start;
+
+	expect(fetchMock).toHaveBeenCalledTimes(1);
+	expect(elapsed).toBeLessThan(1000);
+});
+
+test("different search queries are cache misses", async () => {
+	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const client = makeCachedClient(fetchMock);
+
+	await client.search("Berlin");
+	await client.search("Vienna");
+
+	expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+test("search cache key is case- and whitespace-insensitive", async () => {
+	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const client = makeCachedClient(fetchMock);
+
+	await client.search("Berlin");
+	await client.search("  BERLIN  ");
+
+	expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test("OsmServerBusyError is NOT cached — retry hits the network again", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(new Response("too busy", { status: 429 })),
+	) as unknown as typeof fetch;
+	const client = makeCachedClient(fetchMock);
+
+	await expect(client.search("Berlin")).rejects.toBeInstanceOf(OsmServerBusyError);
+	await expect(client.search("Berlin")).rejects.toBeInstanceOf(OsmServerBusyError);
+
+	expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+test("reverse() caches by quantized coordinates — sub-meter-nearby points hit", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse(REVERSE_RESULT)),
+	) as unknown as typeof fetch;
+	const client = makeCachedClient(fetchMock);
+
+	await client.reverse(52.51704, 13.38886);
+	await client.reverse(52.517041, 13.388861); // <1m away → same 5-decimal bucket
+
+	expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test("reverse() with a different coordinate bucket is a miss", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse(REVERSE_RESULT)),
+	) as unknown as typeof fetch;
+	const client = makeCachedClient(fetchMock);
+
+	await client.reverse(52.51704, 13.38886);
+	await client.reverse(48.2082, 16.3738); // different city
+
+	expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+test("LRU eviction drops the least-recently-used entry at maxEntries", async () => {
+	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const client = makeCachedClient(fetchMock, { max: 2 });
+
+	await client.search("Berlin"); // [Berlin]
+	await client.search("Vienna"); // [Berlin, Vienna]
+	await client.search("Paris"); // [Vienna, Paris] — Berlin evicted (LRU)
+	await client.search("Berlin"); // miss → fetches again
+
+	expect(fetchMock).toHaveBeenCalledTimes(4);
+});
+
+test("TTL expiry evicts a stale entry", async () => {
+	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const client = makeCachedClient(fetchMock, { ttl: 30 }); // 30ms TTL
+
+	await client.search("Berlin");
+	await delay(40); // let the TTL lapse
+	await client.search("Berlin");
+
+	expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+test("caching is disabled when cacheTtlMs is 0 (default client-layer behavior)", async () => {
+	const fetchMock = mock(() => Promise.resolve(jsonResponse(SEARCH_RESULT))) as unknown as typeof fetch;
+	const client = new NominatimClient({
+		baseUrl: "https://nominatim.example.com",
+		userAgent: "pixies-test",
+		fetch: fetchMock,
+		intervalMs: 40,
+		cacheTtlMs: 0,
+		cacheMaxEntries: 1000,
+	});
+
+	await client.search("Berlin");
+	await client.search("Berlin");
+
+	expect(fetchMock).toHaveBeenCalledTimes(2);
+});
