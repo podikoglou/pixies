@@ -26,7 +26,7 @@ Server configuration via env vars:
 | `PIXIES_CONTACT_EMAIL` | (optional) | Passed to Nominatim/Overpass as `email=` per OSM usage policy |
 | `PIXIES_OVERPASS_URL` | (optional) | Override Overpass endpoint |
 | `PIXIES_NOMINATIM_URL` | (optional) | Override Nominatim endpoint |
-| `PIXIES_USER_AGENT` | `Pixies` | `User-Agent` header sent to OSM APIs |
+| `PIXIES_USER_AGENT` | `Pixies/1.0 (https://github.com/podikoglou/pixies)` | `User-Agent` header sent to OSM APIs |
 | `PIXIES_THINKING_LEVEL` | `off` | LLM reasoning level: `off` \| `low` \| `medium` \| `high` |
 | `PIXIES_NOMINATIM_CONCURRENCY` | `1` | Max concurrent in-flight Nominatim requests (public-instance policy; raise for self-hosted mirrors) |
 | `PIXIES_NOMINATIM_INTERVAL_CAP` | `1` | Max Nominatim requests started per interval window |
