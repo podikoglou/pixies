@@ -39,6 +39,7 @@ const config: ResolvedPixiesConfig = {
 	overpassConcurrency: 2,
 	overpassIntervalCap: 2,
 	overpassIntervalMs: 1000,
+	conversationTokenBudget: 0,
 };
 
 const server = startServer({ config, logger: silentLogger, hostname: "127.0.0.1", port: 0 });
