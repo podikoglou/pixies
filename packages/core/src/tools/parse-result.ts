@@ -14,8 +14,6 @@ import type { GeocodeResultEntry, OverpassResultEntry, DisplayMapData } from "./
  * Produced by {@link parseToolResult} from the `unknown` `details` blob that
  * travels along tool executions. Invalid or missing data collapses to the
  * `{ kind: "empty" }` variant, so callers never need null checks.
- *
- * See issue #54.
  */
 export type ToolResult =
 	| { kind: "query_osm"; entries: OverpassResultEntry[] }
@@ -30,8 +28,7 @@ export type ToolResult =
  *
  * This is the single boundary that touches `unknown`. Everything downstream
  * consumes the typed union. Invalid/missing/wrong-shape data — including the
- * malformed `{}` details that crashed `summarizeToolDetails` (see issue #54) —
- * collapses to `{ kind: "empty" }`.
+ * malformed `{}` details — collapses to `{ kind: "empty" }`.
  *
  * `toolName` is intentionally a plain `string` (not the narrowed `ToolName`):
  * unknown tool names must degrade gracefully to `{ kind: "empty" }` rather
@@ -67,22 +64,9 @@ export function parseToolResult(toolName: string, details: unknown): ToolResult 
  * Produce a human-readable summary from a typed {@link ToolResult}, or `null`
  * when no summary is meaningful.
  *
- * Replaces `summarizeToolDetails` for new code: it consumes the validated
- * union directly, so there are no `as` casts and no defensive `undefined`
- * checks. The discriminated union guarantees every accessed field exists.
- *
- * Note (issue #54): two intentional semantic shifts vs the legacy summarizer:
- *   - `geocode`: the legacy `top` string was precomputed at the producer. Here
- *     we reconstruct it from `entries[0]`, mirroring the producer's
- *     `${name || displayName?.split(",")[0] || "unknown"} (${lat},${lon})`.
- *     An empty entry list (no results) yields `null`.
- *   - `reverse_geocode`: returns `entry.name` directly. The legacy summarizer
- *     returned the producer-side `details.name`, which was `name.slice(0, 50)`.
- *     `entry.name` is the full (un-sliced) name — a minor widening that is a
- *     superset of the old value.
- *
- * Return type is `string | null` (NOT `string | undefined` like the legacy
- * summarizer) per the issue spec.
+ * Consumes the validated union directly, so there are no `as` casts and
+ * no defensive `undefined` checks. The discriminated union guarantees every
+ * accessed field exists.
  */
 export function summarizeResult(result: ToolResult): string | null {
 	switch (result.kind) {

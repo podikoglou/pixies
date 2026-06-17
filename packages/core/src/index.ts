@@ -31,7 +31,6 @@ export {
 	createToolRegistry,
 	createTools,
 	toolLabel,
-	summarizeToolDetails,
 	ToolProgressSchema,
 	isToolProgress,
 	ToolNameSchema,

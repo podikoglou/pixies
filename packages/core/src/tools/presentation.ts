@@ -32,23 +32,3 @@ export function toolLabel(name: string): string {
 		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
 		.join(" ");
 }
-
-type ToolDetailSummarizer<T extends ToolName> = (
-	details: import("./index.ts").ToolDetailsMap[T],
-) => string | undefined;
-
-const summarize: { [K in ToolName]: ToolDetailSummarizer<K> } = {
-	geocode: (d) => (typeof d.top === "string" ? d.top : undefined),
-	reverse_geocode: (d) => (d && typeof d.name === "string" ? d.name : undefined),
-	query_osm: (d) => (typeof d.count === "number" ? `${d.count} elements` : undefined),
-	display_map: (d) => `${d.data.markers.length} marker(s)`,
-};
-
-/** Summarize tool details into a human-readable string, or undefined if unavailable. */
-export function summarizeToolDetails<K extends ToolName>(
-	name: K,
-	details: import("./index.ts").ToolDetailsMap[K],
-): string | undefined {
-	if (!details || typeof details !== "object") return undefined;
-	return summarize[name](details);
-}
