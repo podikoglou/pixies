@@ -59,6 +59,7 @@ to be exposed directly for the pixies service in production.
 | `PIXIES_USER_AGENT` | no | `Pixies/1.0 (https://github.com/podikoglou/pixies)` | User-Agent header for OSM requests |
 | `PIXIES_CONVERSATION_TOKEN_BUDGET` | no | `0` | Max tokens (input + output) per conversation across all turns (`0` = unlimited) |
 | `PIXIES_TRUST_PROXY` | no | `false` | Honor `X-Forwarded-For` for client IP — set `true` behind Caddy/Nginx |
+| `PIXIES_TRUSTED_PROXY_HOPS` | no | `1` | Number of rightmost trusted XFF hops for IP spoofing prevention |
 | `PIXIES_WEB_DIST` | no | `../../web/dist` (relative to server) | Path to static web files (resolved at startup) |
 | `PIXIES_MIGRATIONS_FOLDER` | no | `../../../drizzle` (relative to server) | Path to Drizzle SQLite migration files |
 
