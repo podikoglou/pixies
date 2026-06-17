@@ -81,18 +81,20 @@ export interface CreateAgentOptions {
 	osmClients?: OsmClients;
 }
 
-export interface CreateOsmClientsOptions {
-	overpassUrl: string;
-	nominatimUrl: string;
-	contactEmail?: string;
-	userAgent: string;
+export interface CreateOsmClientsOptions
+	extends Pick<ResolvedPixiesConfig, "overpassUrl" | "nominatimUrl" | "contactEmail" | "userAgent">,
+		Partial<
+			Pick<
+				ResolvedPixiesConfig,
+				| "nominatimConcurrency"
+				| "nominatimIntervalCap"
+				| "nominatimIntervalMs"
+				| "overpassConcurrency"
+				| "overpassIntervalCap"
+				| "overpassIntervalMs"
+			>
+		> {
 	fetch?: typeof globalThis.fetch;
-	nominatimConcurrency?: number;
-	nominatimIntervalCap?: number;
-	nominatimIntervalMs?: number;
-	overpassConcurrency?: number;
-	overpassIntervalCap?: number;
-	overpassIntervalMs?: number;
 	logger?: Logger;
 }
 
