@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import { parseToolResult } from "./parse-result.ts";
+import { parseToolResult } from "./index.ts";
 
 // ---- parseToolResult: geocode -------------------------------------------------
 
