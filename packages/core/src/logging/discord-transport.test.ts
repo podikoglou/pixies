@@ -170,3 +170,33 @@ test("formatDiscordPayload uses a placeholder when msg is absent", () => {
 	const payload = formatDiscordPayload({ level: 50 });
 	expect(payload.embeds[0]!.description).toBe("(no message)");
 });
+
+test("formatDiscordPayload never exceeds Discord's 25-field limit (regression for #95)", () => {
+	// 25 non-reserved context keys + an err.stack would previously yield 26
+	// fields and Discord would reject the embed with a silent 400.
+	const entry: Record<string, unknown> = {
+		level: 50,
+		msg: "many fields",
+		err: { stack: "Error: boom\n  at foo" },
+	};
+	for (let i = 0; i < 25; i++) entry[`key${i}`] = `value${i}`;
+
+	const payload = formatDiscordPayload(entry);
+	const fields = payload.embeds[0]!.fields as Array<{ name: string; value: string }>;
+
+	expect(fields.length).toBe(25);
+	// The stack is reserved a slot — always present, never the cause of overflow.
+	const names = fields.map((f) => f.name);
+	expect(names).toContain("stack");
+});
+
+test("formatDiscordPayload fills all 25 slots with context when no stack is present", () => {
+	const entry: Record<string, unknown> = { level: 50, msg: "no stack" };
+	for (let i = 0; i < 25; i++) entry[`key${i}`] = `value${i}`;
+
+	const payload = formatDiscordPayload(entry);
+	const fields = payload.embeds[0]!.fields as Array<{ name: string; value: string }>;
+
+	expect(fields.length).toBe(25);
+	expect(fields.map((f) => f.name)).not.toContain("stack");
+});
