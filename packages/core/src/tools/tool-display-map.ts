@@ -1,6 +1,7 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
+import { DisplayMapValidationError } from "../errors.ts";
 import {
 	DisplayMapToolDetailsSchema,
 	type DisplayMapData,
@@ -54,15 +55,19 @@ export function createDisplayMapTool(): AgentTool<typeof schema, DisplayMapToolD
 			const hasQueryRef = params.queryRef !== undefined;
 
 			if (hasMarkers && hasQueryRef) {
-				throw new Error(
-					"Provide either markers (inline) or queryRef (reference to a prior query_osm call), not both.",
-				);
+				throw new DisplayMapValidationError({
+					reason: "both",
+					message:
+						"Provide either markers (inline) or queryRef (reference to a prior query_osm call), not both.",
+				});
 			}
 
 			if (!hasMarkers && !hasQueryRef) {
-				throw new Error(
-					"Provide either markers (inline) or queryRef (reference to a prior query_osm call).",
-				);
+				throw new DisplayMapValidationError({
+					reason: "neither",
+					message:
+						"Provide either markers (inline) or queryRef (reference to a prior query_osm call).",
+				});
 			}
 
 			if (hasQueryRef) {
