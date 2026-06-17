@@ -8,7 +8,7 @@ import { OverpassClient } from "./osm/overpass.ts";
 import { createTools, type OsmClients } from "./tools/index.ts";
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 
-export type { PixiesConfig, ResolvedPixiesConfig } from "./config-schema.ts";
+export type { ResolvedPixiesConfig } from "./config-schema.ts";
 
 function resolveModel(modelRef: string): Model<Api> {
 	const slashIndex = modelRef.indexOf("/");
@@ -28,59 +28,44 @@ function resolveModel(modelRef: string): Model<Api> {
 	return model;
 }
 
-export function readConfigFromEnv(): ResolvedPixiesConfig {
-	const raw = {
-		model: process.env.PIXIES_MODEL,
-		apiKey: process.env.PIXIES_API_KEY,
-		contactEmail: process.env.PIXIES_CONTACT_EMAIL,
-		overpassUrl: process.env.PIXIES_OVERPASS_URL,
-		nominatimUrl: process.env.PIXIES_NOMINATIM_URL,
-		userAgent: process.env.PIXIES_USER_AGENT,
-		host: process.env.PIXIES_HOST,
-		port: process.env.PIXIES_PORT !== undefined ? Number(process.env.PIXIES_PORT) : undefined,
-		thinkingLevel: process.env.PIXIES_THINKING_LEVEL,
-		dbFile: process.env.PIXIES_DB_FILE,
-		cacheSize:
-			process.env.PIXIES_CACHE_SIZE !== undefined
-				? Number(process.env.PIXIES_CACHE_SIZE)
-				: undefined,
-		httpRateLimit:
-			process.env.PIXIES_HTTP_RATE_LIMIT !== undefined
-				? Number(process.env.PIXIES_HTTP_RATE_LIMIT)
-				: undefined,
-		httpRateLimitWindowMs:
-			process.env.PIXIES_HTTP_RATE_LIMIT_WINDOW_MS !== undefined
-				? Number(process.env.PIXIES_HTTP_RATE_LIMIT_WINDOW_MS)
-				: undefined,
-		trustProxy: process.env.PIXIES_TRUST_PROXY === "true",
-		nominatimConcurrency:
-			process.env.PIXIES_NOMINATIM_CONCURRENCY !== undefined
-				? Number(process.env.PIXIES_NOMINATIM_CONCURRENCY)
-				: undefined,
-		nominatimIntervalCap:
-			process.env.PIXIES_NOMINATIM_INTERVAL_CAP !== undefined
-				? Number(process.env.PIXIES_NOMINATIM_INTERVAL_CAP)
-				: undefined,
-		nominatimIntervalMs:
-			process.env.PIXIES_NOMINATIM_INTERVAL_MS !== undefined
-				? Number(process.env.PIXIES_NOMINATIM_INTERVAL_MS)
-				: undefined,
-		overpassConcurrency:
-			process.env.PIXIES_OVERPASS_CONCURRENCY !== undefined
-				? Number(process.env.PIXIES_OVERPASS_CONCURRENCY)
-				: undefined,
-		overpassIntervalCap:
-			process.env.PIXIES_OVERPASS_INTERVAL_CAP !== undefined
-				? Number(process.env.PIXIES_OVERPASS_INTERVAL_CAP)
-				: undefined,
-		overpassIntervalMs:
-			process.env.PIXIES_OVERPASS_INTERVAL_MS !== undefined
-				? Number(process.env.PIXIES_OVERPASS_INTERVAL_MS)
-				: undefined,
-		discordWebhookUrl: process.env.PIXIES_DISCORD_WEBHOOK_URL,
-	};
+/**
+ * Read an env var, treating undefined/empty/whitespace as "unset" (returns
+ * undefined). This lets the schema apply documented defaults instead of
+ * coercing `""` to `0`/`NaN`, which is critical for fields like
+ * `httpRateLimit` where `PIXIES_HTTP_RATE_LIMIT=` must NOT silently disable
+ * rate limiting. See config cleanup (#101/#103/#105).
+ */
+function env(name: string): string | undefined {
+	const v = process.env[name];
+	return v && v.trim().length > 0 ? v : undefined;
+}
 
-	return PixiesConfigSchema.parse(raw);
+export function readConfigFromEnv(): ResolvedPixiesConfig {
+	return PixiesConfigSchema.parse({
+		model: env("PIXIES_MODEL"),
+		apiKey: env("PIXIES_API_KEY"),
+		contactEmail: env("PIXIES_CONTACT_EMAIL"),
+		overpassUrl: env("PIXIES_OVERPASS_URL"),
+		nominatimUrl: env("PIXIES_NOMINATIM_URL"),
+		userAgent: env("PIXIES_USER_AGENT"),
+		host: env("PIXIES_HOST"),
+		port: env("PIXIES_PORT"),
+		thinkingLevel: env("PIXIES_THINKING_LEVEL"),
+		dbFile: env("PIXIES_DB_FILE"),
+		cacheSize: env("PIXIES_CACHE_SIZE"),
+		httpRateLimit: env("PIXIES_HTTP_RATE_LIMIT"),
+		httpRateLimitWindowMs: env("PIXIES_HTTP_RATE_LIMIT_WINDOW_MS"),
+		// Boolean coercion must NOT use the env() helper or z.coerce.boolean() —
+		// both would coerce "false" → true. Keep the explicit === "true" check.
+		trustProxy: process.env.PIXIES_TRUST_PROXY === "true",
+		nominatimConcurrency: env("PIXIES_NOMINATIM_CONCURRENCY"),
+		nominatimIntervalCap: env("PIXIES_NOMINATIM_INTERVAL_CAP"),
+		nominatimIntervalMs: env("PIXIES_NOMINATIM_INTERVAL_MS"),
+		overpassConcurrency: env("PIXIES_OVERPASS_CONCURRENCY"),
+		overpassIntervalCap: env("PIXIES_OVERPASS_INTERVAL_CAP"),
+		overpassIntervalMs: env("PIXIES_OVERPASS_INTERVAL_MS"),
+		discordWebhookUrl: env("PIXIES_DISCORD_WEBHOOK_URL"),
+	});
 }
 
 export interface CreateAgentOptions {
@@ -96,18 +81,21 @@ export interface CreateAgentOptions {
 	osmClients?: OsmClients;
 }
 
-export interface CreateOsmClientsOptions {
-	overpassUrl: string;
-	nominatimUrl: string;
-	contactEmail?: string;
-	userAgent: string;
+export interface CreateOsmClientsOptions
+	extends
+		Pick<ResolvedPixiesConfig, "overpassUrl" | "nominatimUrl" | "contactEmail" | "userAgent">,
+		Partial<
+			Pick<
+				ResolvedPixiesConfig,
+				| "nominatimConcurrency"
+				| "nominatimIntervalCap"
+				| "nominatimIntervalMs"
+				| "overpassConcurrency"
+				| "overpassIntervalCap"
+				| "overpassIntervalMs"
+			>
+		> {
 	fetch?: typeof globalThis.fetch;
-	nominatimConcurrency?: number;
-	nominatimIntervalCap?: number;
-	nominatimIntervalMs?: number;
-	overpassConcurrency?: number;
-	overpassIntervalCap?: number;
-	overpassIntervalMs?: number;
 	logger?: Logger;
 }
 
