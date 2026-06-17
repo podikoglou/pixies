@@ -1,38 +1,85 @@
 # Contributing to Pixies
 
+## Architecture
+
+Monorepo with three packages:
+
+| Package          | Purpose                                                           |
+| ---------------- | ----------------------------------------------------------------- |
+| `@pixies/core`   | Core. config, agent factory, SSE event types, OSM clients, tools. |
+| `@pixies/server` | Bun HTTP server. Conversation API, SSE streaming.                 |
+| `@pixies/web`    | React SPA. Chat interface.                                        |
+
 ## Getting started
 
 1. Fork and clone the repo
-2. Install deps: `bun install`
-3. Run the app: `bun run dev`
+2. Install dependencies: `bun install`
+3. Set up environment: `cp .env.example .env` and fill in at minimum `PIXIES_MODEL` and `PIXIES_API_KEY`
+4. Install git hooks: `lefthook install`
 
-## Development
+## Running locally
 
-This project uses `bun`.
+Pixies needs two processes running in development:
 
-- **Build:** `bun run typecheck`
-- **Format:** `bun run format`
-- **Lint:** `bun run lint`
+- `bun run dev:server`
+- `bun run dev:web`
 
-## Filing issues
+## Development Scripts
 
-Use the provided issue templates:
+| Command                | Does                            |
+| ---------------------- | ------------------------------- |
+| `bun run typecheck`    | TypeScript type-checking (tsgo) |
+| `bun run format`       | Format with oxfmt               |
+| `bun run format:check` | Check formatting (CI)           |
+| `bun run lint`         | Lint with oxlint                |
+| `bun run test`         | Run tests (per-package)         |
+| `bun run build:web`    | Production web build            |
+| `bun run db:generate`  | Generate Drizzle migrations     |
+| `bun run db:migrate`   | Apply Drizzle migrations        |
 
-- **Bug report** — something's broken.
-- **Deepen** — structural improvement (better seams, testability, locality, type safety).
-- **Feature request** — new functionality.
+## Pre-commit hooks
 
-The "Deepen" template is the most common around here. If your issue is about
-refactoring, reorganising modules, or making code testable, use that one.
+Lefthook runs on every commit (format → typecheck → lint). Setup: `lefthook install`
 
 ## Code conventions
 
-- Follow existing patterns — check neighbouring files before introducing new ones.
-- Prefer small, atomic commits.
-- Write well-documented code and keep comments up to date.
-- Never commit secrets or keys.
-- Run `bun run typecheck`, `bun run format`, and `bun run lint` before pushing.
+Follow [docs/CONVENTIONS.md](docs/CONVENTIONS.md).
 
-## Architecture
+Generally:
 
-See `docs/adr/` for architecture decisions.
+- kebab-case filenames
+- Prefer [9ui](https://9ui.dev) UI primitives over custom styling
+- Use [pqoqubbw/icons](https://icons.pqoqubbw.dev/) for icons
+
+Some architecture decisions are documented in [docs/adr/](docs/adr/).
+
+## Testing
+
+Each package has its own test suite:
+
+```sh
+bun run --filter '@pixies/core' test
+bun run --filter '@pixies/server' test
+bun run --filter '@pixies/web' test
+```
+
+Tests run on CI for every PR.
+
+## Filing issues
+
+Use the issue templates:
+
+| Template            | Purpose                                                |
+| ------------------- | ------------------------------------------------------ |
+| **Bug report**      | Something's broken                                     |
+| **Deepen**          | Structural improvement (refactors, testability, seams) |
+| **Feature request** | New functionality or capability                        |
+
+The "Deepen" template is the most common. If your issue is about refactoring,
+reorganising modules, or making code testable, use that one.
+
+## Pull request process
+
+- Run `bun run typecheck`, `bun run format`, and `bun run lint` before pushing (though lefthook should run that by itself)
+- Never commit secrets or keys (`.env` is gitignored)
+- Write well-documented code and keep comments up to date
