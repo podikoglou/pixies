@@ -34,7 +34,7 @@ to be exposed directly for the pixies service in production.
 ## Environment variables
 
 | Variable | Required | Default | Description |
-|---|---|---|---|---|
+|---|---|---|---|
 | `PIXIES_MODEL` | yes | — | AI model in `provider/model-id` format (e.g. `openai/gpt-4o`) |
 | `PIXIES_API_KEY` | yes | — | API key for the AI provider |
 | `DOMAIN` | yes (prod) | `localhost` | Domain for TLS (passed to Caddy) |
