@@ -5,7 +5,7 @@
 
 ## Overview
 
-The Pixies SSE API exposes a stateful, multi-tenant conversation interface to the Pixies OSM agent. Each conversation is an isolated server-side `Agent` instance. Clients create a conversation, send messages, and receive streamed assistant responses including tool execution progress.
+The Pixies SSE API exposes a stateful, multi-tenant conversation interface to the Pixies OSM agent. Each conversation is an isolated server-side `Agent` instance. Clients create a conversation, send messages, and receive streamed tool execution progress.
 
 The API is optimized for streaming chat UIs (web, mobile). It is **not** a stateless completion API — clients must track conversation IDs.
 
@@ -66,15 +66,15 @@ The first event is always `conversation_created`, containing the new conversatio
 { "error": "missing required field: message" }
 ```
 
-**Response (500):** `application/json`
+Also returned on invalid JSON:
 
 ```json
-{ "error": "internal server error" }
+{ "error": "invalid JSON" }
 ```
 
-500s on this endpoint are rare — the `Agent` is freshly created, so prompt-level errors surface as in-stream `error` events rather than HTTP errors.
-
 **Response (429):** `application/json` — per-IP rate limit exceeded; includes an integer `Retry-After` header (seconds). See `PIXIES_HTTP_RATE_LIMIT*`.
+
+**Response (500):** Prompt-level errors surface as in-stream `error` events rather than HTTP 500s on this endpoint.
 
 ### Send message to conversation
 
@@ -90,7 +90,7 @@ Content-Type: application/json
 **Response (404):** `application/json`
 
 ```json
-{ "error": "conversation not found: 01901234-5678-7abc-def0-1234567890ab" }
+{ "error": "conversation not found" }
 ```
 
 **Response (409):** `application/json`
@@ -109,7 +109,7 @@ Returned when a previous prompt on this conversation is still streaming. Clients
 GET /conversations/:id
 ```
 
-Returns the full reconstructed transcript of a conversation. The response shape is consistent with the `message_end` SSE event payload — each entry in `messages` is an assistant message with `{ role, content, stopReason }`.
+Returns the transcript of a conversation. Each entry in `messages` has role `user` or `toolResult`. Assistant messages are not included — clients reconstruct assistant text from the streaming SSE events. Tool result messages carry `toolCallId`, `toolName`, `isError`, and the structured `details` payload.
 
 **Response (200):** `application/json`
 
@@ -117,12 +117,20 @@ Returns the full reconstructed transcript of a conversation. The response shape 
 {
   "id": "01901234-5678-7abc-def0-1234567890ab",
   "messages": [
-    { "role": "assistant", "content": [...], "stopReason": "stop" }
+    { "role": "user", "content": "vegan cafés near camden" },
+    {
+      "role": "toolResult",
+      "toolCallId": "call_abc123",
+      "toolName": "query_osm",
+      "content": [{ "type": "text", "text": "node/123 | ..." }],
+      "details": { "count": 47, "data": [...] },
+      "isError": false
+    }
   ]
 }
 ```
 
-**Response (404):** `application/json` — conversation not found.
+**Response (404):** `application/json` — conversation not found (includes the conversation ID in the error message).
 
 ### Delete conversation
 
@@ -130,11 +138,11 @@ Returns the full reconstructed transcript of a conversation. The response shape 
 DELETE /conversations/:id
 ```
 
-Evicts the conversation from server memory immediately. If a prompt is in-flight on this conversation, it is aborted first.
+Evicts the conversation from server memory immediately. If a prompt is in-flight on this conversation, it is aborted first. The row is also deleted from the SQLite database.
 
 **Response (204):** empty body.
 
-**Response (404):** `application/json` — conversation not found.
+**Response (404):** `application/json` — conversation not found (includes the conversation ID in the error message).
 
 ### Health check
 
@@ -161,32 +169,6 @@ Emitted exactly once at the start of `POST /conversations` stream, before any ag
 ```
 
 Conversation IDs are UUIDv7 (time-ordered, sortable, URL-safe).
-
-### `message_start`
-
-Emitted when the agent begins streaming a new assistant message. A single prompt can produce multiple assistant messages (e.g. one before tool calls, one after).
-
-```json
-{}
-```
-
-### `text_delta`
-
-Emitted per token of assistant text. Concatenate `delta` values to reconstruct the full text.
-
-```json
-{ "delta": "Hello" }
-```
-
-### `message_end`
-
-Emitted when the current assistant message is complete. Payload is the full authoritative message — clients may replace their accumulated state with this to handle any provider-side reordering.
-
-```json
-{ "message": { "role": "assistant", "content": [], "stopReason": "stop" } }
-```
-
-The `message.content` array may include `{ type: "text", text: "..." }` and `{ type: "toolCall" }` blocks (the latter stripped — tool details travel via `tool_execution_*` events). Clients typically only render the text blocks.
 
 ### `tool_execution_start`
 
@@ -221,7 +203,7 @@ New progress variants may be added to the union; clients should narrow on `detai
 
 ### `tool_execution_end`
 
-Emitted when a tool finishes. `result` is the full tool result; `result.content[].text` is the model-facing text (clients can render this as a multi-line card, same as the TUI). On error, `isError === true` and the error message is in `result.content[].text`.
+Emitted when a tool finishes. `result` is the full tool result; `result.content[].text` is the model-facing text (clients can render this as a multi-line card). On error, `isError === true` and the error message is in `result.content[].text`.
 
 ```json
 {
@@ -229,27 +211,28 @@ Emitted when a tool finishes. `result` is the full tool result; `result.content[
   "isError": false,
   "result": {
     "content": [{ "type": "text", "text": "node/123 | ..." }],
-    "details": { "count": 47 }
+    "details": { "count": 47, "data": [...] }
   }
 }
 ```
 
-The `details` shape is tool-specific. For v0.1:
+The `details` shape is tool-specific:
 
 | Tool | `details` shape |
 |---|---|
-| `geocode` | `{ top: string }` — short summary of the top result, e.g. `"Camden Town (51.539,-0.142)"` |
-| `reverse_geocode` | `{ name: string }` — short place name |
-| `query_osm` | `{ count: number }` — element count returned |
+| `geocode` | `{ top?: string, data: GeocodeResultEntry[] }` — `top` is a short summary (e.g. `"Camden Town (51.539,-0.142)"`), `data` is the lossless structured result |
+| `reverse_geocode` | `{ name?: string, data: GeocodeResultEntry }` or `undefined` on error/no-result. `name` is a short place name |
+| `query_osm` | `{ count: number, data: OverpassResultEntry[] }` — `count` is element count returned, `data` is the lossless structured result |
+| `display_map` | `{ data: { markers: [...], queryRef?, elementIds?, bounds? } }` — map display parameters. `queryRef` references a prior `query_osm` tool call ID |
 
-Clients may render `details` as a status line on the tool card.
+Clients that want structured results should consume `details.data` directly instead of reverse-parsing the pipe-delimited `content[].text`.
 
 ### `done`
 
 Emitted exactly once at the end of every successful stream, after all agent events. Signals that the server is closing the stream.
 
 ```json
-{}
+{ "durationMs": 1250 }
 ```
 
 ### `error`
@@ -262,6 +245,16 @@ Emitted when the agent encounters a fatal error during the prompt (provider fail
 
 Tool errors do **not** fire this event — they fire `tool_execution_end` with `isError: true`, and the agent continues normally to the next turn.
 
+### Future events
+
+The following event types are defined in the SSE schema (`sse-events.ts`) but not yet wired up at the translation layer (`events.ts` returns `[]` for them). They are never emitted to clients:
+
+- `message_start` — planned for when the agent begins streaming a new assistant message
+- `text_delta` — planned for per-token streaming of assistant text
+- `message_end` — planned for when an assistant message is complete (full authoritative payload)
+
+Currently, assistant text is available only through tool result cards and in-stream `tool_execution_end.result.content` blocks. Full text streaming will be added when the agent's message events are forwarded to SSE.
+
 ## Lifecycle
 
 ```
@@ -270,36 +263,28 @@ Client                                 Server
   | POST /conversations                  |
   | { message: "..." }                   |
   |------------------------------------->|
-  |                                      | create Agent, store in Map
+  |                                      | create Agent, store in Map + SQLite
   |<- - - - - - - - - - - - - - - - - - | conversation_created { id }
-  |                                      |
-  |<- - - - - - - - - - - - - - - - - - | message_start
-  |<- - - - - - - - - - - - - - - - - - | text_delta { delta: "I'll " }
-  |<- - - - - - - - - - - - - - - - - - | text_delta { delta: "search..." }
-  |<- - - - - - - - - - - - - - - - - - | message_end { message }
   |<- - - - - - - - - - - - - - - - - - | tool_execution_start { ... }
   |<- - - - - - - - - - - - - - - - - - | tool_execution_update { details: { type: "queued" } }
   |<- - - - - - - - - - - - - - - - - - | tool_execution_update { details: { type: "running" } }
   |<- - - - - - - - - - - - - - - - - - | tool_execution_end { ... }
-  |<- - - - - - - - - - - - - - - - - - | message_start
-  |<- - - - - - - - - - - - - - - - - - | text_delta { ... }
-  |<- - - - - - - - - - - - - - - - - - | message_end { message }
-  |<- - - - - - - - - - - - - - - - - - | done
+  |<- - - - - - - - - - - - - - - - - - | done { durationMs: 1234 }
   |                                      | [stream ends]
   |                                      |
   | POST /conversations/:id/messages     |
   | { message: "..." }                   |
   |------------------------------------->|
   |                                      | lookup, check not streaming
-  |<- - - - - - - - - - - - - - - - - - | message_start
+  |<- - - - - - - - - - - - - - - - - - | tool_execution_start { ... }
   |                               ...    |
-  |<- - - - - - - - - - - - - - - - - - | done
+  |<- - - - - - - - - - - - - - - - - - | done { durationMs: 1234 }
   |                                      | [stream ends]
 ```
 
 ## Abort semantics
 
-To abort an in-flight prompt, the client closes the SSE connection. The server detects the disconnect via the request `close` event and calls `agent.abort()`. The conversation remains in memory — the client can send a new message to continue.
+To abort an in-flight prompt, the client closes the SSE connection. The server detects the disconnect via the `ReadableStream` cancel callback and calls `agent.abort()`. The conversation remains in memory — the client can send a new message to continue.
 
 There is no abort endpoint. Closing the connection IS the abort.
 
@@ -311,11 +296,13 @@ There is no abort endpoint. Closing the connection IS the abort.
   - **Overpass** — `{concurrency:2, intervalCap:2, interval:1000ms}` → at most 2 concurrent slots. Defaults match the public `overpass-api.de` `/api/status` "Rate limit: 2"; self-hosted/custom instances are configurable via `PIXIES_OVERPASS_*`.
 - **HTTP layer:** the two LLM-cost POST endpoints (`POST /conversations`, `POST /conversations/:id/messages`) are rate-limited per IP in-process. Over the limit → **429** with an integer `Retry-After` (seconds). GET/DELETE are not rate-limited (no LLM cost). See `PIXIES_HTTP_RATE_LIMIT*` env vars above.
 
+## Persistence
+
+Conversations are persisted to SQLite (Drizzle ORM). On server restart, conversations are rehydrated from the database on first access (cache miss). The transcript (user messages, tool results) is saved after each completed prompt. The in-memory LRU cache is bounded by `PIXIES_CACHE_SIZE` (default 1000).
+
 ## Conversation TTL
 
-Conversations are evicted from server memory after **24 hours** of inactivity (no POST messages). A sweeper runs every 5 minutes.
-
-Server restart evicts all conversations immediately.
+Conversations are evicted from the in-memory cache after **24 hours** of inactivity (no POST messages). A sweeper runs every 5 minutes. Evicted conversations remain in the SQLite database and are rehydrated on next access.
 
 ## CORS
 
@@ -363,7 +350,7 @@ while (true) {
 ## Open Questions / Future
 
 - **Authentication.** v0 has none. Likely API-key-per-user before public launch.
-- **Persistence.** None. Browser `sessionStorage` if the client wants to survive page refresh within a tab.
 - **CORS.** Not enabled; configuration planned.
 - **WebSocket transport.** Possible alternative to SSE for bidirectional needs (none currently).
+- **Assistant text streaming.** `message_start`/`text_delta`/`message_end` events are defined in the schema but not yet wired at the translation layer — the agent events exist internally but are dropped before reaching SSE clients.
 - **Rate limiting on the API surface.** Implemented in-process per IP on the two LLM-cost POST endpoints (`PIXIES_HTTP_RATE_LIMIT*`); GET/DELETE are not limited. Caddy-side limiting (defense-in-depth) is a possible future addition — stock Caddy has no rate-limit plugin.
