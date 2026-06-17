@@ -332,3 +332,34 @@ test("caching is disabled when cacheTtlMs is 0 (default client-layer behavior)",
 
 	expect(fetchMock).toHaveBeenCalledTimes(2);
 });
+
+test("caching is disabled when cacheMaxEntries is 0 (either knob disables)", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse(SEARCH_RESULT)),
+	) as unknown as typeof fetch;
+	const client = new NominatimClient({
+		baseUrl: "https://nominatim.example.com",
+		userAgent: "pixies-test",
+		fetch: fetchMock,
+		intervalMs: 40,
+		cacheTtlMs: 3_600_000,
+		cacheMaxEntries: 0,
+	});
+
+	await client.search("Berlin");
+	await client.search("Berlin");
+
+	expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
+test("reverse() does NOT cache an OsmServerBusyError — retry hits the network again", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(new Response("too busy", { status: 429 })),
+	) as unknown as typeof fetch;
+	const client = makeCachedClient(fetchMock);
+
+	await expect(client.reverse(52.51704, 13.38886)).rejects.toBeInstanceOf(OsmServerBusyError);
+	await expect(client.reverse(52.51704, 13.38886)).rejects.toBeInstanceOf(OsmServerBusyError);
+
+	expect(fetchMock).toHaveBeenCalledTimes(2);
+});
