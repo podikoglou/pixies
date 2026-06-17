@@ -20,7 +20,7 @@ test("query_osm: OsmBusyError returns normal result with busy message", async ()
 	const tool = createQueryOsmTool(busyOverpass);
 	const result = await tool.execute("call-1", { query: "[out:json];node(1);out;" });
 	expect((result.content[0] as { text: string }).text).toBe(OSM_SERVER_BUSY_MESSAGE);
-	expect(result.details).toBeUndefined();
+	expect(result.details).toEqual({ busy: true });
 	// Must NOT be flagged as an error — model should see it as a normal result
 	expect((result as { isError?: unknown }).isError).toBeUndefined();
 });
@@ -51,7 +51,7 @@ test("reverse_geocode: OsmBusyError returns normal result with busy message", as
 	const tool = createReverseGeocodeTool(busyNominatim);
 	const result = await tool.execute("call-3", { lat: 52.5, lon: 13.4 });
 	expect((result.content[0] as { text: string }).text).toBe(OSM_SERVER_BUSY_MESSAGE);
-	expect(result.details).toBeUndefined();
+	expect(result.details).toEqual({ busy: true });
 	expect((result as { isError?: unknown }).isError).toBeUndefined();
 });
 
@@ -84,8 +84,7 @@ test("geocode: OsmBusyError returns normal result with busy message", async () =
 	const tool = createGeocodeTool(busyNominatim);
 	const result = await tool.execute("call-5", { query: "Berlin" });
 	expect((result.content[0] as { text: string }).text).toBe(OSM_SERVER_BUSY_MESSAGE);
-	// geocode details does not accept undefined, so we use a sentinel
-	expect(result.details).toEqual({ top: "osm server busy", data: [] });
+	expect(result.details).toEqual({ busy: true, top: "osm server busy", data: [] });
 	expect((result as { isError?: unknown }).isError).toBeUndefined();
 });
 
