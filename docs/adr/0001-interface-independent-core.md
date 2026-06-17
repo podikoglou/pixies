@@ -4,19 +4,19 @@
 
 ## Context
 
-Pixies is moving from a single TUI binary to a multi-tenant product. The primary client surface will be web/mobile over HTTP/SSE; the TUI becomes a secondary adapter.
+Pixies originally had two adapters: the server (multi-tenant, HTTP/SSE) and the TUI (single-user, in-process). The TUI has since been removed, leaving only the server adapter.
 
 Two architectures were considered:
 
-**A. Interface-independent core.** A `core` package that knows how to construct a configured `Agent` (system prompt, model, tools, OSM clients), but does not own conversations or runtime concerns. Each adapter (`server`, `tui`) imports the core, creates its own `Agent` instances, and owns its runtime (process model, transport, lifecycle).
+**A. Interface-independent core.** A `core` package that knows how to construct a configured `Agent` (system prompt, model, tools, OSM clients), but does not own conversations or runtime concerns. Each adapter imports the core, creates its own `Agent` instances, and owns its runtime (process model, transport, lifecycle).
 
-**B. SSE-fitted core.** The SSE server is the core; the TUI is a client of the SSE server over loopback HTTP. There is no separate headless interface — the SSE protocol is the contract.
+**B. SSE-fitted core.** The SSE server is the core; each adapter is a client of the SSE server over HTTP. There is no separate headless interface — the SSE protocol is the contract.
 
 ## Decision
 
 We choose **A: interface-independent core**.
 
-The `core` package exposes a factory `createAgent(): Agent` plus the system prompt, tools, and OSM clients. The `server` and `tui` adapters each consume the factory and own their runtime concerns.
+The `core` package exposes a factory `createAgent(): Agent` plus the system prompt, tools, and OSM clients. Each adapter consumes the factory and owns its runtime concerns.
 
 ## Rationale
 
@@ -24,7 +24,7 @@ The `core` package exposes a factory `createAgent(): Agent` plus the system prom
 
 2. **Deletion test on a hypothetical Pixies-specific `Conversation` abstraction fails.** Wrapping `Agent` to hide pi-agent-core types is a pass-through: removing it leaves adapters using `Agent` directly with no loss. We do not introduce this wrapper.
 
-3. **Adapters are radically different.** The TUI is single-user, in-process, persistent for the process lifetime. The server is multi-tenant, networked, ephemeral per-conversation. A shared runtime would have to abstract over both, and the abstraction would leak.
+3. **Adapters were radically different.** The TUI was single-user, in-process, persistent for the process lifetime. The server is multi-tenant, networked, ephemeral per-conversation. A shared runtime would have to abstract over both, and the abstraction would leak.
 
 4. **pi-agent-core's `Agent` is already multi-tenant-ready.** Verified: per-instance state, per-instance model, per-instance API key, no statics, no module-level mutable singletons in agent-core. There is no need for Pixies to wrap it for multi-tenancy.
 
@@ -36,15 +36,13 @@ The `core` package exposes a factory `createAgent(): Agent` plus the system prom
 
 **Positive:**
 
-- TUI stays in-process, zero transport overhead.
 - Core is trivially testable (factory returns a configured `Agent`).
 - SSE protocol concerns (heartbeat, framing, conversation registry) live in the SSE adapter, leak-free.
 - Adding new adapters is mechanical: import core, drive `Agent`.
 
 **Negative:**
 
-- Two adapters to maintain instead of one client of one server.
-- Core cannot enforce cross-adapter invariants (e.g. "all conversations expire after 1h") — each adapter owns its own lifecycle. This is acceptable: the TUI has no notion of TTL, and trying to impose one would be a leak.
+- Core cannot enforce cross-adapter invariants (e.g. "all conversations expire after 1h") — each adapter owns its own lifecycle.
 
 ## Alternatives considered
 

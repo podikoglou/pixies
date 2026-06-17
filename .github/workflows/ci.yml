@@ -44,8 +44,7 @@ jobs:
       - name: Build web
         run: bun run build:web
 
-      # @pixies/core, @pixies/web, and @pixies/server have `test` scripts;
-      # only @pixies/tui does not, so tests are filtered explicitly.
+      # Each package has a `test` script; filter explicitly.
       - name: Test @pixies/core
         run: bun run --filter '@pixies/core' test
 

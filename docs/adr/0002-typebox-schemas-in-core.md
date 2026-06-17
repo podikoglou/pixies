@@ -18,7 +18,7 @@ The "Zod instead of TypeBox (rejected)" alternative below is therefore retained 
 
 ## Context
 
-Pixies now has two frontend adapters: `tui` and `web`. Both need to work with structured data that crosses package boundaries — tool parameter definitions (already shared), SSE event payloads (new), and potentially conversation transcripts.
+Pixies has two frontend packages — `server` (SSE emitter) and `web` (SSE consumer). Both need to work with structured data that crosses package boundaries — tool parameter definitions (already shared), SSE event payloads, and potentially conversation transcripts.
 
 Two approaches for defining shared types:
 
@@ -50,7 +50,7 @@ These schemas live as TypeBox schema definitions in `@pixies/core`. Adapters imp
 
 **Positive:**
 
-- Both TUI and web adapters share one set of schemas.
+- Both the server and web adapters share one set of schemas.
 - Runtime validation catches malformed SSE frames at the boundary, not deep in rendering logic.
 - Adding a new event type is one change in `core`; both adapters get the type automatically.
 - The schemas are JSON Schema under the hood — derivable for documentation or codegen if needed.
