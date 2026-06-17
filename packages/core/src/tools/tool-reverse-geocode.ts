@@ -1,8 +1,10 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { Result, matchErrorPartial } from "better-result";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import type { NominatimClient } from "../osm/nominatim.ts";
-import { OsmServerBusyError, OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
+import { OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
+import { ToolAbortedError } from "../errors.ts";
 import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
 import {
 	ReverseGeocodeToolDetailsSchema,
@@ -34,34 +36,40 @@ export function createReverseGeocodeTool(
 		parameters: schema,
 		executionMode: "sequential",
 		async execute(_toolCallId, params, signal, onUpdate) {
-			if (signal?.aborted) throw new Error("Operation aborted");
-			try {
-				const result = await nominatim.reverse(
-					params.lat,
-					params.lon,
-					{ zoom: params.zoom },
-					signal,
-					{
+			if (signal?.aborted) throw new ToolAbortedError({ message: "Operation aborted" });
+			const result = await Result.gen(async function* () {
+				const result = yield* Result.await(
+					nominatim.reverse(params.lat, params.lon, { zoom: params.zoom }, signal, {
 						onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
-					},
+					}),
 				);
 				if (!result || !result.display_name) {
-					return {
-						content: [{ type: "text", text: "No results." }],
+					return Result.ok({
+						content: [{ type: "text" as const, text: "No results." }],
 						details: undefined,
-					};
+					});
 				}
 				const name = result.name || result.display_name.split(",")[0] || "unknown";
-				return {
-					content: [{ type: "text", text: formatNominatimResult(result) }],
+				return Result.ok({
+					content: [{ type: "text" as const, text: formatNominatimResult(result) }],
 					details: { name: name.slice(0, 50), data: nominatimResultToData(result) },
-				};
-			} catch (err) {
-				if (err instanceof OsmServerBusyError) {
-					return { content: [{ type: "text", text: OSM_SERVER_BUSY_MESSAGE }], details: undefined };
-				}
-				throw err;
-			}
+				});
+			});
+			if (Result.isOk(result)) return result.value;
+			// OSM-busy → non-error result (do not retry); everything else re-throws
+			// so the agent marks the tool call `isError: true` (issue #109).
+			return matchErrorPartial(
+				result.error,
+				{
+					OsmBusy: () => ({
+						content: [{ type: "text" as const, text: OSM_SERVER_BUSY_MESSAGE }],
+						details: undefined,
+					}),
+				},
+				(err) => {
+					throw err;
+				},
+			);
 		},
 	};
 }

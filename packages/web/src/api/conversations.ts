@@ -1,5 +1,9 @@
 import type { SSEEvent } from "@pixies/core";
-import { isConversationTranscript, type ConversationTranscript } from "@pixies/core";
+import {
+	isConversationTranscript,
+	InvalidTranscriptError,
+	type ConversationTranscript,
+} from "@pixies/core";
 import { buildApiError, streamSSE } from "../sse/client.ts";
 
 export type {
@@ -15,7 +19,8 @@ export async function getConversation(id: string): Promise<ConversationTranscrip
 	const res = await fetch(`/conversations/${encodeURIComponent(id)}`);
 	if (!res.ok) throw await buildApiError(res);
 	const data = await res.json();
-	if (!isConversationTranscript(data)) throw new Error("invalid transcript");
+	if (!isConversationTranscript(data))
+		throw new InvalidTranscriptError({ message: "invalid transcript" });
 	return data;
 }
 

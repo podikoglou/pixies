@@ -6,7 +6,12 @@ import { drizzle } from "drizzle-orm/bun-sqlite";
 import { eq } from "drizzle-orm";
 import { conversations as conversationsTable, type DbClient } from "@pixies/core/db";
 import { type Logger } from "@pixies/core/logging";
-import { type CreateAgentOptions, type ResolvedPixiesConfig } from "@pixies/core";
+import {
+	Result,
+	BudgetExceededError,
+	type CreateAgentOptions,
+	type ResolvedPixiesConfig,
+} from "@pixies/core";
 import { ConversationStore } from "./conversations.ts";
 
 /**
@@ -197,25 +202,26 @@ test("get() returns undefined for an unknown id", async () => {
 	expect(await store.get("never-existed")).toBeUndefined();
 });
 
-test("streamPrompt() returns not_found for an unknown id", async () => {
+test("streamPrompt() returns Err(ConversationNotFound) for an unknown id", async () => {
 	const { store } = makeStore();
 	const result = await store.streamPrompt("does-not-exist", "hi");
-	expect(result).toEqual({ ok: false, reason: "not_found" });
+	expect(Result.isError(result)).toBe(true);
+	if (Result.isError(result)) expect(result.error._tag).toBe("ConversationNotFound");
 });
 
-test("streamPrompt() returns conflict while a prompt is in-flight", async () => {
+test("streamPrompt() returns Err(PromptConflict) while a prompt is in-flight", async () => {
 	const { store } = makeStore();
 	const id = store.create();
 	await sleep(10);
 
 	const first = await store.streamPrompt(id, "first");
-	expect(first.ok).toBe(true);
+	expect(Result.isOk(first)).toBe(true);
 
 	// Called synchronously after the first resolves: inFlight is still true
 	// (the .finally that clears it runs on a later microtask).
 	const second = await store.streamPrompt(id, "second");
-	expect(second.ok).toBe(false);
-	if (!second.ok) expect(second.reason).toBe("conflict");
+	expect(Result.isError(second)).toBe(true);
+	if (Result.isError(second)) expect(second.error._tag).toBe("PromptConflict");
 });
 
 test("streamPrompt() persists the transcript after the stream closes", async () => {
@@ -224,8 +230,8 @@ test("streamPrompt() persists the transcript after the stream closes", async () 
 	await sleep(10); // let the insert settle
 
 	const result = await store.streamPrompt(id, "hello");
-	if (!result.ok) throw new Error("expected stream to start");
-	for await (const _ of result.stream) {
+	if (Result.isError(result)) throw new Error("expected stream to start");
+	for await (const _ of result.value.stream) {
 		// drain — FakeAgent emits message_start/message_end then closes
 	}
 	await sleep(10); // let the .finally persistence settle
@@ -305,24 +311,26 @@ test("sweep() evicts conversations idle longer than 24h", () => {
 	setSystemTime();
 });
 
-test("streamPrompt() rejects with budget_exceeded when over budget", async () => {
+test("streamPrompt() returns Err(BudgetExceeded) when over budget", async () => {
 	const { store } = makeStore({ conversationTokenBudget: 2 });
 	const id = store.create();
 
 	const result = await store.streamPrompt(id, "hi");
-	if (!result.ok) throw new Error("expected first prompt to start");
-	for await (const _ of result.stream) {
+	if (Result.isError(result)) throw new Error("expected first prompt to start");
+	for await (const _ of result.value.stream) {
 		// drain
 	}
 
 	// FakeAgent uses 2 totalTokens per call. After first turn used=2,
 	// check 2 >= 2 → blocks the second turn.
 	const second = await store.streamPrompt(id, "again");
-	expect(second.ok).toBe(false);
-	const budgetResult = second as Extract<typeof second, { reason: "budget_exceeded" }>;
-	expect(budgetResult.reason).toBe("budget_exceeded");
-	expect(budgetResult.used).toBe(2);
-	expect(budgetResult.budget).toBe(2);
+	expect(Result.isError(second)).toBe(true);
+	if (Result.isError(second)) {
+		const e = second.error as BudgetExceededError;
+		expect(e._tag).toBe("BudgetExceeded");
+		expect(e.used).toBe(2);
+		expect(e.budget).toBe(2);
+	}
 });
 
 test("streamPrompt() allows multiple turns when within budget", async () => {
@@ -330,19 +338,19 @@ test("streamPrompt() allows multiple turns when within budget", async () => {
 	const id = store.create();
 
 	const first = await store.streamPrompt(id, "hi");
-	if (!first.ok) throw new Error("expected first prompt to start");
-	for await (const _ of first.stream) {
+	if (Result.isError(first)) throw new Error("expected first prompt to start");
+	for await (const _ of first.value.stream) {
 		// drain
 	}
 
 	const second = await store.streamPrompt(id, "again");
-	if (!second.ok) throw new Error("expected second prompt to start");
-	for await (const _ of second.stream) {
+	if (Result.isError(second)) throw new Error("expected second prompt to start");
+	for await (const _ of second.value.stream) {
 		// drain
 	}
 
 	const third = await store.streamPrompt(id, "more");
-	expect(third.ok).toBe(true);
+	expect(Result.isOk(third)).toBe(true);
 });
 
 test("streamPrompt() budget is restored from persisted transcript on rehydration", async () => {
@@ -354,8 +362,8 @@ test("streamPrompt() budget is restored from persisted transcript on rehydration
 	const id = store.create();
 
 	const first = await store.streamPrompt(id, "hi");
-	if (!first.ok) throw new Error("expected first prompt to start");
-	for await (const _ of first.stream) {
+	if (Result.isError(first)) throw new Error("expected first prompt to start");
+	for await (const _ of first.value.stream) {
 		// drain
 	}
 	await sleep(10); // let persist settle
@@ -364,10 +372,12 @@ test("streamPrompt() budget is restored from persisted transcript on rehydration
 	store.sweep();
 
 	const second = await store.streamPrompt(id, "again");
-	expect(second.ok).toBe(false);
-	const budgetResult = second as Extract<typeof second, { reason: "budget_exceeded" }>;
-	expect(budgetResult.reason).toBe("budget_exceeded");
-	expect(budgetResult.used).toBe(2);
+	expect(Result.isError(second)).toBe(true);
+	if (Result.isError(second)) {
+		const e = second.error as BudgetExceededError;
+		expect(e._tag).toBe("BudgetExceeded");
+		expect(e.used).toBe(2);
+	}
 });
 
 test("create() initializes tokensUsed to 0 even with unlimited budget", () => {
@@ -403,8 +413,8 @@ test("DB persistence failures are surfaced via logger.error (regression for #59)
 	await sleep(10); // insert (passthrough) settles
 
 	const result = await store.streamPrompt(id, "x");
-	if (!result.ok) throw new Error("expected stream to start");
-	for await (const _ of result.stream) {
+	if (Result.isError(result)) throw new Error("expected stream to start");
+	for await (const _ of result.value.stream) {
 		// drain
 	}
 	await sleep(10); // let the rejected update's .catch settle

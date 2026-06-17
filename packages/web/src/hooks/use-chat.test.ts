@@ -126,3 +126,21 @@ test("error does not fire callback and dispatches SET_ERROR", () => {
 
 	expect(actions).toEqual([{ type: "SET_ERROR", message: "boom" }]);
 });
+
+test("error with errorTag dispatches friendly copy from errorToToastCopy", () => {
+	const { dispatch, actions } = capture();
+	const evt: SSEEvent = {
+		event: "error",
+		data: { message: "raw msg", errorTag: "OsmBusy", details: { status: 429 } },
+	};
+
+	dispatchSseEvent(evt, dispatch, () => {
+		throw new Error("should not fire");
+	});
+
+	expect(actions).toHaveLength(1);
+	expect(actions[0]).toMatchObject({ type: "SET_ERROR" });
+	// OsmBusy copy from the error-copy table — NOT the raw server message.
+	expect((actions[0] as { message: string }).message).toContain("OpenStreetMap");
+	expect((actions[0] as { message: string }).message).not.toBe("raw msg");
+});

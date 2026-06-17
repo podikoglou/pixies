@@ -1,9 +1,10 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
+import { Result } from "better-result";
 import { createQueryOsmTool } from "./tool-query-osm.ts";
 import { createGeocodeTool } from "./tool-geocode.ts";
 import { MAX_CONTENT_LINES } from "./limits.ts";
-import type { OverpassClient, OverpassResponse } from "../osm/overpass.ts";
+import type { OverpassClient } from "../osm/overpass.ts";
 import type { NominatimClient, NominatimResult } from "../osm/nominatim.ts";
 
 function makeOverpassElements(count: number) {
@@ -27,14 +28,14 @@ function makeNominatimResults(count: number): NominatimResult[] {
 
 function mockOverpass(elements: ReturnType<typeof makeOverpassElements>): OverpassClient {
 	return {
-		query: mock((): Promise<OverpassResponse> => Promise.resolve({ elements, version: 0.6 })),
+		query: mock(() => Promise.resolve(Result.ok({ elements, version: 0.6 }))),
 	} as unknown as OverpassClient;
 }
 
 function mockNominatim(results: NominatimResult[]): NominatimClient {
 	return {
-		search: mock(() => Promise.resolve(results)),
-		reverse: mock(() => Promise.resolve(results[0] ?? null)),
+		search: mock(() => Promise.resolve(Result.ok(results))),
+		reverse: mock(() => Promise.resolve(Result.ok(results[0] ?? null))),
 	} as unknown as NominatimClient;
 }
 

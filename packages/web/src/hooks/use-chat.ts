@@ -1,8 +1,9 @@
 import type { Dispatch } from "react";
 import { useCallback, useReducer, useRef } from "react";
-import type { SSEEvent } from "@pixies/core";
-import { isToolProgress } from "@pixies/core";
+import type { PixiesErrorTag, SSEEvent } from "@pixies/core";
+import { isAbortError, isToolProgress } from "@pixies/core";
 import { createConversationStream, sendMessageStream } from "../api/conversations.ts";
+import { errorToToastCopy } from "../lib/error-copy.ts";
 import {
 	chatReducer,
 	initialChatState,
@@ -10,13 +11,6 @@ import {
 	type ChatAction,
 	type TimelineItem,
 } from "../state/chat-reducer.ts";
-
-function isAbortError(err: unknown): boolean {
-	if (err instanceof Error && err.name === "AbortError") return true;
-	return (
-		typeof DOMException !== "undefined" && err instanceof DOMException && err.name === "AbortError"
-	);
-}
 
 export function dispatchSseEvent(
 	evt: SSEEvent,
@@ -76,7 +70,14 @@ export function dispatchSseEvent(
 			dispatch({ type: "STREAM_DONE", responseTimeMs: evt.data.durationMs });
 			break;
 		case "error":
-			dispatch({ type: "SET_ERROR", message: evt.data.message });
+			dispatch({
+				type: "SET_ERROR",
+				message: errorToToastCopy({
+					tag: evt.data.errorTag as PixiesErrorTag | undefined,
+					defaultMessage: evt.data.message,
+					details: evt.data.details,
+				}),
+			});
 			break;
 	}
 }

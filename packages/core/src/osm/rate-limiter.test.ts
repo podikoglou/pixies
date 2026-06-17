@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
 import { createRateLimiter } from "./rate-limiter.ts";
-import { OsmServerBusyError } from "./http.ts";
+import { OsmBusyError } from "../errors.ts";
 
 /** A deferred promise the test resolves manually to gate a running task. */
 function blocker<T = string>(): { promise: Promise<T>; resolve: (v: T) => void } {
@@ -123,7 +123,7 @@ test("strict interval spacing — tasks start at least `interval` ms apart", asy
 
 test("genuine errors pass through untouched (CAVEAT #3)", async () => {
 	const limiter = createRateLimiter({ concurrency: 1 });
-	const busy = new OsmServerBusyError(429, "Nominatim");
+	const busy = new OsmBusyError({ status: 429, service: "Nominatim" });
 
 	await expect(
 		limiter.withRateLimit(async () => {

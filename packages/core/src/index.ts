@@ -1,3 +1,23 @@
+// --- better-result primitives + TaggedError hierarchy (issue #109) ---
+export { Result, TaggedError, matchError, matchErrorPartial, isTaggedError } from "better-result";
+export type { SerializedResult } from "better-result";
+export {
+	OsmBusyError,
+	OsmHttpError,
+	OsmParseError,
+	OsmRemarkError,
+	ToolAbortedError,
+	DisplayMapValidationError,
+	ConversationNotFoundError,
+	PromptConflictError,
+	BudgetExceededError,
+	InvalidJsonError,
+	ValidationError,
+	ConfigError,
+	InvalidTranscriptError,
+} from "./errors.ts";
+export type { OsmError, StreamPromptError, PixiesError, PixiesErrorTag } from "./errors.ts";
+
 export { createAgent, createOsmClients, readConfigFromEnv } from "./agent.ts";
 export type { CreateAgentOptions, CreateOsmClientsOptions } from "./agent.ts";
 export { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
@@ -74,8 +94,8 @@ export type { OverpassConfig, OverpassResponse } from "./osm/overpass.ts";
 export { createRateLimiter } from "./osm/rate-limiter.ts";
 export type { RateLimiterOptions, RateLimiter, RateLimitCallbacks } from "./osm/rate-limiter.ts";
 export {
-	OsmServerBusyError,
 	OSM_SERVER_BUSY_MESSAGE,
 	isServerBusyResponse,
 	SERVER_BUSY_BODY_MARKERS,
+	isAbortError,
 } from "./osm/http.ts";

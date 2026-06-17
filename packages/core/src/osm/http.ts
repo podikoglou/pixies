@@ -1,3 +1,13 @@
+import { Result } from "better-result";
+import {
+	OsmBusyError,
+	OsmHttpError,
+	OsmParseError,
+	OsmRemarkError,
+	ToolAbortedError,
+	type OsmError,
+} from "../errors.ts";
+
 /**
  * Substrings that indicate an OSM server is too busy to handle the request.
  * Covers both Overpass and Nominatim responses.
@@ -27,23 +37,6 @@ export function isServerBusyResponse(status: number, body: string): boolean {
 	return SERVER_BUSY_BODY_MARKERS.some((marker) => body.includes(marker));
 }
 
-/**
- * Typed error thrown by {@link osmFetch} when the OSM server signals
- * it is too busy to handle the request. This error is caught at the
- * tool boundary and converted into a normal (non-error) tool result
- * so the model does not retry.
- */
-export class OsmServerBusyError extends Error {
-	readonly status: number;
-
-	constructor(status: number, service?: string) {
-		const prefix = service ? `${service}: ` : "";
-		super(`${prefix}OSM server busy (HTTP ${status})`);
-		this.name = "OsmServerBusyError";
-		this.status = status;
-	}
-}
-
 export interface OsmFetchOptions {
 	method?: string;
 	headers?: Record<string, string>;
@@ -56,12 +49,17 @@ export interface OsmFetchOptions {
 /**
  * Shared HTTP fetch for OSM services (Overpass, Nominatim).
  *
- * On a non-ok response, reads the body text once and classifies it:
- * - Busy signals (429, 503, or body markers) → throws {@link OsmServerBusyError}
- *   (terminal from the model's perspective; tool handlers catch this and return
- *   a non-retryable result).
- * - Everything else → throws a generic `Error` with `"${service}: ${status}: ${body}"`
- *   message (retryable by the model if appropriate).
+ * Result-returning (issue #109): the response is delivered as
+ * `Result<Response, OsmBusyError | OsmHttpError>` so callers classify failures
+ * by `_tag` instead of `instanceof`/string-matching.
+ *
+ * - Busy signals (429, 503, or body markers) → `Err(OsmBusyError)` (terminal
+ *   from the model's perspective; tool handlers convert this into a
+ *   non-retryable result).
+ * - Any other non-ok response → `Err(OsmHttpError)` carrying status/body.
+ * - A rejected fetch (network/timeout/abort) → `Err(OsmHttpError)` wrapping the
+ *   cause, so the caller's `catch` (see {@link toOsmError}) can still classify
+ *   aborts as {@link ToolAbortedError}.
  *
  * On ok response, returns the Response with body **unconsumed** so callers
  * can call `.json()` etc.
@@ -70,19 +68,60 @@ export async function osmFetch(
 	url: string | URL,
 	fetchFn: typeof globalThis.fetch,
 	opts: OsmFetchOptions = {},
-): Promise<Response> {
+): Promise<Result<Response, OsmBusyError | OsmHttpError>> {
 	const { signal, timeoutMs = 60_000, service, ...rest } = opts;
 	const merged = mergeSignals(signal, AbortSignal.timeout(timeoutMs));
-	const res = await fetchFn(url, { ...rest, signal: merged });
-	if (!res.ok) {
-		const prefix = service ? `${service}: ` : "";
-		const body = await res.text();
-		if (isServerBusyResponse(res.status, body)) {
-			throw new OsmServerBusyError(res.status, service);
-		}
-		throw new Error(`${prefix}${res.status}: ${body}`);
-	}
-	return res;
+	return Result.tryPromise({
+		try: async () => {
+			const res = await fetchFn(url, { ...rest, signal: merged });
+			if (!res.ok) {
+				const prefix = service ? `${service}: ` : "";
+				const body = await res.text();
+				if (isServerBusyResponse(res.status, body)) {
+					throw new OsmBusyError({ status: res.status, service });
+				}
+				throw new OsmHttpError({
+					status: res.status,
+					body,
+					service,
+					message: `${prefix}${res.status}: ${body}`,
+				});
+			}
+			return res;
+		},
+		catch: (e): OsmBusyError | OsmHttpError =>
+			e instanceof OsmBusyError || e instanceof OsmHttpError
+				? e
+				: new OsmHttpError({
+						service,
+						message: `network error: ${e instanceof Error ? e.message : String(e)}`,
+						cause: e,
+					}),
+	});
+}
+
+/**
+ * Normalize any thrown value into an {@link OsmError} for the outer
+ * `Result.tryPromise({ catch })` of an OSM client method. Tagged OSM errors
+ * pass through unchanged; aborts become {@link ToolAbortedError}; anything else
+ * is wrapped in {@link OsmHttpError} so the caller always gets a typed error.
+ */
+export function toOsmError(e: unknown): OsmError {
+	if (e instanceof OsmBusyError) return e;
+	if (e instanceof OsmHttpError) return e;
+	if (e instanceof OsmParseError) return e;
+	if (e instanceof OsmRemarkError) return e;
+	if (e instanceof ToolAbortedError) return e;
+	if (isAbortError(e)) return new ToolAbortedError({ message: "Operation aborted", cause: e });
+	return new OsmHttpError({ message: String(e), cause: e });
+}
+
+/** True for both native `AbortError` and `DOMException` aborts (cross-runtime). */
+export function isAbortError(err: unknown): boolean {
+	if (err instanceof Error && err.name === "AbortError") return true;
+	return (
+		typeof DOMException !== "undefined" && err instanceof DOMException && err.name === "AbortError"
+	);
 }
 
 export function mergeSignals(...signals: (AbortSignal | undefined)[]): AbortSignal {

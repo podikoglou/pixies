@@ -1,6 +1,8 @@
-import { osmFetch, OsmServerBusyError } from "./http.ts";
+import { Result } from "better-result";
+import { osmFetch, toOsmError } from "./http.ts";
 import { createRateLimiter, type RateLimitCallbacks } from "./rate-limiter.ts";
 import { silentLogger, type Logger } from "../logging/index.ts";
+import { OsmParseError, OsmRemarkError, type OsmError } from "../errors.ts";
 import { Type } from "typebox";
 import type { Static } from "typebox";
 import { Value } from "typebox/value";
@@ -103,67 +105,78 @@ export class OverpassClient {
 		query: string,
 		parentSignal?: AbortSignal,
 		callbacks?: RateLimitCallbacks,
-	): Promise<OverpassResponse> {
+	): Promise<Result<OverpassResponse, OsmError>> {
 		const service = "Overpass";
-		return this.limiter.withRateLimit(
-			async () => {
-				this.logger.debug({ service, queryLength: query.length }, "request");
-				const start = Date.now();
-				let res: Response;
-				try {
-					res = await osmFetch(this.baseUrl, this.fetchFn, {
-						service,
-						method: "POST",
-						headers: {
-							"User-Agent": this.userAgent,
-							"Content-Type": "application/x-www-form-urlencoded",
-						},
-						body: `data=${encodeURIComponent(query)}`,
-						signal: parentSignal,
-					});
-				} catch (err) {
-					if (err instanceof OsmServerBusyError) {
-						this.logger.warn(
-							{ service, statusCode: err.status, event: "server_busy" },
-							"OSM server busy",
+		const logger = this.logger;
+		return Result.tryPromise({
+			try: () =>
+				this.limiter.withRateLimit(
+					async () => {
+						logger.debug({ service, queryLength: query.length }, "request");
+						const start = Date.now();
+						const fetchResult = await osmFetch(this.baseUrl, this.fetchFn, {
+							service,
+							method: "POST",
+							headers: {
+								"User-Agent": this.userAgent,
+								"Content-Type": "application/x-www-form-urlencoded",
+							},
+							body: `data=${encodeURIComponent(query)}`,
+							signal: parentSignal,
+						});
+						if (Result.isError(fetchResult)) {
+							if (fetchResult.error._tag === "OsmBusy") {
+								logger.warn(
+									{ service, statusCode: fetchResult.error.status, event: "server_busy" },
+									"OSM server busy",
+								);
+							}
+							throw fetchResult.error;
+						}
+						const res = fetchResult.value;
+						logger.debug(
+							{ service, statusCode: res.status, durationMs: Date.now() - start },
+							"response",
 						);
-					}
-					throw err;
-				}
-				this.logger.debug(
-					{ service, statusCode: res.status, durationMs: Date.now() - start },
-					"response",
-				);
-				const contentType = res.headers.get("content-type") ?? "";
-				if (!contentType.includes("application/json")) {
-					this.logger.warn(
-						{ service, statusCode: res.status, contentType },
-						"non-json content type",
-					);
-					throw new Error("Only [out:json] is supported");
-				}
-				const json = await res.json();
-				let parsed: OverpassResponse;
-				try {
-					parsed = Value.Parse(OverpassResponseSchema, json);
-				} catch (err) {
-					this.logger.warn(
-						{ service, statusCode: res.status, contentType, cause: err },
-						"invalid response shape",
-					);
-					throw new Error("Overpass: invalid response shape", { cause: err });
-				}
-				if (parsed.remark) {
-					this.logger.warn(
-						{ service, statusCode: res.status, contentType, remark: parsed.remark },
-						"overpass remark",
-					);
-					throw new Error(`Overpass: ${parsed.remark}`);
-				}
-				return parsed;
-			},
-			parentSignal,
-			callbacks,
-		);
+						const contentType = res.headers.get("content-type") ?? "";
+						if (!contentType.includes("application/json")) {
+							logger.warn(
+								{ service, statusCode: res.status, contentType },
+								"non-json content type",
+							);
+							throw new OsmParseError({
+								service: "Overpass",
+								message: "Only [out:json] is supported",
+							});
+						}
+						const json = await res.json();
+						let parsed: OverpassResponse;
+						try {
+							parsed = Value.Parse(OverpassResponseSchema, json);
+						} catch (err) {
+							logger.warn(
+								{ service, statusCode: res.status, contentType, cause: err },
+								"invalid response shape",
+							);
+							throw new OsmParseError({
+								service: "Overpass",
+								message: "Overpass: invalid response shape",
+								cause: err,
+							});
+						}
+						if (parsed.remark) {
+							logger.warn(
+								{ service, statusCode: res.status, contentType, remark: parsed.remark },
+								"overpass remark",
+							);
+							throw new OsmRemarkError({ remark: parsed.remark });
+						}
+						return parsed;
+					},
+					parentSignal,
+					callbacks,
+				),
+			catch: toOsmError,
+		});
 	}
 }
