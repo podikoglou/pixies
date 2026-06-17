@@ -39,8 +39,7 @@ function registerGlobalHandlers(logger: Logger): void {
 	});
 }
 
-export interface StartServerOptions
-	extends Partial<Pick<ResolvedPixiesConfig, "host" | "port">> {
+export interface StartServerOptions extends Partial<Pick<ResolvedPixiesConfig, "host" | "port">> {
 	config?: ResolvedPixiesConfig;
 	logger?: Logger;
 	onReady?: (url: string) => void;
