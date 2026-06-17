@@ -1,12 +1,17 @@
 /// <reference types="bun" />
 import { afterEach, expect, mock, test } from "bun:test";
 import { createOsmClients, readConfigFromEnv } from "./agent.ts";
+import type { ResolvedPixiesConfig } from "./config-schema.ts";
 
 /**
- * Env-backed config propagation for the 6 OSM rate-limit knobs added in PR #98.
- * Asserts the full pipeline: `PIXIES_*` env vars → `readConfigFromEnv` →
- * `createOsmClients` → the per-client p-queue limiter behaves with the
- * configured concurrency/interval. Defaults equal the public-instance policy.
+ * Env-backed config propagation and validation.
+ *
+ * Originally added in PR #98 for the 6 OSM rate-limit knobs (full pipeline:
+ * `PIXIES_*` env vars → `readConfigFromEnv` → `createOsmClients` → per-client
+ * p-queue limiter). Extended in #101/#103/#105 to cover the full numeric field
+ * set, URL/email format validation, and the empty-as-unset rule (D3) that
+ * prevents `PIXIES_HTTP_RATE_LIMIT=` from silently disabling rate limiting.
+ * Defaults equal the public-instance policy.
  */
 
 const OSM_RATE_ENV_KEYS = [
@@ -18,8 +23,29 @@ const OSM_RATE_ENV_KEYS = [
 	"PIXIES_OVERPASS_INTERVAL_MS",
 ] as const;
 
+/** Non-OSM numeric env keys covered by #105. */
+const NUMERIC_ENV_KEYS = [
+	"PIXIES_PORT",
+	"PIXIES_CACHE_SIZE",
+	"PIXIES_HTTP_RATE_LIMIT",
+	"PIXIES_HTTP_RATE_LIMIT_WINDOW_MS",
+] as const;
+
+/** URL/email env keys covered by #103 part 2. */
+const URL_EMAIL_ENV_KEYS = [
+	"PIXIES_OVERPASS_URL",
+	"PIXIES_NOMINATIM_URL",
+	"PIXIES_CONTACT_EMAIL",
+] as const;
+
 /** Keys readConfigFromEnv consults; snapshot/restore keeps tests hermetic. */
-const SNAPSHOT_KEYS = ["PIXIES_MODEL", "PIXIES_API_KEY", ...OSM_RATE_ENV_KEYS] as const;
+const SNAPSHOT_KEYS = [
+	"PIXIES_MODEL",
+	"PIXIES_API_KEY",
+	...OSM_RATE_ENV_KEYS,
+	...NUMERIC_ENV_KEYS,
+	...URL_EMAIL_ENV_KEYS,
+] as const;
 
 const snapshot: Record<string, string | undefined> = {};
 
@@ -37,12 +63,14 @@ afterEach(() => {
 });
 
 /** Set the required model/apiKey plus any overrides; clear the rest. */
-function setEnv(overrides: Partial<Record<(typeof OSM_RATE_ENV_KEYS)[number], string>> = {}) {
+function setEnv(overrides: Record<string, string> = {}) {
 	process.env.PIXIES_MODEL = "anthropic/claude-3-5-sonnet";
 	process.env.PIXIES_API_KEY = "test-key";
-	for (const key of OSM_RATE_ENV_KEYS) delete process.env[key];
+	for (const key of [...OSM_RATE_ENV_KEYS, ...NUMERIC_ENV_KEYS, ...URL_EMAIL_ENV_KEYS]) {
+		delete process.env[key];
+	}
 	for (const [key, value] of Object.entries(overrides)) {
-		process.env[key as string] = value;
+		process.env[key] = value;
 	}
 }
 
@@ -173,4 +201,117 @@ test("a higher PIXIES_OVERPASS_CONCURRENCY allows more parallel queries through 
 
 	for (const b of blockers) b.resolve(jsonResponse({ elements: [] }));
 	await Promise.all([p1, p2, p3, p4]);
+});
+
+// ---- #101 + #105: invalid numeric values rejected at config time -------------
+
+type NumericFieldSpec = {
+	envKey: string;
+	field: keyof ResolvedPixiesConfig;
+	defaultValue: number;
+	/** Schema min bound. `0` means the field permits a `0` disable sentinel. */
+	min: number;
+};
+
+/**
+ * Every numeric env var with its resolved config field, documented default, and
+ * schema min bound. Drives the parametrized validation tests below so adding a
+ * new numeric knob is a one-line change here.
+ */
+const NUMERIC_FIELD_SPECS: readonly NumericFieldSpec[] = [
+	{ envKey: "PIXIES_PORT", field: "port", defaultValue: 3000, min: 1 },
+	{ envKey: "PIXIES_CACHE_SIZE", field: "cacheSize", defaultValue: 50, min: 0 },
+	{ envKey: "PIXIES_HTTP_RATE_LIMIT", field: "httpRateLimit", defaultValue: 30, min: 0 },
+	{
+		envKey: "PIXIES_HTTP_RATE_LIMIT_WINDOW_MS",
+		field: "httpRateLimitWindowMs",
+		defaultValue: 60_000,
+		min: 1,
+	},
+	{ envKey: "PIXIES_NOMINATIM_CONCURRENCY", field: "nominatimConcurrency", defaultValue: 1, min: 1 },
+	{ envKey: "PIXIES_NOMINATIM_INTERVAL_CAP", field: "nominatimIntervalCap", defaultValue: 1, min: 1 },
+	{ envKey: "PIXIES_NOMINATIM_INTERVAL_MS", field: "nominatimIntervalMs", defaultValue: 1100, min: 1 },
+	{ envKey: "PIXIES_OVERPASS_CONCURRENCY", field: "overpassConcurrency", defaultValue: 2, min: 1 },
+	{ envKey: "PIXIES_OVERPASS_INTERVAL_CAP", field: "overpassIntervalCap", defaultValue: 2, min: 1 },
+	{ envKey: "PIXIES_OVERPASS_INTERVAL_MS", field: "overpassIntervalMs", defaultValue: 1000, min: 1 },
+];
+
+for (const spec of NUMERIC_FIELD_SPECS) {
+	test(`${spec.envKey}="foo" is rejected at config time (NaN never reaches p-queue / Bun.serve) [#101/#105]`, () => {
+		setEnv({ [spec.envKey]: "foo" });
+		expect(() => readConfigFromEnv()).toThrow();
+	});
+
+	test(`${spec.envKey}="3.5" is rejected at config time (must be an integer) [#101/#105]`, () => {
+		setEnv({ [spec.envKey]: "3.5" });
+		expect(() => readConfigFromEnv()).toThrow();
+	});
+
+	test(`${spec.envKey}="${spec.min - 1}" is rejected at config time (below min ${spec.min}) [#101/#105]`, () => {
+		setEnv({ [spec.envKey]: String(spec.min - 1) });
+		expect(() => readConfigFromEnv()).toThrow();
+	});
+
+	if (spec.min >= 1) {
+		test(`${spec.envKey}="0" is rejected at config time (below min ${spec.min}; would crash p-queue) [#101]`, () => {
+			setEnv({ [spec.envKey]: "0" });
+			expect(() => readConfigFromEnv()).toThrow();
+		});
+	} else {
+		// min === 0: "0" is a deliberate sentinel (cacheSize disable, httpRateLimit disable).
+		test(`${spec.envKey}="0" resolves to 0 (min 0 honors the documented disable sentinel) [#105]`, () => {
+			setEnv({ [spec.envKey]: "0" });
+			expect(readConfigFromEnv()[spec.field]).toBe(0);
+		});
+	}
+
+	// D3: empty string is treated as unset → schema default applies (NOT 0/NaN).
+	// For httpRateLimit this is the security-critical assertion that an empty
+	// value does NOT silently disable rate limiting.
+	test(`${spec.envKey}="" resolves to default ${spec.defaultValue} (empty-as-unset, D3) [#101/#105]`, () => {
+		setEnv({ [spec.envKey]: "" });
+		expect(readConfigFromEnv()[spec.field]).toBe(spec.defaultValue);
+	});
+}
+
+test('PIXIES_PORT="70000" is rejected at config time (above max 65535) [#105]', () => {
+	setEnv({ PIXIES_PORT: "70000" });
+	expect(() => readConfigFromEnv()).toThrow();
+});
+
+test('PIXIES_HTTP_RATE_LIMIT="" does NOT silently disable rate limiting (resolves to default 30) [D3 security, #105]', () => {
+	setEnv({ PIXIES_HTTP_RATE_LIMIT: "" });
+	expect(readConfigFromEnv().httpRateLimit).toBe(30);
+});
+
+test('PIXIES_HTTP_RATE_LIMIT="0" explicitly disables rate limiting (sentinel honored) [#105]', () => {
+	setEnv({ PIXIES_HTTP_RATE_LIMIT: "0" });
+	expect(readConfigFromEnv().httpRateLimit).toBe(0);
+});
+
+// ---- #103 part 2: URL/email format validation at config time -----------------
+
+test('PIXIES_OVERPASS_URL="not-a-url" is rejected at config time [#103]', () => {
+	setEnv({ PIXIES_OVERPASS_URL: "not-a-url" });
+	expect(() => readConfigFromEnv()).toThrow();
+});
+
+test('PIXIES_NOMINATIM_URL="not-a-url" is rejected at config time [#103]', () => {
+	setEnv({ PIXIES_NOMINATIM_URL: "not-a-url" });
+	expect(() => readConfigFromEnv()).toThrow();
+});
+
+test('PIXIES_CONTACT_EMAIL="not-an-email" is rejected at config time [#103]', () => {
+	setEnv({ PIXIES_CONTACT_EMAIL: "not-an-email" });
+	expect(() => readConfigFromEnv()).toThrow();
+});
+
+test('PIXIES_OVERPASS_URL="" resolves to the default URL (empty-as-unset, D3) [#103]', () => {
+	setEnv({ PIXIES_OVERPASS_URL: "" });
+	expect(readConfigFromEnv().overpassUrl).toBe("https://overpass-api.de/api/interpreter");
+});
+
+test('PIXIES_CONTACT_EMAIL="" resolves to undefined (empty-as-unset, D3) [#103]', () => {
+	setEnv({ PIXIES_CONTACT_EMAIL: "" });
+	expect(readConfigFromEnv().contactEmail).toBeUndefined();
 });
