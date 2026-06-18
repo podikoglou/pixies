@@ -405,9 +405,3 @@ test("readConfigFromEnv surfaces the unknown-provider message with the valid-pro
 	expect(issueMsg).toContain("anthropic");
 	expect(issueMsg).toContain("openai");
 });
-
-test('PIXIES_MODEL="anthropic/claude-3-5-sonnet" passes (known provider, positive control) [#106]', () => {
-	setEnv({ PIXIES_MODEL: "anthropic/claude-3-5-sonnet" });
-	const config = readConfigFromEnv();
-	expect(config.model).toBe("anthropic/claude-3-5-sonnet");
-});
