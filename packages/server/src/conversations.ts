@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import {
 	createAgent,
 	createOsmClients,
+	isPersistedTranscript,
 	Result,
 	ConversationNotFoundError,
 	PromptConflictError,
@@ -126,8 +127,7 @@ export class ConversationStore {
 		};
 
 		if (row.transcript && row.transcript.length > 0) {
-			conv.agent.state.messages = row.transcript as AgentMessage[];
-			conv.tokensUsed = computeTokensUsed(conv.agent.state.messages);
+			this.rehydrateTranscript(conv, row.transcript, id);
 		}
 
 		this.map.set(id, conv);
@@ -162,8 +162,7 @@ export class ConversationStore {
 			};
 
 			if (row.transcript && row.transcript.length > 0) {
-				conv.agent.state.messages = row.transcript as AgentMessage[];
-				conv.tokensUsed = computeTokensUsed(conv.agent.state.messages);
+				this.rehydrateTranscript(conv, row.transcript, id);
 			}
 
 			this.map.set(id, conv);
@@ -249,6 +248,26 @@ export class ConversationStore {
 
 	private abortConversation(conv: Conversation): void {
 		conv.agent.abort();
+	}
+
+	/**
+	 * Validate and load a persisted transcript into a fresh conversation's agent
+	 * state. Gross corruption (see `PersistedTranscriptSchema` in `@pixies/core`)
+	 * is warn-logged and the conversation starts empty rather than mis-typing the
+	 * in-memory agent state — the user still gets a working conversation; the
+	 * operator gets a `warn` line with the conversationId and entry count. (#106)
+	 */
+	private rehydrateTranscript(conv: Conversation, transcript: unknown, id: string): void {
+		if (!Array.isArray(transcript) || transcript.length === 0) return;
+		if (!isPersistedTranscript(transcript)) {
+			this.logger.warn(
+				{ conversationId: id, count: transcript.length },
+				"transcript failed validation; starting fresh",
+			);
+			return;
+		}
+		conv.agent.state.messages = transcript;
+		conv.tokensUsed = computeTokensUsed(conv.agent.state.messages);
 	}
 
 	private evictIfNeeded(): void {

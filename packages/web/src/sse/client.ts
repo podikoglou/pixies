@@ -1,3 +1,5 @@
+import { Type } from "typebox";
+import type { Static } from "typebox";
 import { Value } from "typebox/value";
 import { SSE_EVENT_DATA_SCHEMAS } from "@pixies/core";
 import type { SSEEvent, SSEEventName } from "@pixies/core";
@@ -13,12 +15,28 @@ export class ApiError extends Error {
 	}
 }
 
-function extractErrorMessage(body: unknown): string | undefined {
-	if (body && typeof body === "object" && "error" in body) {
-		const err = (body as { error?: unknown }).error;
-		if (typeof err === "string") return err;
-	}
-	return undefined;
+/**
+ * Wire contract for a server error response body carrying a human-readable
+ * message. The server emits `Response.json({ error: "..." }, ...)` (see
+ * `packages/server/src/index.ts`), so `{ error: string }` is the contracted
+ * shape. TypeBox's `Type.Object` default does not reject extra properties, so
+ * future fields (e.g. `errorTag`) won't break extraction. Per ADR-0002 this is
+ * a wire contract → TypeBox.
+ */
+const ApiErrorMessageSchema = Type.Object({
+	error: Type.String(),
+});
+type ApiErrorMessage = Static<typeof ApiErrorMessageSchema>;
+
+/**
+ * Extract the `error` string from an HTTP error response body, or `undefined`
+ * if the body is not the contracted `{ error: string }` shape. Schema-driven so
+ * the manual `typeof` / `"error" in body` boilerplate is replaced by a single
+ * `Value.Check` (issue #106).
+ */
+export function extractErrorMessage(body: unknown): string | undefined {
+	if (!Value.Check(ApiErrorMessageSchema, body)) return undefined;
+	return (body as ApiErrorMessage).error;
 }
 
 export async function buildApiError(res: Response): Promise<ApiError> {

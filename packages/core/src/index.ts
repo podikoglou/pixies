@@ -76,6 +76,9 @@ export type {
 export {
 	ConversationTranscriptSchema,
 	isConversationTranscript,
+	PersistedTranscriptSchema,
+	PersistedAgentMessageSchema,
+	isPersistedTranscript,
 	toClientTranscriptMessage,
 } from "./transcript-schema.ts";
 export type {

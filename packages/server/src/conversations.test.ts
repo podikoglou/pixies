@@ -197,6 +197,68 @@ test("get() cache miss rehydrates a non-empty transcript from the DB", async () 
 	expect(conv?.agent.state.messages[0]).toEqual(seeded[0]);
 });
 
+test("get() warns and starts empty when the persisted transcript is grossly corrupt [#106]", async () => {
+	const warnSpy = mock(
+		(_context: { conversationId?: string; count?: number }, _msg?: string) => {},
+	);
+	const mockLogger = { warn: warnSpy, error: mock(() => {}) } as unknown as Logger;
+	const db = createTestDb();
+	const store = new ConversationStore(baseConfig, db, makeFakeFactory(), mockLogger);
+	stores.push(store);
+
+	const id = "corrupt-id";
+	// Persisted blob has entries but no `role` — fails PersistedTranscriptSchema.
+	await db.insert(conversationsTable).values({
+		id,
+		transcript: [{ foo: "bar" }] as unknown as AgentMessage[],
+	});
+
+	const conv = await store.get(id);
+	expect(conv).toBeDefined();
+	// Corruption degrades to an empty conversation rather than mis-typing state.
+	expect(conv?.agent.state.messages).toEqual([]);
+	expect(conv?.tokensUsed).toBe(0);
+
+	const logged = warnSpy.mock.calls.find(
+		(call) =>
+			call[1] === "transcript failed validation; starting fresh" && call[0]?.conversationId === id,
+	);
+	expect(logged).toBeDefined();
+	expect(logged?.[0]?.count).toBe(1);
+});
+
+test("streamPrompt() warns and proceeds with empty state when the persisted transcript is grossly corrupt [#106]", async () => {
+	const agents: FakeAgent[] = [];
+	const warnSpy = mock(
+		(_context: { conversationId?: string; count?: number }, _msg?: string) => {},
+	);
+	const mockLogger = { warn: warnSpy, error: mock(() => {}) } as unknown as Logger;
+	const db = createTestDb();
+	const store = new ConversationStore(baseConfig, db, makeFakeFactory(agents), mockLogger);
+	stores.push(store);
+
+	const id = "corrupt-stream-id";
+	// Unknown role — fails the persisted-transcript guard.
+	await db.insert(conversationsTable).values({
+		id,
+		transcript: [{ role: "system" }] as unknown as AgentMessage[],
+	});
+
+	const result = await store.streamPrompt(id, "hi");
+	expect(Result.isOk(result)).toBe(true);
+	if (Result.isOk(result)) {
+		for await (const _ of result.value.stream) {
+			// drain
+		}
+	}
+
+	expect(warnSpy).toHaveBeenCalled();
+	// Rehydration degraded to empty state, so the prompt added exactly one user
+	// message (not the prior corrupt entry).
+	const userMsgs = agents[0]?.state.messages.filter((m) => m.role === "user") ?? [];
+	expect(userMsgs).toHaveLength(1);
+});
+
 test("get() returns undefined for an unknown id", async () => {
 	const { store } = makeStore();
 	expect(await store.get("never-existed")).toBeUndefined();

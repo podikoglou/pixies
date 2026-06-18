@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { afterEach, expect, mock, test } from "bun:test";
+import { ZodError } from "zod";
 import { createOsmClients, readConfigFromEnv } from "./agent.ts";
 import type { ResolvedPixiesConfig } from "./config-schema.ts";
 
@@ -376,4 +377,31 @@ test('PIXIES_OVERPASS_URL="" resolves to the default URL (empty-as-unset, D3) [#
 test('PIXIES_CONTACT_EMAIL="" resolves to undefined (empty-as-unset, D3) [#103]', () => {
 	setEnv({ PIXIES_CONTACT_EMAIL: "" });
 	expect(readConfigFromEnv().contactEmail).toBeUndefined();
+});
+
+// ---- #106 Gap 2: provider prefix validated against pi-ai's registry ---------
+
+test('PIXIES_MODEL="notaprovider/some-model" is rejected at config time (unknown provider) [#106]', () => {
+	setEnv({ PIXIES_MODEL: "notaprovider/some-model" });
+	expect(() => readConfigFromEnv()).toThrow();
+});
+
+test("readConfigFromEnv surfaces the unknown-provider message with the valid-provider list [#106]", () => {
+	setEnv({ PIXIES_MODEL: "notaprovider/some-model" });
+	let caught: unknown;
+	try {
+		readConfigFromEnv();
+		caught = undefined;
+	} catch (err) {
+		caught = err;
+	}
+	expect(caught).toBeInstanceOf(ZodError);
+	// In Zod v4 the ZodError message is a serialized issue array, so inspect
+	// the structured issues directly. The refine's message names the bad
+	// provider AND lists valid ones, so operators can fix a typo without
+	// grepping pi-ai.
+	const issueMsg = (caught as ZodError).issues[0]?.message ?? "";
+	expect(issueMsg).toContain('Unknown provider "notaprovider"');
+	expect(issueMsg).toContain("anthropic");
+	expect(issueMsg).toContain("openai");
 });

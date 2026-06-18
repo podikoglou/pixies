@@ -1,7 +1,11 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
 import { Value } from "typebox/value";
-import { toClientTranscriptMessage, TranscriptMessageSchema } from "./transcript-schema.ts";
+import {
+	isPersistedTranscript,
+	toClientTranscriptMessage,
+	TranscriptMessageSchema,
+} from "./transcript-schema.ts";
 import type { AssistantMessage, ToolResultMessage, UserMessage } from "@earendil-works/pi-ai";
 
 function makeAssistant(): AssistantMessage {
@@ -109,4 +113,16 @@ test("toClientTranscriptMessage output satisfies the strict TranscriptMessageSch
 		const out = toClientTranscriptMessage(msg);
 		expect(Value.Check(TranscriptMessageSchema, out)).toBe(true);
 	}
+});
+
+// ---- #106 Gap 1: PersistedTranscriptSchema / isPersistedTranscript guard -----
+//
+// The SQLite `transcript` column stores the full AgentMessage[] (with metadata).
+// We only lock in the happy path: a real persisted row round-trips through the
+// guard. Rejection of non-conforming shapes is enforced at compile time by the
+// TypeBox schema and is its responsibility, not ours.
+
+test("isPersistedTranscript: real persisted AgentMessage[] (with timestamp/usage/api metadata) → true", () => {
+	const persisted = [makeAssistant(), makeUser(), makeToolResult()];
+	expect(isPersistedTranscript(persisted)).toBe(true);
 });
