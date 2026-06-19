@@ -13,7 +13,7 @@ import {
 } from "./schemas.ts";
 import type { ToolProgress } from "./progress.ts";
 import type { ToolModule } from "./tool-module.ts";
-import { textResult, formatContentLines, moreResultsPhrase } from "./tool-helpers.ts";
+import { textResult, formatContentLines } from "./tool-helpers.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -51,7 +51,7 @@ export function createQueryOsmTool(
 					elements,
 					formatElement,
 					(rest) =>
-						`${moreResultsPhrase(rest)} All results are shown on the map. Refine the query to narrow down.`,
+						`…and ${rest} more results. All results are shown on the map. Refine the query to narrow down.`,
 				);
 				return Result.ok({
 					...textResult(text),

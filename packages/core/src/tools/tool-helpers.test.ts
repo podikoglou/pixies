@@ -1,16 +1,10 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import { textResult, moreResultsPhrase, formatContentLines } from "./tool-helpers.ts";
+import { textResult, formatContentLines } from "./tool-helpers.ts";
 import { MAX_CONTENT_LINES } from "./limits.ts";
 
 test("textResult: builds single text-block content", () => {
 	expect(textResult("hi")).toEqual({ content: [{ type: "text", text: "hi" }] });
-});
-
-test("moreResultsPhrase: singular for 1, plural otherwise", () => {
-	expect(moreResultsPhrase(1)).toBe("…and 1 more result.");
-	expect(moreResultsPhrase(0)).toBe("…and 0 more results.");
-	expect(moreResultsPhrase(5)).toBe("…and 5 more results.");
 });
 
 test("formatContentLines: under limit — all rows, no footer", () => {
@@ -33,15 +27,15 @@ test("formatContentLines: over limit — sliced + default footer", () => {
 	const out = formatContentLines(rows, (n) => `r${n}`);
 	const lines = out.split("\n");
 	expect(lines.length).toBe(MAX_CONTENT_LINES + 1);
-	expect(lines[MAX_CONTENT_LINES]).toBe(moreResultsPhrase(10));
+	expect(lines[MAX_CONTENT_LINES]).toBe("…and 10 more results.");
 });
 
-test("formatContentLines: custom footer composes over the default", () => {
+test("formatContentLines: custom footer overrides the default", () => {
 	const rows = Array.from({ length: MAX_CONTENT_LINES + 2 }, (_, i) => i);
 	const out = formatContentLines(
 		rows,
 		(n) => `r${n}`,
-		(rest) => `${moreResultsPhrase(rest)} [map]`,
+		(rest) => `footer#${rest}`,
 	);
-	expect(out.split("\n")[MAX_CONTENT_LINES]).toBe(`${moreResultsPhrase(2)} [map]`);
+	expect(out.split("\n")[MAX_CONTENT_LINES]).toBe("footer#2");
 });

@@ -11,14 +11,6 @@ export function textResult(text: string): TextToolContent {
 }
 
 /**
- * Footer line appended to truncated content: "…and N more result(s)." The
- * singular/plural grammar lives here so it cannot drift across tools.
- */
-export function moreResultsPhrase(rest: number): string {
-	return `…and ${rest} more result${rest !== 1 ? "s" : ""}.`;
-}
-
-/**
  * Format a list of rows into model-facing content text, truncating to
  * {@link MAX_CONTENT_LINES} lines and appending a footer when truncated. Owns
  * the threshold check, slice, and join; per-tool divergence is just the row
@@ -27,7 +19,7 @@ export function moreResultsPhrase(rest: number): string {
 export function formatContentLines<T>(
 	rows: T[],
 	format: (row: T) => string,
-	footer: (rest: number) => string = moreResultsPhrase,
+	footer: (rest: number) => string = (rest) => `…and ${rest} more results.`,
 ): string {
 	const truncated = rows.length > MAX_CONTENT_LINES;
 	const shown = truncated ? rows.slice(0, MAX_CONTENT_LINES) : rows;

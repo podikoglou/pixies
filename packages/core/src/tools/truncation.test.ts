@@ -78,16 +78,6 @@ test("query_osm: exactly at limit — no truncation", async () => {
 	expect((result.details as { data: unknown[] }).data).toHaveLength(MAX_CONTENT_LINES);
 });
 
-test("query_osm: singular grammar — '1 more result' ", async () => {
-	const count = MAX_CONTENT_LINES + 1;
-	const elements = makeOverpassElements(count);
-	const tool = createQueryOsmTool(mockOverpass(elements));
-	const result = await tool.execute("call-4", { query: "[out:json];node(1);out;" });
-	const text = (result.content[0] as { text: string }).text;
-	expect(text).toInclude("…and 1 more result.");
-	expect(text).not.toInclude("results.");
-});
-
 test("query_osm: empty result — no truncation", async () => {
 	const tool = createQueryOsmTool(mockOverpass([]));
 	const result = await tool.execute("call-5", { query: "[out:json];node(1);out;" });
