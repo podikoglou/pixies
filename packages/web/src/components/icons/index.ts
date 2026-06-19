@@ -23,3 +23,5 @@ export { ChevronRightIcon } from "./chevron-right";
 export type { ChevronRightIconHandle } from "./chevron-right";
 
 export { InfoIcon } from "./info";
+
+export { TriangleAlertIcon } from "./triangle-alert";

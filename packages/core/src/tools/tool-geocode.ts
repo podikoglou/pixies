@@ -24,7 +24,7 @@ const schema = Type.Object({
 
 export function createGeocodeTool(
 	nominatim: NominatimClient,
-): AgentTool<typeof schema, ToolProgress | GeocodeToolDetails> {
+): AgentTool<typeof schema, ToolProgress | GeocodeToolDetails | { busy: true }> {
 	return {
 		name: "geocode",
 		label: "Geocode",
@@ -70,7 +70,7 @@ export function createGeocodeTool(
 				{
 					OsmBusy: () => ({
 						content: [{ type: "text" as const, text: OSM_SERVER_BUSY_MESSAGE }],
-						details: { top: "osm server busy", data: [] },
+						details: { busy: true, top: "osm server busy", data: [] },
 					}),
 				},
 				(err) => {
