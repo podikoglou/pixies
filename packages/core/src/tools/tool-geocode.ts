@@ -13,7 +13,7 @@ import {
 } from "./schemas.ts";
 import type { ToolProgress } from "./progress.ts";
 import type { ToolModule } from "./tool-module.ts";
-import { MAX_CONTENT_LINES } from "./limits.ts";
+import { textResult, formatContentLines } from "./tool-helpers.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -42,7 +42,7 @@ export function createGeocodeTool(
 				);
 				if (results.length === 0) {
 					return Result.ok({
-						content: [{ type: "text" as const, text: "No results." }],
+						...textResult("No results."),
 						details: { top: "no results", data: [] },
 					});
 				}
@@ -50,15 +50,9 @@ export function createGeocodeTool(
 				const top = results[0];
 				if (!top) throw new Error("No top result");
 				const topName = top.name || top.display_name?.split(",")[0] || "unknown";
-				const truncated = results.length > MAX_CONTENT_LINES;
-				const shown = truncated ? results.slice(0, MAX_CONTENT_LINES) : results;
-				const lines = shown.map(formatNominatimResult);
-				if (truncated) {
-					const rest = results.length - MAX_CONTENT_LINES;
-					lines.push(`…and ${rest} more result${rest !== 1 ? "s" : ""}.`);
-				}
+				const text = formatContentLines(results, formatNominatimResult);
 				return Result.ok({
-					content: [{ type: "text" as const, text: lines.join("\n") }],
+					...textResult(text),
 					details: { top: `${topName} (${top.lat},${top.lon})`, data },
 				});
 			});
@@ -69,7 +63,7 @@ export function createGeocodeTool(
 				result.error,
 				{
 					OsmBusy: () => ({
-						content: [{ type: "text" as const, text: OSM_SERVER_BUSY_MESSAGE }],
+						...textResult(OSM_SERVER_BUSY_MESSAGE),
 						details: { busy: true, top: "osm server busy", data: [] },
 					}),
 				},
