@@ -13,7 +13,7 @@ import {
 } from "./schemas.ts";
 import type { ToolProgress } from "./progress.ts";
 import type { ToolModule } from "./tool-module.ts";
-import { MAX_CONTENT_LINES } from "./limits.ts";
+import { textResult, formatContentLines, moreResultsPhrase } from "./tool-helpers.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -42,22 +42,19 @@ export function createQueryOsmTool(
 				const elements = response.elements ?? [];
 				if (elements.length === 0) {
 					return Result.ok({
-						content: [{ type: "text" as const, text: "No results." }],
+						...textResult("No results."),
 						details: { count: 0, data: [] },
 					});
 				}
 				const data = elements.map(overpassElementToData);
-				const truncated = elements.length > MAX_CONTENT_LINES;
-				const shown = truncated ? elements.slice(0, MAX_CONTENT_LINES) : elements;
-				const lines = shown.map(formatElement);
-				if (truncated) {
-					const rest = elements.length - MAX_CONTENT_LINES;
-					lines.push(
-						`…and ${rest} more result${rest !== 1 ? "s" : ""}. All results are shown on the map. Refine the query to narrow down.`,
-					);
-				}
+				const text = formatContentLines(
+					elements,
+					formatElement,
+					(rest) =>
+						`${moreResultsPhrase(rest)} All results are shown on the map. Refine the query to narrow down.`,
+				);
 				return Result.ok({
-					content: [{ type: "text" as const, text: lines.join("\n") }],
+					...textResult(text),
 					details: { count: elements.length, data },
 				});
 			});
@@ -69,7 +66,7 @@ export function createQueryOsmTool(
 				result.error,
 				{
 					OsmBusy: () => ({
-						content: [{ type: "text" as const, text: OSM_SERVER_BUSY_MESSAGE }],
+						...textResult(OSM_SERVER_BUSY_MESSAGE),
 						details: { busy: true },
 					}),
 				},
