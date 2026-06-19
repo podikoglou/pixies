@@ -17,6 +17,10 @@ test("formatContentLines: under limit — all rows, no footer", () => {
 	expect(formatContentLines([1, 2, 3], (n) => `row${n}`)).toBe("row1\nrow2\nrow3");
 });
 
+test("formatContentLines: empty rows — empty string, no footer", () => {
+	expect(formatContentLines([], (n) => `${n}`)).toBe("");
+});
+
 test("formatContentLines: exactly at limit — no footer", () => {
 	const rows = Array.from({ length: MAX_CONTENT_LINES }, (_, i) => i);
 	const out = formatContentLines(rows, (n) => `r${n}`);
