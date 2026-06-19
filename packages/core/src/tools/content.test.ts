@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import { textResult, formatContentLines } from "./tool-helpers.ts";
+import { textResult, formatContentLines } from "./content.ts";
 import { MAX_CONTENT_LINES } from "./limits.ts";
 
 test("textResult: builds single text-block content", () => {

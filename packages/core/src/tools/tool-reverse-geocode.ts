@@ -13,7 +13,7 @@ import {
 } from "./schemas.ts";
 import type { ToolProgress } from "./progress.ts";
 import type { ToolModule } from "./tool-module.ts";
-import { textResult } from "./tool-helpers.ts";
+import { textResult } from "./content.ts";
 
 const schema = Type.Object({
 	lat: Type.Number({ description: "Latitude" }),

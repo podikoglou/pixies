@@ -13,7 +13,7 @@ import {
 } from "./schemas.ts";
 import type { ToolProgress } from "./progress.ts";
 import type { ToolModule } from "./tool-module.ts";
-import { textResult, formatContentLines } from "./tool-helpers.ts";
+import { textResult, formatContentLines } from "./content.ts";
 
 const schema = Type.Object({
 	query: Type.String({
