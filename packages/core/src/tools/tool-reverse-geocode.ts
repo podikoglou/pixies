@@ -13,6 +13,7 @@ import {
 } from "./schemas.ts";
 import type { ToolProgress } from "./progress.ts";
 import type { ToolModule } from "./tool-module.ts";
+import { textResult } from "./tool-helpers.ts";
 
 const schema = Type.Object({
 	lat: Type.Number({ description: "Latitude" }),
@@ -45,13 +46,13 @@ export function createReverseGeocodeTool(
 				);
 				if (!result || !result.display_name) {
 					return Result.ok({
-						content: [{ type: "text" as const, text: "No results." }],
+						...textResult("No results."),
 						details: undefined,
 					});
 				}
 				const name = result.name || result.display_name.split(",")[0] || "unknown";
 				return Result.ok({
-					content: [{ type: "text" as const, text: formatNominatimResult(result) }],
+					...textResult(formatNominatimResult(result)),
 					details: { name: name.slice(0, 50), data: nominatimResultToData(result) },
 				});
 			});
@@ -62,7 +63,7 @@ export function createReverseGeocodeTool(
 				result.error,
 				{
 					OsmBusy: () => ({
-						content: [{ type: "text" as const, text: OSM_SERVER_BUSY_MESSAGE }],
+						...textResult(OSM_SERVER_BUSY_MESSAGE),
 						details: { busy: true },
 					}),
 				},
