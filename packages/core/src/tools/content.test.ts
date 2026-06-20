@@ -1,7 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import { textResult, formatContentLines } from "./content.ts";
-import { MAX_CONTENT_LINES } from "./limits.ts";
+import { textResult, formatContentLines, MAX_CONTENT_LINES } from "./content.ts";
 
 test("textResult: builds single text-block content", () => {
 	expect(textResult("hi")).toEqual({ content: [{ type: "text", text: "hi" }] });
