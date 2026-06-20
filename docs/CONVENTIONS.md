@@ -2,6 +2,13 @@
 
 All source files use kebab-case naming (e.g. `chat-reducer.ts`, `use-chat.ts`).
 
+## Comments
+
+- JSDoc on every export.
+- Inline comments segment function bodies by semantic purpose.
+- Carry *why*, not narration (`// increment i` is noise).
+- Prefer a named helper over a section-comment when the block has a single concern.
+
 ## Icons
 
 Icons come from [pqoqubbw/icons](https://github.com/pqoqubbw/icons) (lucide-animated).
