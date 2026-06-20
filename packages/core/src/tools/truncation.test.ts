@@ -3,7 +3,7 @@ import { test, expect, mock } from "bun:test";
 import { Result } from "better-result";
 import { createQueryOsmTool } from "./tool-query-osm.ts";
 import { createGeocodeTool } from "./tool-geocode.ts";
-import { MAX_CONTENT_LINES } from "./limits.ts";
+import { MAX_CONTENT_LINES } from "./content.ts";
 import type { OverpassClient } from "../osm/overpass.ts";
 import type { NominatimClient, NominatimResult } from "../osm/nominatim.ts";
 

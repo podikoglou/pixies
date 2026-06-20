@@ -1,4 +1,5 @@
-import { MAX_CONTENT_LINES } from "./limits.ts";
+/** Maximum pipe-formatted lines included in model-facing `content` text. */
+export const MAX_CONTENT_LINES = 50;
 
 type TextToolContent = { content: [{ type: "text"; text: string }] };
 
