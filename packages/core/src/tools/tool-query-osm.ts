@@ -43,7 +43,7 @@ export function createQueryOsmTool(
 				if (elements.length === 0) {
 					return Result.ok({
 						...textResult("No results."),
-						details: { count: 0, data: [] },
+						details: { data: [] },
 					});
 				}
 				const data = elements.map(overpassElementToData);
@@ -55,7 +55,7 @@ export function createQueryOsmTool(
 				);
 				return Result.ok({
 					...textResult(text),
-					details: { count: elements.length, data },
+					details: { data },
 				});
 			});
 			if (Result.isOk(result)) return result.value;

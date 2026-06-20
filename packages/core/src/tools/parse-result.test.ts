@@ -6,7 +6,6 @@ import { parseToolResult } from "./index.ts";
 
 test("parseToolResult geocode — valid details with entries", () => {
 	const details = {
-		top: "Berlin (52.5,13.4)",
 		data: [
 			{ placeId: 1, lat: 52.5, lon: 13.4, name: "Berlin" },
 			{ placeId: 2, lat: 52.6, lon: 13.5, name: "Berlin Mitte" },
@@ -22,7 +21,7 @@ test("parseToolResult geocode — valid details with entries", () => {
 });
 
 test("parseToolResult geocode — valid with no results (empty data)", () => {
-	expect(parseToolResult("geocode", { top: "no results", data: [] })).toEqual({
+	expect(parseToolResult("geocode", { data: [] })).toEqual({
 		kind: "geocode",
 		entries: [],
 	});
@@ -50,7 +49,7 @@ test("parseToolResult geocode — entry missing required name collapses to empty
 
 test("parseToolResult reverse_geocode — valid details", () => {
 	const entry = { placeId: 9, lat: 1, lon: 2, name: "Eiffel Tower" };
-	const result = parseToolResult("reverse_geocode", { name: "Eiffel Tower", data: entry });
+	const result = parseToolResult("reverse_geocode", { data: entry });
 	expect(result).toEqual({ kind: "reverse_geocode", entry });
 });
 
@@ -59,7 +58,7 @@ test("parseToolResult reverse_geocode — undefined (real no-result case) collap
 });
 
 test("parseToolResult reverse_geocode — missing data collapses to empty", () => {
-	expect(parseToolResult("reverse_geocode", { name: "x" })).toEqual({ kind: "empty" });
+	expect(parseToolResult("reverse_geocode", { foo: "x" })).toEqual({ kind: "empty" });
 });
 
 // ---- parseToolResult: query_osm ----------------------------------------------
@@ -69,16 +68,12 @@ test("parseToolResult query_osm — valid details", () => {
 		{ type: "node" as const, id: 1, lat: 1, lon: 2, name: "A" },
 		{ type: "way" as const, id: 2, name: "B" },
 	];
-	const result = parseToolResult("query_osm", { count: 2, data: entries });
+	const result = parseToolResult("query_osm", { data: entries });
 	expect(result).toEqual({ kind: "query_osm", entries });
 });
 
-test("parseToolResult query_osm — missing count collapses to empty", () => {
-	expect(parseToolResult("query_osm", { data: [] })).toEqual({ kind: "empty" });
-});
-
 test("parseToolResult query_osm — entry with invalid type literal collapses to empty", () => {
-	expect(parseToolResult("query_osm", { count: 1, data: [{ type: "bogus", id: 1 }] })).toEqual({
+	expect(parseToolResult("query_osm", { data: [{ type: "bogus", id: 1 }] })).toEqual({
 		kind: "empty",
 	});
 });

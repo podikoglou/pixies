@@ -43,17 +43,14 @@ export function createGeocodeTool(
 				if (results.length === 0) {
 					return Result.ok({
 						...textResult("No results."),
-						details: { top: "no results", data: [] },
+						details: { data: [] },
 					});
 				}
 				const data = results.map(nominatimResultToData);
-				const top = results[0];
-				if (!top) throw new Error("No top result");
-				const topName = top.name || top.display_name?.split(",")[0] || "unknown";
 				const text = formatContentLines(results, formatNominatimResult);
 				return Result.ok({
 					...textResult(text),
-					details: { top: `${topName} (${top.lat},${top.lon})`, data },
+					details: { data },
 				});
 			});
 			if (Result.isOk(result)) return result.value;
@@ -64,7 +61,7 @@ export function createGeocodeTool(
 				{
 					OsmBusy: () => ({
 						...textResult(OSM_SERVER_BUSY_MESSAGE),
-						details: { busy: true, top: "osm server busy", data: [] },
+						details: { busy: true, data: [] },
 					}),
 				},
 				(err) => {

@@ -28,21 +28,18 @@ export const OverpassResultEntrySchema = Type.Object({
 export type OverpassResultEntry = Static<typeof OverpassResultEntrySchema>;
 
 export const GeocodeToolDetailsSchema = Type.Object({
-	top: Type.Optional(Type.String()),
 	data: Type.Array(GeocodeResultEntrySchema),
 	busy: Type.Optional(Type.Literal(true)),
 });
 export type GeocodeToolDetails = Static<typeof GeocodeToolDetailsSchema>;
 
 export const ReverseGeocodeToolDetailsSchema = Type.Object({
-	name: Type.Optional(Type.String()),
 	data: GeocodeResultEntrySchema,
 	busy: Type.Optional(Type.Literal(true)),
 });
 export type ReverseGeocodeToolDetails = Static<typeof ReverseGeocodeToolDetailsSchema>;
 
 export const QueryOsmToolDetailsSchema = Type.Object({
-	count: Type.Number(),
 	data: Type.Array(OverpassResultEntrySchema),
 	busy: Type.Optional(Type.Literal(true)),
 });
