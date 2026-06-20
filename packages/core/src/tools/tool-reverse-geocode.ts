@@ -50,10 +50,9 @@ export function createReverseGeocodeTool(
 						details: undefined,
 					});
 				}
-				const name = result.name || result.display_name.split(",")[0] || "unknown";
 				return Result.ok({
 					...textResult(formatNominatimResult(result)),
-					details: { name: name.slice(0, 50), data: nominatimResultToData(result) },
+					details: { data: nominatimResultToData(result) },
 				});
 			});
 			if (Result.isOk(result)) return result.value;

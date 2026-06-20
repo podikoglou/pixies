@@ -49,7 +49,7 @@ test("query_osm: under limit — all results in content", async () => {
 	// 10 lines (one per element), no truncation footer
 	expect(text.split("\n").length).toBe(10);
 	expect(text).not.toInclude("…and");
-	expect(result.details).toEqual({ count: 10, data: expect.any(Array) });
+	expect(result.details).toEqual({ data: expect.any(Array) });
 	expect((result.details as { data: unknown[] }).data).toHaveLength(10);
 });
 
@@ -82,7 +82,7 @@ test("query_osm: empty result — no truncation", async () => {
 	const tool = createQueryOsmTool(mockOverpass([]));
 	const result = await tool.execute("call-5", { query: "[out:json];node(1);out;" });
 	expect((result.content[0] as { text: string }).text).toBe("No results.");
-	expect(result.details).toEqual({ count: 0, data: [] });
+	expect(result.details).toEqual({ data: [] });
 });
 
 // ---- geocode: truncation -------------------------------------------------------
@@ -116,11 +116,4 @@ test("geocode: exactly at limit — no truncation", async () => {
 	const text = (result.content[0] as { text: string }).text;
 	expect(text.split("\n").length).toBe(MAX_CONTENT_LINES);
 	expect(text).not.toInclude("…and");
-});
-
-test("geocode: top field still set when truncated", async () => {
-	const results = makeNominatimResults(MAX_CONTENT_LINES + 10);
-	const tool = createGeocodeTool(mockNominatim(results));
-	const result = await tool.execute("call-9", { query: "Berlin" });
-	expect((result.details as { top: string }).top).toBe("Place 1 (52.5,13.4)");
 });

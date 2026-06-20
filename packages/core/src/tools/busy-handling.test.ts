@@ -84,7 +84,7 @@ test("geocode: OsmBusyError returns normal result with busy message", async () =
 	const tool = createGeocodeTool(busyNominatim);
 	const result = await tool.execute("call-5", { query: "Berlin" });
 	expect((result.content[0] as { text: string }).text).toBe(OSM_SERVER_BUSY_MESSAGE);
-	expect(result.details).toEqual({ busy: true, top: "osm server busy", data: [] });
+	expect(result.details).toEqual({ busy: true, data: [] });
 	expect((result as { isError?: unknown }).isError).toBeUndefined();
 });
 
