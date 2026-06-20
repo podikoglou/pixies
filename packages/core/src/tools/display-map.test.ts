@@ -1,11 +1,11 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import { createDisplayMapTool } from "./tool-display-map.ts";
+import { displayMapModule } from "./tool-display-map.ts";
 
-const tool = createDisplayMapTool();
+const tool = displayMapModule.build();
 
-async function execute(params: Record<string, unknown>) {
-	return tool.execute("test-call-id", params as never, undefined);
+async function execute(params: Parameters<typeof tool.execute>[1]) {
+	return tool.execute("test-call-id", params, undefined);
 }
 
 test("inline markers mode — returns markers and count in content", async () => {

@@ -55,15 +55,15 @@ Some architecture decisions are documented in [docs/adr/](docs/adr/).
 
 ## Adding a tool
 
-1. Create `packages/core/src/tools/tool-<name>.ts` — export a `ToolModule` and a factory function. The module bundles everything the tool needs:
-   - `factory` — creates the `AgentTool` with OSM clients injected
+1. Create `packages/core/src/tools/tool-<name>.ts` — export a module built with `defineTool`. Each tool declares the single client it needs (or none for client-less tools); `defineTool` bundles:
+   - `factory` — takes the client the tool needs (or nothing) and returns its `execute`
    - `detailsSchema` — TypeBox schema for the structured result
    - `parse` — validates `unknown` details against the schema and returns a typed result variant (or `null`)
    - `summarize` — produces a one-line display summary from the parsed result
    
    See [tool-geocode.ts](./packages/core/src/tools/tool-geocode.ts) for an example.
 
-2. Register in `packages/core/src/tools/index.ts` — add one entry to the `TOOL_MODULES` const.
+2. Register in `packages/core/src/tools/index.ts` — add one entry to the `TOOL_MODULES` const and one `module.build(client)` line in `createTools`.
 
 3. Preferably test: `packages/core/src/tools/<name>.test.ts` (see [display-map.test.ts](./packages/core/src/tools/display-map.test.ts))
 

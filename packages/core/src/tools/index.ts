@@ -38,8 +38,18 @@ export type {
 	DisplayMapToolDetails,
 } from "./schemas.ts";
 
+/**
+ * Wire every tool to the single OSM client it needs. This is the only place
+ * that knows the `OsmClients` bag; each tool's `build` takes just the client it
+ * depends on (or nothing, for client-less tools).
+ */
 export function createTools(clients: OsmClients): AgentTool[] {
-	return Object.values(TOOL_MODULES).map((mod) => mod.factory(clients));
+	return [
+		geocodeModule.build(clients.nominatim),
+		reverseGeocodeModule.build(clients.nominatim),
+		queryOsmModule.build(clients.overpass),
+		displayMapModule.build(),
+	];
 }
 
 type ExtractResult<T> = T extends ToolModule<infer R> ? R : never;

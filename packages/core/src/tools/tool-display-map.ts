@@ -1,4 +1,3 @@
-import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { DisplayMapValidationError } from "../errors.ts";
@@ -7,7 +6,7 @@ import {
 	type DisplayMapData,
 	type DisplayMapToolDetails,
 } from "./schemas.ts";
-import type { ToolModule } from "./tool-module.ts";
+import { defineTool } from "./tool-module.ts";
 
 const boundsSchema = Type.Object({
 	minlat: Type.Number({ description: "Minimum latitude" }),
@@ -43,71 +42,70 @@ const schema = Type.Object({
 	bounds: Type.Optional(boundsSchema),
 });
 
-export function createDisplayMapTool(): AgentTool<typeof schema, DisplayMapToolDetails> {
-	return {
-		name: "display_map",
-		label: "Display Map",
-		description:
-			"Display markers on a map in the UI. For query_osm results, pass queryRef (the tool call ID of that query) instead of re-listing markers. Add elementIds to show a subset. Use inline markers only for hand-picked points.",
-		parameters: schema,
-		async execute(_toolCallId, params) {
-			const hasMarkers = params.markers !== undefined;
-			const hasQueryRef = params.queryRef !== undefined;
-
-			if (hasMarkers && hasQueryRef) {
-				throw new DisplayMapValidationError({
-					reason: "both",
-					message:
-						"Provide either markers (inline) or queryRef (reference to a prior query_osm call), not both.",
-				});
-			}
-
-			if (!hasMarkers && !hasQueryRef) {
-				throw new DisplayMapValidationError({
-					reason: "neither",
-					message:
-						"Provide either markers (inline) or queryRef (reference to a prior query_osm call).",
-				});
-			}
-
-			if (hasQueryRef) {
-				return {
-					content: [
-						{
-							type: "text",
-							text: `Displaying markers from query_osm call ${params.queryRef} on map.`,
-						},
-					],
-					details: {
-						data: {
-							markers: [],
-							queryRef: params.queryRef,
-							elementIds: params.elementIds,
-							bounds: params.bounds,
-						},
-					},
-				};
-			}
-
-			return {
-				content: [{ type: "text", text: `Displaying ${params.markers!.length} marker(s) on map.` }],
-				details: {
-					data: {
-						markers: params.markers!,
-						bounds: params.bounds,
-					},
-				},
-			};
-		},
-	};
-}
-
-export const displayMapModule: ToolModule<{ kind: "display_map"; data: DisplayMapData }> = {
-	factory: () => createDisplayMapTool(),
+export const displayMapModule = defineTool<
+	{ kind: "display_map"; data: DisplayMapData },
+	void,
+	typeof schema,
+	DisplayMapToolDetails
+>({
+	name: "display_map",
+	label: "Display Map",
+	description:
+		"Display markers on a map in the UI. For query_osm results, pass queryRef (the tool call ID of that query) instead of re-listing markers. Add elementIds to show a subset. Use inline markers only for hand-picked points.",
+	parameters: schema,
 	detailsSchema: DisplayMapToolDetailsSchema,
 	parse: (details) => {
 		if (!Value.Check(DisplayMapToolDetailsSchema, details)) return null;
 		return { kind: "display_map", data: details.data };
 	},
 	summarize: (result) => `${result.data.markers.length} marker(s)`,
-};
+	factory: () => async (_toolCallId, params) => {
+		const hasMarkers = params.markers !== undefined;
+		const hasQueryRef = params.queryRef !== undefined;
+
+		if (hasMarkers && hasQueryRef) {
+			throw new DisplayMapValidationError({
+				reason: "both",
+				message:
+					"Provide either markers (inline) or queryRef (reference to a prior query_osm call), not both.",
+			});
+		}
+
+		if (!hasMarkers && !hasQueryRef) {
+			throw new DisplayMapValidationError({
+				reason: "neither",
+				message:
+					"Provide either markers (inline) or queryRef (reference to a prior query_osm call).",
+			});
+		}
+
+		if (hasQueryRef) {
+			return {
+				content: [
+					{
+						type: "text",
+						text: `Displaying markers from query_osm call ${params.queryRef} on map.`,
+					},
+				],
+				details: {
+					data: {
+						markers: [],
+						queryRef: params.queryRef,
+						elementIds: params.elementIds,
+						bounds: params.bounds,
+					},
+				},
+			};
+		}
+
+		return {
+			content: [{ type: "text", text: `Displaying ${params.markers!.length} marker(s) on map.` }],
+			details: {
+				data: {
+					markers: params.markers!,
+					bounds: params.bounds,
+				},
+			},
+		};
+	},
+});
