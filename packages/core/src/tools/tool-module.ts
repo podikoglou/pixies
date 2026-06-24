@@ -68,20 +68,7 @@ export function defineTool<
 	summarize: (result: TResult) => string | null;
 	factory: (client: TClient) => AgentTool<TParams, TDetails>["execute"];
 }) {
-	const assemble = (client: TClient): AgentTool<TParams, TDetails> => ({
-		name: def.name,
-		label: def.label,
-		description: def.description,
-		parameters: def.parameters,
-		execute: def.factory(client),
-		...(def.executionMode ? { executionMode: def.executionMode } : {}),
-	});
 	return {
-		name: def.name,
-		label: def.label,
-		description: def.description,
-		parameters: def.parameters,
-		...(def.executionMode ? { executionMode: def.executionMode } : {}),
 		detailsSchema: def.detailsSchema,
 		parse: def.parse,
 		summarize: def.summarize,
@@ -90,6 +77,13 @@ export function defineTool<
 		 * tool depends on. For client-less tools (`TClient = void`) call with no
 		 * arguments: `build()`.
 		 */
-		build: (client: TClient): AgentTool<TParams, TDetails> => assemble(client),
+		build: (client: TClient): AgentTool<TParams, TDetails> => ({
+			name: def.name,
+			label: def.label,
+			description: def.description,
+			parameters: def.parameters,
+			execute: def.factory(client),
+			...(def.executionMode ? { executionMode: def.executionMode } : {}),
+		}),
 	};
 }
