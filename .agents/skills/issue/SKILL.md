@@ -42,3 +42,16 @@ If no template matches (e.g. the directory is empty or missing), fall back to a 
 - Bug: `bug: <concise description>`
 - Feature: `feat: <concise description>`
 - Task: `task: <concise description>`
+
+## Body style
+
+Applies on top of whichever template you picked.
+
+- **The problem and why-it-matters are the core.** Any approach or solution sketch is high-level shape with trade-offs noted, not a directive or step-by-step guide.
+- **Leave decisions open.** If something is unresolved (library A vs B, approach X vs Y), name it as a decision to make, not a foregone conclusion.
+- **One-line bullets.** No paragraph-bullets or dense prose.
+- **Ground it in the codebase** — reference files, line numbers, or existing conventions, so it reads as written against the real code, not generic.
+
+## Splitting
+
+If a request spans concerns that can ship or be decided independently, open a separate issue per concern and link them with `Depends on: #N`.
