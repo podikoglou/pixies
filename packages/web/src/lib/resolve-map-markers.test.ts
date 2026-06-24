@@ -11,7 +11,6 @@ function osmItem(toolCallId: string, data: OverpassResultEntry[]): TimelineItem 
 		toolName: "query_osm",
 		args: {},
 		status: "done",
-		queued: false,
 		resultText: null,
 		result: { kind: "query_osm", entries: data },
 	};
