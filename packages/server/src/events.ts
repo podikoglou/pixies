@@ -1,5 +1,4 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import { isToolProgress } from "@pixies/core";
 import type { SSEEvent } from "@pixies/core";
 
 export function translateAgentEvent(event: AgentEvent): SSEEvent[] {
@@ -15,17 +14,6 @@ export function translateAgentEvent(event: AgentEvent): SSEEvent[] {
 					data: { toolCallId: event.toolCallId, toolName: event.toolName, args: event.args },
 				},
 			];
-		case "tool_execution_update": {
-			const details = event.partialResult?.details;
-			// Forward only validated progress payloads; drop malformed/empty updates.
-			if (!isToolProgress(details)) return [];
-			return [
-				{
-					event: "tool_execution_update",
-					data: { toolCallId: event.toolCallId, details },
-				},
-			];
-		}
 		case "tool_execution_end":
 			return [
 				{
