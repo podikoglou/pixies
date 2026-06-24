@@ -17,7 +17,7 @@ test("query_osm: OsmBusyError returns normal result with busy message", async ()
 			Promise.resolve(Result.err(new OsmBusyError({ status: 429, service: "Overpass" }))),
 		),
 	} as unknown as OverpassClient;
-	const tool = queryOsmModule.build(busyOverpass);
+	const tool = queryOsmModule.build({ overpass: busyOverpass });
 	const result = await tool.execute("call-1", { query: "[out:json];node(1);out;" });
 	expect((result.content[0] as { text: string }).text).toBe(OSM_SERVER_BUSY_MESSAGE);
 	expect(result.details).toEqual({ busy: true });
@@ -31,7 +31,7 @@ test("query_osm: generic error still propagates", async () => {
 			Promise.resolve(Result.err(new OsmHttpError({ message: "Network failure" }))),
 		),
 	} as unknown as OverpassClient;
-	const tool = queryOsmModule.build(brokenOverpass);
+	const tool = queryOsmModule.build({ overpass: brokenOverpass });
 	await expect(tool.execute("call-2", { query: "[out:json];node(1);out;" })).rejects.toBeInstanceOf(
 		OsmHttpError,
 	);
@@ -48,7 +48,7 @@ test("reverse_geocode: OsmBusyError returns normal result with busy message", as
 			Promise.resolve(Result.err(new OsmBusyError({ status: 503, service: "Nominatim" }))),
 		),
 	} as unknown as NominatimClient;
-	const tool = reverseGeocodeModule.build(busyNominatim);
+	const tool = reverseGeocodeModule.build({ nominatim: busyNominatim });
 	const result = await tool.execute("call-3", { lat: 52.5, lon: 13.4 });
 	expect((result.content[0] as { text: string }).text).toBe(OSM_SERVER_BUSY_MESSAGE);
 	expect(result.details).toEqual({ busy: true });
@@ -64,7 +64,7 @@ test("reverse_geocode: generic error still propagates", async () => {
 			Promise.resolve(Result.err(new OsmHttpError({ message: "Network failure" }))),
 		),
 	} as unknown as NominatimClient;
-	const tool = reverseGeocodeModule.build(brokenNominatim);
+	const tool = reverseGeocodeModule.build({ nominatim: brokenNominatim });
 	await expect(tool.execute("call-4", { lat: 52.5, lon: 13.4 })).rejects.toBeInstanceOf(
 		OsmHttpError,
 	);
@@ -81,7 +81,7 @@ test("geocode: OsmBusyError returns normal result with busy message", async () =
 			Promise.resolve(Result.err(new OsmBusyError({ status: 429, service: "Nominatim" }))),
 		),
 	} as unknown as NominatimClient;
-	const tool = geocodeModule.build(busyNominatim);
+	const tool = geocodeModule.build({ nominatim: busyNominatim });
 	const result = await tool.execute("call-5", { query: "Berlin" });
 	expect((result.content[0] as { text: string }).text).toBe(OSM_SERVER_BUSY_MESSAGE);
 	expect(result.details).toEqual({ busy: true, data: [] });
@@ -97,6 +97,6 @@ test("geocode: generic error still propagates", async () => {
 			Promise.resolve(Result.err(new OsmHttpError({ message: "Network failure" }))),
 		),
 	} as unknown as NominatimClient;
-	const tool = geocodeModule.build(brokenNominatim);
+	const tool = geocodeModule.build({ nominatim: brokenNominatim });
 	await expect(tool.execute("call-6", { query: "Berlin" })).rejects.toBeInstanceOf(OsmHttpError);
 });

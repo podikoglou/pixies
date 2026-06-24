@@ -45,9 +45,9 @@ export type {
  */
 export function createTools(clients: OsmClients): AgentTool[] {
 	return [
-		geocodeModule.build(clients.nominatim),
-		reverseGeocodeModule.build(clients.nominatim),
-		queryOsmModule.build(clients.overpass),
+		geocodeModule.build({ nominatim: clients.nominatim }),
+		reverseGeocodeModule.build({ nominatim: clients.nominatim }),
+		queryOsmModule.build({ overpass: clients.overpass }),
 		displayMapModule.build(),
 	];
 }

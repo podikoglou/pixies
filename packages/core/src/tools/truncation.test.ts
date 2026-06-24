@@ -43,7 +43,7 @@ function mockNominatim(results: NominatimResult[]): NominatimClient {
 
 test("query_osm: under limit — all results in content", async () => {
 	const elements = makeOverpassElements(10);
-	const tool = queryOsmModule.build(mockOverpass(elements));
+	const tool = queryOsmModule.build({ overpass: mockOverpass(elements) });
 	const result = await tool.execute("call-1", { query: "[out:json];node(1);out;" });
 	const text = (result.content[0] as { text: string }).text;
 	// 10 lines (one per element), no truncation footer
@@ -56,7 +56,7 @@ test("query_osm: under limit — all results in content", async () => {
 test("query_osm: over limit — content truncated, details complete", async () => {
 	const count = MAX_CONTENT_LINES + 100;
 	const elements = makeOverpassElements(count);
-	const tool = queryOsmModule.build(mockOverpass(elements));
+	const tool = queryOsmModule.build({ overpass: mockOverpass(elements) });
 	const result = await tool.execute("call-2", { query: "[out:json];node(1);out;" });
 	const text = (result.content[0] as { text: string }).text;
 	const lines = text.split("\n");
@@ -70,7 +70,7 @@ test("query_osm: over limit — content truncated, details complete", async () =
 
 test("query_osm: exactly at limit — no truncation", async () => {
 	const elements = makeOverpassElements(MAX_CONTENT_LINES);
-	const tool = queryOsmModule.build(mockOverpass(elements));
+	const tool = queryOsmModule.build({ overpass: mockOverpass(elements) });
 	const result = await tool.execute("call-3", { query: "[out:json];node(1);out;" });
 	const text = (result.content[0] as { text: string }).text;
 	expect(text.split("\n").length).toBe(MAX_CONTENT_LINES);
@@ -79,7 +79,7 @@ test("query_osm: exactly at limit — no truncation", async () => {
 });
 
 test("query_osm: empty result — no truncation", async () => {
-	const tool = queryOsmModule.build(mockOverpass([]));
+	const tool = queryOsmModule.build({ overpass: mockOverpass([]) });
 	const result = await tool.execute("call-5", { query: "[out:json];node(1);out;" });
 	expect((result.content[0] as { text: string }).text).toBe("No results.");
 	expect(result.details).toEqual({ data: [] });
@@ -89,7 +89,7 @@ test("query_osm: empty result — no truncation", async () => {
 
 test("geocode: under limit — all results in content", async () => {
 	const results = makeNominatimResults(10);
-	const tool = geocodeModule.build(mockNominatim(results));
+	const tool = geocodeModule.build({ nominatim: mockNominatim(results) });
 	const result = await tool.execute("call-6", { query: "Berlin" });
 	const text = (result.content[0] as { text: string }).text;
 	expect(text.split("\n").length).toBe(10);
@@ -100,7 +100,7 @@ test("geocode: under limit — all results in content", async () => {
 test("geocode: over limit — content truncated, details complete", async () => {
 	const count = MAX_CONTENT_LINES + 20;
 	const results = makeNominatimResults(count);
-	const tool = geocodeModule.build(mockNominatim(results));
+	const tool = geocodeModule.build({ nominatim: mockNominatim(results) });
 	const result = await tool.execute("call-7", { query: "Berlin" });
 	const text = (result.content[0] as { text: string }).text;
 	const lines = text.split("\n");
@@ -111,7 +111,7 @@ test("geocode: over limit — content truncated, details complete", async () => 
 
 test("geocode: exactly at limit — no truncation", async () => {
 	const results = makeNominatimResults(MAX_CONTENT_LINES);
-	const tool = geocodeModule.build(mockNominatim(results));
+	const tool = geocodeModule.build({ nominatim: mockNominatim(results) });
 	const result = await tool.execute("call-8", { query: "Berlin" });
 	const text = (result.content[0] as { text: string }).text;
 	expect(text.split("\n").length).toBe(MAX_CONTENT_LINES);

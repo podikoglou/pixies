@@ -37,31 +37,32 @@ export function parseSchema<S extends TSchema, R>(
 }
 
 /**
- * Construct a tool from its metadata plus an `execute` that receives the single
- * client it depends on as its first argument. Owns no logic: it assembles an
- * {@link AgentTool} (partial-applying the client into `execute`) and re-exposes
- * the parse / summarize surface of a {@link ToolModule}.
+ * Construct a tool from its metadata plus an `execute` that receives the
+ * context it depends on as its first argument. Owns no logic: it assembles an
+ * {@link AgentTool} (partial-applying the context into `execute`) and
+ * re-exposes the parse / summarize surface of a {@link ToolModule}.
  *
  * The returned object is both a `ToolModule<TResult>` (so it can be keyed in a
  * registry for `parseToolResult` / `summarizeToolResult`) and carries a
- * `build(client)` method that produces a concrete `AgentTool` once its client
- * is supplied. `createTools` is the one place that knows the `OsmClients` bag
- * and calls `build` with the right client per tool.
+ * `build(ctx)` method that produces a concrete `AgentTool` once its context is
+ * supplied. `createTools` is the one place that knows the `OsmClients` bag and
+ * projects it into each tool's context.
  *
- * Each tool declares exactly the client it needs (`TClient`) via `execute`'s
- * first parameter — never the whole bag — so single-tool tests build the tool
+ * Each tool declares exactly the context it needs (`TContext`) via `execute`'s
+ * first parameter — an arbitrary object the tool types itself (e.g.
+ * `{ nominatim }`, `{ overpass }`, `{}`) — so single-tool tests build the tool
  * with one mock and no type-lies.
  *
- * For a tool that needs no client, pass `TClient = void`; `execute` then takes
- * a placeholder first argument (conventionally `_`) and `build()` is callable
- * with no arguments.
+ * For a tool that needs no context, pass `TContext = void`; `execute` then
+ * takes a placeholder first argument (conventionally `_`) and `build()` is
+ * callable with no arguments.
  *
  * @param def Tool metadata, parse/summarize surface, and an `execute` whose
- * first argument is the client this tool depends on.
+ * first argument is the context this tool depends on.
  */
 export function defineTool<
 	TResult extends { kind: string },
-	TClient,
+	TContext,
 	TParams extends TSchema,
 	TDetails,
 >(def: {
@@ -74,7 +75,7 @@ export function defineTool<
 	parse: (details: unknown) => TResult | null;
 	summarize: (result: TResult) => string | null;
 	execute: (
-		client: TClient,
+		ctx: TContext,
 		toolCallId: string,
 		params: Static<TParams>,
 		signal?: AbortSignal,
@@ -86,17 +87,17 @@ export function defineTool<
 		parse: def.parse,
 		summarize: def.summarize,
 		/**
-		 * Build a concrete {@link AgentTool} by partial-applying the single
-		 * client this tool depends on into `execute`. For client-less tools
-		 * (`TClient = void`) call with no arguments: `build()`.
+		 * Build a concrete {@link AgentTool} by partial-applying the context
+		 * this tool depends on into `execute`. For context-less tools
+		 * (`TContext = void`) call with no arguments: `build()`.
 		 */
-		build: (client: TClient): AgentTool<TParams, TDetails> => ({
+		build: (ctx: TContext): AgentTool<TParams, TDetails> => ({
 			name: def.name,
 			label: def.label,
 			description: def.description,
 			parameters: def.parameters,
 			execute: (toolCallId, params, signal, onUpdate) =>
-				def.execute(client, toolCallId, params, signal, onUpdate),
+				def.execute(ctx, toolCallId, params, signal, onUpdate),
 			...(def.executionMode ? { executionMode: def.executionMode } : {}),
 		}),
 	};

@@ -22,7 +22,7 @@ const schema = Type.Object({
 
 export const geocodeModule = defineTool<
 	{ kind: "geocode"; entries: GeocodeResultEntry[] },
-	NominatimClient,
+	{ nominatim: NominatimClient },
 	typeof schema,
 	ToolProgress | GeocodeToolDetails | { busy: true }
 >({
@@ -40,7 +40,7 @@ export const geocodeModule = defineTool<
 		const name = top.name || top.displayName?.split(",")[0] || "unknown";
 		return `${name} (${top.lat},${top.lon})`;
 	},
-	execute: async (nominatim, _toolCallId, params, signal, onUpdate) => {
+	execute: async ({ nominatim }, _toolCallId, params, signal, onUpdate) => {
 		if (signal?.aborted) throw new ToolAbortedError({ message: "Operation aborted" });
 		const result = await Result.gen(async function* () {
 			const results = yield* Result.await(

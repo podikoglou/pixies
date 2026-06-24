@@ -26,7 +26,7 @@ const schema = Type.Object({
 
 export const reverseGeocodeModule = defineTool<
 	{ kind: "reverse_geocode"; entry: GeocodeResultEntry },
-	NominatimClient,
+	{ nominatim: NominatimClient },
 	typeof schema,
 	ToolProgress | ReverseGeocodeToolDetails | { busy: true } | undefined
 >({
@@ -42,7 +42,7 @@ export const reverseGeocodeModule = defineTool<
 		entry: d.data,
 	})),
 	summarize: (result) => result.entry.name,
-	execute: async (nominatim, _toolCallId, params, signal, onUpdate) => {
+	execute: async ({ nominatim }, _toolCallId, params, signal, onUpdate) => {
 		if (signal?.aborted) throw new ToolAbortedError({ message: "Operation aborted" });
 		const result = await Result.gen(async function* () {
 			const result = yield* Result.await(
