@@ -1,9 +1,4 @@
-import type {
-	AgentTool,
-	AgentToolResult,
-	AgentToolUpdateCallback,
-	ToolExecutionMode,
-} from "@earendil-works/pi-agent-core";
+import type { AgentTool, ToolExecutionMode } from "@earendil-works/pi-agent-core";
 import type { Static, TSchema } from "typebox";
 import { Value } from "typebox/value";
 import type { NominatimClient } from "../osm/nominatim.ts";
@@ -76,11 +71,8 @@ export function defineTool<
 	summarize: (result: TResult) => string | null;
 	execute: (
 		ctx: TContext,
-		toolCallId: string,
-		params: Static<TParams>,
-		signal?: AbortSignal,
-		onUpdate?: AgentToolUpdateCallback<TDetails>,
-	) => Promise<AgentToolResult<TDetails>>;
+		...args: Parameters<AgentTool<TParams, TDetails>["execute"]>
+	) => ReturnType<AgentTool<TParams, TDetails>["execute"]>;
 }): ToolModule<TResult> & { build: (ctx: TContext) => AgentTool<TParams, TDetails> } {
 	return {
 		detailsSchema: def.detailsSchema,
