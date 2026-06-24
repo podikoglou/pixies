@@ -81,7 +81,7 @@ export function defineTool<
 		signal?: AbortSignal,
 		onUpdate?: AgentToolUpdateCallback<TDetails>,
 	) => Promise<AgentToolResult<TDetails>>;
-}) {
+}): ToolModule<TResult> & { build: (ctx: TContext) => AgentTool<TParams, TDetails> } {
 	return {
 		detailsSchema: def.detailsSchema,
 		parse: def.parse,
