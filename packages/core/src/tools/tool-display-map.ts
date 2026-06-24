@@ -55,7 +55,7 @@ export const displayMapModule = defineTool<
 	detailsSchema: DisplayMapToolDetailsSchema,
 	parse: parseSchema(DisplayMapToolDetailsSchema, (d) => ({ kind: "display_map", data: d.data })),
 	summarize: (result) => `${result.data.markers.length} marker(s)`,
-	factory: () => async (_toolCallId, params) => {
+	execute: async (_, _toolCallId, params) => {
 		const hasMarkers = params.markers !== undefined;
 		const hasQueryRef = params.queryRef !== undefined;
 

@@ -34,7 +34,7 @@ export const queryOsmModule = defineTool<
 	detailsSchema: QueryOsmToolDetailsSchema,
 	parse: parseSchema(QueryOsmToolDetailsSchema, (d) => ({ kind: "query_osm", entries: d.data })),
 	summarize: (result) => `${result.entries.length} elements`,
-	factory: (overpass) => async (_toolCallId, params, signal, onUpdate) => {
+	execute: async (overpass, _toolCallId, params, signal, onUpdate) => {
 		if (signal?.aborted) throw new ToolAbortedError({ message: "Operation aborted" });
 		const result = await Result.gen(async function* () {
 			const response = yield* Result.await(

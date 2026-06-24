@@ -40,7 +40,7 @@ export const geocodeModule = defineTool<
 		const name = top.name || top.displayName?.split(",")[0] || "unknown";
 		return `${name} (${top.lat},${top.lon})`;
 	},
-	factory: (nominatim) => async (_toolCallId, params, signal, onUpdate) => {
+	execute: async (nominatim, _toolCallId, params, signal, onUpdate) => {
 		if (signal?.aborted) throw new ToolAbortedError({ message: "Operation aborted" });
 		const result = await Result.gen(async function* () {
 			const results = yield* Result.await(
