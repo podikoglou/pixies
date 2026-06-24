@@ -1,6 +1,6 @@
 # ADR-0005: Shared p-queue rate limiter for OSM clients
 
-**Status:** Accepted — 2026-06-16
+**Status:** Superseded by ADR-0007 — 2026-06-25
 
 ## Context
 
