@@ -48,7 +48,6 @@ export {
 	toClientAssistantMessage,
 	MessageEndData,
 	ToolExecutionStartData,
-	ToolExecutionUpdateData,
 	ToolResultSchema,
 	ToolExecutionEndData,
 	DoneData,

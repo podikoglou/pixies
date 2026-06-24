@@ -2,7 +2,6 @@ import { Type } from "typebox";
 import type { Static, TSchema } from "typebox";
 import { Value } from "typebox/value";
 import type { AssistantMessage as PiAiAssistantMessage } from "@earendil-works/pi-ai";
-import { ToolProgressSchema } from "./tools/progress.ts";
 
 export const ConversationCreatedData = Type.Object({
 	id: Type.String(),
@@ -65,11 +64,6 @@ export const ToolExecutionStartData = Type.Object({
 	args: Type.Unknown(),
 });
 
-export const ToolExecutionUpdateData = Type.Object({
-	toolCallId: Type.String(),
-	details: ToolProgressSchema,
-});
-
 /**
  * Shape of a tool result on the wire. `content` is the model-facing text (the
  * pipe-delimited serialization produced by `format.ts`). `details` is the
@@ -118,7 +112,6 @@ export const SSEEventSchema = Type.Union([
 	Type.Object({ event: Type.Literal("text_delta"), data: TextDeltaData }),
 	Type.Object({ event: Type.Literal("message_end"), data: MessageEndData }),
 	Type.Object({ event: Type.Literal("tool_execution_start"), data: ToolExecutionStartData }),
-	Type.Object({ event: Type.Literal("tool_execution_update"), data: ToolExecutionUpdateData }),
 	Type.Object({ event: Type.Literal("tool_execution_end"), data: ToolExecutionEndData }),
 	Type.Object({ event: Type.Literal("done"), data: DoneData }),
 	Type.Object({ event: Type.Literal("error"), data: ErrorData }),
@@ -130,7 +123,6 @@ export type SSEEventName =
 	| "text_delta"
 	| "message_end"
 	| "tool_execution_start"
-	| "tool_execution_update"
 	| "tool_execution_end"
 	| "done"
 	| "error";
@@ -141,7 +133,6 @@ export type SSEEvent =
 	| { event: "text_delta"; data: Static<typeof TextDeltaData> }
 	| { event: "message_end"; data: Static<typeof MessageEndData> }
 	| { event: "tool_execution_start"; data: Static<typeof ToolExecutionStartData> }
-	| { event: "tool_execution_update"; data: Static<typeof ToolExecutionUpdateData> }
 	| { event: "tool_execution_end"; data: Static<typeof ToolExecutionEndData> }
 	| { event: "done"; data: Static<typeof DoneData> }
 	| { event: "error"; data: Static<typeof ErrorData> };
@@ -152,7 +143,6 @@ export const SSE_EVENT_DATA_SCHEMAS: Record<SSEEventName, TSchema> = {
 	text_delta: TextDeltaData,
 	message_end: MessageEndData,
 	tool_execution_start: ToolExecutionStartData,
-	tool_execution_update: ToolExecutionUpdateData,
 	tool_execution_end: ToolExecutionEndData,
 	done: DoneData,
 	error: ErrorData,
