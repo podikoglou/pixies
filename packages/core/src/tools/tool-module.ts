@@ -12,7 +12,6 @@ export interface OsmClients {
 export interface ToolModule<TResult extends { kind: string }> {
 	detailsSchema: TSchema;
 	parse: (details: unknown) => TResult | null;
-	summarize: (result: TResult) => string | null;
 }
 
 /**
@@ -35,13 +34,13 @@ export function parseSchema<S extends TSchema, R>(
  * Construct a tool from its metadata plus an `execute` that receives the
  * context it depends on as its first argument. Owns no logic: it assembles an
  * {@link AgentTool} (partial-applying the context into `execute`) and
- * re-exposes the parse / summarize surface of a {@link ToolModule}.
+ * re-exposes the parse surface of a {@link ToolModule}.
  *
  * The returned object is both a `ToolModule<TResult>` (so it can be keyed in a
- * registry for `parseToolResult` / `summarizeToolResult`) and carries a
- * `build(ctx)` method that produces a concrete `AgentTool` once its context is
- * supplied. `createTools` is the one place that knows the `OsmClients` bag and
- * projects it into each tool's context.
+ * registry for `parseToolResult`) and carries a `build(ctx)` method that
+ * produces a concrete `AgentTool` once its context is supplied. `createTools`
+ * is the one place that knows the `OsmClients` bag and projects it into each
+ * tool's context.
  *
  * Each tool declares exactly the context it needs (`TContext`) via `execute`'s
  * first parameter — an arbitrary object the tool types itself (e.g.
@@ -52,8 +51,8 @@ export function parseSchema<S extends TSchema, R>(
  * takes a placeholder first argument (conventionally `_`) and `build()` is
  * callable with no arguments.
  *
- * @param def Tool metadata, parse/summarize surface, and an `execute` whose
- * first argument is the context this tool depends on.
+ * @param def Tool metadata, parse surface, and an `execute` whose first
+ * argument is the context this tool depends on.
  */
 export function defineTool<
 	TResult extends { kind: string },
@@ -68,7 +67,6 @@ export function defineTool<
 	executionMode?: ToolExecutionMode;
 	detailsSchema: TSchema;
 	parse: (details: unknown) => TResult | null;
-	summarize: (result: TResult) => string | null;
 	execute: (
 		ctx: TContext,
 		...args: Parameters<AgentTool<TParams, TDetails>["execute"]>
@@ -77,7 +75,6 @@ export function defineTool<
 	return {
 		detailsSchema: def.detailsSchema,
 		parse: def.parse,
-		summarize: def.summarize,
 		/**
 		 * Build a concrete {@link AgentTool} by partial-applying the context
 		 * this tool depends on into `execute`. For context-less tools
