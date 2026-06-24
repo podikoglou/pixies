@@ -12,9 +12,9 @@ A workflow for processing GitHub issues through sequential subagent rounds. The 
 ## Quick Start
 
 1. User provides phases (each phase = one or a few closely-related GitHub issue numbers)
-2. For each phase, spawn subagents sequentially: plan → implement → review → fix (if needed) → merge
+2. For each phase, spawn subagents sequentially: plan → implement → review → fix (if needed) → present PR for review
 3. Loop on any new issues created by subagents
-4. Notify the user after each merge
+4. **Never merge without explicit user approval** — after review, present the PR and STOP. The user reviews and either approves merge or requests changes.
 
 ## Workflow
 
@@ -45,12 +45,10 @@ Run these steps **strictly in order**. No parallel subagents within a phase.
   - Address review findings
   - Re-run tests, commit, push
 
-- [ ] **5. Merge** (in main context, NOT in subagent)
-  - `gh pr merge <number> --merge --delete-branch`
-  - `git pull` on main
-  - `gh issue close <number>` for each issue in phase
-  - Notify the user with PR link
-  - Update todo list
+- [ ] **5. Present PR for review** (in main context, NOT in subagent)
+  - **Do NOT merge.** Watch CI to green (`gh pr checks <number> --watch`) and surface the review subagent's verdict + PR link to the user.
+  - STOP and wait for the user to explicitly approve the merge (or request changes). This is a hard checkpoint regardless of AFK/HITL classification.
+  - Only after explicit approval: `gh pr merge <number> --merge --delete-branch`, `git pull` on main, `gh issue close <number>` for each issue in phase, update todo list.
 
 ### After All Phases
 
@@ -124,7 +122,7 @@ Branch has PR #N open. Review found these issues: <issues>.
 - **Always spawn all subagents** — even if planning seems trivial
 - **Handoff artifacts** — planning subagent writes `/tmp/pixies-handoff-<issue>.md`; implementation and review subagents read it instead of re-discovering context
 - **AFK vs HITL** — planning classifies each issue; HITL issues pause after implementation for human checkpoint before review
-- **Merge in main context** — never in a subagent
+- **Never auto-merge** — present the reviewed PR to the user and wait for explicit merge approval every time. Merging happens only in the main context, only after the user says to.
 - **Conventional commit messages** — `fix:`, `feat:`, `refactor:`, `test:`
 - **Close issues** after merge
 - **Notify the user** after each phase with PR link
