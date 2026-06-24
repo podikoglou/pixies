@@ -4,6 +4,7 @@ import { Result } from "better-result";
 import {
 	OverpassBusyError,
 	OverpassClient,
+	OverpassHttpError,
 	OverpassParseError,
 	OverpassRemarkError,
 } from "./overpass.ts";
@@ -146,7 +147,42 @@ test("abort while running returns Err and the signal threaded to fetch is aborte
 	blocker.resolve(jsonResponse({ elements: [] }));
 });
 
-// ---- OverpassBusyError (429) surfaces as Err --------------------------------
+// ---- HTTP classification -----------------------------------------------------
+
+test("500 non-busy response returns Err(OverpassHttpError)", async () => {
+	const body = "internal server error";
+	const fetchMock = mock(() =>
+		Promise.resolve(new Response(body, { status: 500 })),
+	) as unknown as typeof fetch;
+	const client = makeOverpass(fetchMock);
+
+	const r = await client.query("[out:json];node(1);out;");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("OverpassHttp");
+		expect(r.error).toBeInstanceOf(OverpassHttpError);
+		expect(r.error).not.toBeInstanceOf(OverpassBusyError);
+		if (!(r.error instanceof OverpassHttpError)) throw new Error("expected OverpassHttpError");
+		expect(r.error.status).toBe(500);
+		expect(r.error.body).toBe(body);
+	}
+});
+
+test("busy body marker on non-ok response returns Err(OverpassBusyError)", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(new Response("<status>HTTP 503</status>", { status: 500 })),
+	) as unknown as typeof fetch;
+	const client = makeOverpass(fetchMock);
+
+	const r = await client.query("[out:json];node(1);out;");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("OverpassBusy");
+		expect(r.error).toBeInstanceOf(OverpassBusyError);
+		if (!(r.error instanceof OverpassBusyError)) throw new Error("expected OverpassBusyError");
+		expect(r.error.status).toBe(500);
+	}
+});
 
 test("429 returns Err(OverpassBusyError)", async () => {
 	const fetchMock = mock(() =>

@@ -1,7 +1,12 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
 import { Result } from "better-result";
-import { NominatimBusyError, NominatimClient, NominatimParseError } from "./nominatim.ts";
+import {
+	NominatimBusyError,
+	NominatimClient,
+	NominatimHttpError,
+	NominatimParseError,
+} from "./nominatim.ts";
 import { createOsmClients } from "../agent.ts";
 import { type Logger } from "../logging/index.ts";
 import { ToolAbortedError } from "../errors.ts";
@@ -100,7 +105,44 @@ test("abort while a request is running returns Err(ToolAbortedError)", async () 
 	hanging.resolve(jsonResponse([]));
 });
 
-// ---- NominatimBusyError passthrough ------------------------------------------
+// ---- HTTP classification -----------------------------------------------------
+
+test("500 non-busy response returns Err(NominatimHttpError)", async () => {
+	const body = "internal server error";
+	const fetchMock = mock(() =>
+		Promise.resolve(new Response(body, { status: 500 })),
+	) as unknown as typeof fetch;
+	const client = makeClient(fetchMock);
+
+	const r = await client.search("Berlin");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("NominatimHttp");
+		expect(r.error).toBeInstanceOf(NominatimHttpError);
+		expect(r.error).not.toBeInstanceOf(NominatimBusyError);
+		if (!(r.error instanceof NominatimHttpError)) throw new Error("expected NominatimHttpError");
+		expect(r.error.status).toBe(500);
+		expect(r.error.body).toBe(body);
+	}
+});
+
+test("busy body marker on non-ok response returns Err(NominatimBusyError)", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(
+			new Response("The server is probably too busy to handle your request", { status: 500 }),
+		),
+	) as unknown as typeof fetch;
+	const client = makeClient(fetchMock);
+
+	const r = await client.search("Berlin");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("NominatimBusy");
+		expect(r.error).toBeInstanceOf(NominatimBusyError);
+		if (!(r.error instanceof NominatimBusyError)) throw new Error("expected NominatimBusyError");
+		expect(r.error.status).toBe(500);
+	}
+});
 
 test("429 returns Err(NominatimBusyError)", async () => {
 	const fetchMock = mock(() =>
