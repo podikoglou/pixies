@@ -5,7 +5,7 @@
 
 ## Overview
 
-The Pixies SSE API exposes a stateful, multi-tenant conversation interface to the Pixies OSM agent. Each conversation is an isolated server-side `Agent` instance. Clients create a conversation, send messages, and receive streamed tool execution progress.
+The Pixies SSE API exposes a stateful, multi-tenant conversation interface to the Pixies OSM agent. Each conversation is an isolated server-side `Agent` instance. Clients create a conversation, send messages, and receive streamed tool execution events.
 
 The API is optimized for streaming chat UIs (web, mobile). It is **not** a stateless completion API — clients must track conversation IDs.
 
@@ -182,25 +182,6 @@ Emitted when a tool begins executing. `args` is the validated tool input object.
 }
 ```
 
-### `tool_execution_update`
-
-Emitted for tool progress updates. `details` is a typed discriminated union (`ToolProgress`) describing the tool's lifecycle before its final result:
-
-| `details.type` | Meaning |
-|---|---|
-| `"queued"` | The tool is waiting for a shared resource (e.g. the Nominatim rate-limit slot). Clients should display a "queued" indicator. |
-| `"running"` | The resource was acquired; the tool is executing. Clears a prior `"queued"` indicator. |
-
-```json
-{ "toolCallId": "call_abc123", "details": { "type": "queued" } }
-```
-
-```json
-{ "toolCallId": "call_abc123", "details": { "type": "running" } }
-```
-
-New progress variants may be added to the union; clients should narrow on `details.type` and ignore unknown variants. Final-result details travel separately on `tool_execution_end.result.details` (tool-specific, see below).
-
 ### `tool_execution_end`
 
 Emitted when a tool finishes. `result` is the full tool result; `result.content[].text` is the model-facing text (clients can render this as a multi-line card). On error, `isError === true` and the error message is in `result.content[].text`.
@@ -266,8 +247,6 @@ Client                                 Server
   |                                      | create Agent, store in Map + SQLite
   |<- - - - - - - - - - - - - - - - - - | conversation_created { id }
   |<- - - - - - - - - - - - - - - - - - | tool_execution_start { ... }
-  |<- - - - - - - - - - - - - - - - - - | tool_execution_update { details: { type: "queued" } }
-  |<- - - - - - - - - - - - - - - - - - | tool_execution_update { details: { type: "running" } }
   |<- - - - - - - - - - - - - - - - - - | tool_execution_end { ... }
   |<- - - - - - - - - - - - - - - - - - | done { durationMs: 1234 }
   |                                      | [stream ends]
