@@ -1,9 +1,14 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
 import { Result } from "better-result";
-import { OverpassClient } from "./overpass.ts";
+import {
+	OverpassBusyError,
+	OverpassClient,
+	OverpassParseError,
+	OverpassRemarkError,
+} from "./overpass.ts";
 import { type Logger } from "../logging/index.ts";
-import { ToolAbortedError, OsmBusyError, OsmParseError } from "../errors.ts";
+import { ToolAbortedError } from "../errors.ts";
 
 /** Build a JSON `Response` osmFetch treats as a success. */
 function jsonResponse(data: unknown): Response {
@@ -141,9 +146,9 @@ test("abort while running returns Err and the signal threaded to fetch is aborte
 	blocker.resolve(jsonResponse({ elements: [] }));
 });
 
-// ---- OsmBusyError (429) surfaces as Err (CAVEAT #3) -------------------------
+// ---- OverpassBusyError (429) surfaces as Err --------------------------------
 
-test("429 returns Err(OsmBusyError)", async () => {
+test("429 returns Err(OverpassBusyError)", async () => {
 	const fetchMock = mock(() =>
 		Promise.resolve(new Response("busy", { status: 429 })),
 	) as unknown as typeof fetch;
@@ -151,8 +156,8 @@ test("429 returns Err(OsmBusyError)", async () => {
 	const r = await client.query("[out:json];node(1);out;");
 	expect(Result.isError(r)).toBe(true);
 	if (Result.isError(r)) {
-		expect(r.error._tag).toBe("OsmBusy");
-		expect(r.error).toBeInstanceOf(OsmBusyError);
+		expect(r.error._tag).toBe("OverpassBusy");
+		expect(r.error).toBeInstanceOf(OverpassBusyError);
 	}
 });
 
@@ -170,7 +175,7 @@ test("query returns parsed OverpassResponse on success", async () => {
 
 // ---- invalid-shape error contract (pinned for #104 Value.Parse refactor) -----
 
-test("query() returns Err(OsmParseError) on invalid shape and tags the cause", async () => {
+test("query() returns Err(OverpassParseError) on invalid shape and tags the cause", async () => {
 	const fetchMock = mock(
 		() => Promise.resolve(jsonResponse({ elements: "not-an-array" })), // bad elements
 	) as unknown as typeof fetch;
@@ -178,9 +183,23 @@ test("query() returns Err(OsmParseError) on invalid shape and tags the cause", a
 	const r = await client.query("[out:json];node(1);out;");
 	expect(Result.isError(r)).toBe(true);
 	if (Result.isError(r)) {
-		expect(r.error._tag).toBe("OsmParse");
-		expect(r.error).toBeInstanceOf(OsmParseError);
+		expect(r.error._tag).toBe("OverpassParse");
+		expect(r.error).toBeInstanceOf(OverpassParseError);
 		expect(r.error.message).toBe("Overpass: invalid response shape");
 		expect(r.error.cause).toBeDefined();
+	}
+});
+
+test("query() returns Err(OverpassRemarkError) when Overpass returns a remark", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse({ elements: [], remark: "runtime error" })),
+	) as unknown as typeof fetch;
+	const client = makeOverpass(fetchMock);
+	const r = await client.query("[out:json];node(1);out;");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("OverpassRemark");
+		expect(r.error).toBeInstanceOf(OverpassRemarkError);
+		expect(r.error.message).toBe("Overpass: runtime error");
 	}
 });

@@ -1,9 +1,9 @@
 import { Result, matchErrorPartial } from "better-result";
 import { Type } from "typebox";
-import type { NominatimClient } from "../osm/nominatim.ts";
-import { OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
+import type { NominatimClient } from "../clients/nominatim.ts";
+import { formatNominatimResult, nominatimResultToData } from "../clients/nominatim.ts";
 import { ToolAbortedError } from "../errors.ts";
-import { formatNominatimResult, nominatimResultToData } from "../osm/format.ts";
+import { OSM_SERVER_BUSY_MESSAGE } from "./busy-message.ts";
 import {
 	ReverseGeocodeToolDetailsSchema,
 	type GeocodeResultEntry,
@@ -66,7 +66,7 @@ export const reverseGeocodeModule = defineTool<
 		return matchErrorPartial(
 			result.error,
 			{
-				OsmBusy: () => ({
+				NominatimBusy: () => ({
 					...textResult(OSM_SERVER_BUSY_MESSAGE),
 					details: { busy: true },
 				}),

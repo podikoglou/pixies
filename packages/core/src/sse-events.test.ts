@@ -113,6 +113,6 @@ test("ErrorData accepts a legacy { message } payload (back-compat)", () => {
 
 test("ErrorData accepts the enriched { message, errorTag, details } payload", () => {
 	expect(
-		Value.Check(ErrorData, { message: "boom", errorTag: "OsmBusy", details: { status: 429 } }),
+		Value.Check(ErrorData, { message: "boom", errorTag: "OverpassBusy", details: { status: 429 } }),
 	).toBe(true);
 });

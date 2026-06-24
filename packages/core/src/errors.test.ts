@@ -1,19 +1,25 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import { BudgetExceededError, OsmBusyError, OsmRemarkError } from "./errors.ts";
+import { NominatimBusyError } from "./clients/nominatim.ts";
+import { OverpassBusyError, OverpassRemarkError } from "./clients/overpass.ts";
+import { BudgetExceededError } from "./errors.ts";
 
 // Computed-message contract: these exact strings are depended on by logs,
 // downstream tests, and the SSE `message` field. Byte-identical invariant.
 
-test("OsmBusyError derives message from status and optional service", () => {
-	expect(new OsmBusyError({ status: 429, service: "Overpass" }).message).toBe(
+test("service busy errors derive messages from status", () => {
+	expect(new OverpassBusyError({ status: 429 }).message).toBe(
 		"Overpass: OSM server busy (HTTP 429)",
 	);
-	expect(new OsmBusyError({ status: 503 }).message).toBe("OSM server busy (HTTP 503)");
+	expect(new NominatimBusyError({ status: 503 }).message).toBe(
+		"Nominatim: OSM server busy (HTTP 503)",
+	);
 });
 
-test("OsmRemarkError derives its message from the remark (byte-identical to old throw)", () => {
-	expect(new OsmRemarkError({ remark: "runtime error" }).message).toBe("Overpass: runtime error");
+test("OverpassRemarkError derives its message from the remark (byte-identical to old throw)", () => {
+	expect(new OverpassRemarkError({ remark: "runtime error" }).message).toBe(
+		"Overpass: runtime error",
+	);
 });
 
 test("BudgetExceededError derives its message (byte-identical to old server string)", () => {

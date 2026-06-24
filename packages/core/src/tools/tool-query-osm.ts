@@ -1,9 +1,9 @@
 import { Result, matchErrorPartial } from "better-result";
 import { Type } from "typebox";
-import type { OverpassClient } from "../osm/overpass.ts";
-import { OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
+import type { OverpassClient } from "../clients/overpass.ts";
+import { formatElement, overpassElementToData } from "../clients/overpass.ts";
 import { ToolAbortedError } from "../errors.ts";
-import { formatElement, overpassElementToData } from "../osm/format.ts";
+import { OSM_SERVER_BUSY_MESSAGE } from "./busy-message.ts";
 import {
 	QueryOsmToolDetailsSchema,
 	type OverpassResultEntry,
@@ -67,7 +67,7 @@ export const queryOsmModule = defineTool<
 		return matchErrorPartial(
 			result.error,
 			{
-				OsmBusy: () => ({
+				OverpassBusy: () => ({
 					...textResult(OSM_SERVER_BUSY_MESSAGE),
 					details: { busy: true },
 				}),

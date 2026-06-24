@@ -1,21 +1,22 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
 import { Result } from "better-result";
-import { OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
-import { OsmBusyError, OsmHttpError } from "../errors.ts";
+import { OSM_SERVER_BUSY_MESSAGE } from "./busy-message.ts";
+import {
+	NominatimBusyError,
+	NominatimHttpError,
+	type NominatimClient,
+} from "../clients/nominatim.ts";
+import { OverpassBusyError, OverpassHttpError, type OverpassClient } from "../clients/overpass.ts";
 import { queryOsmModule } from "./tool-query-osm.ts";
 import { reverseGeocodeModule } from "./tool-reverse-geocode.ts";
 import { geocodeModule } from "./tool-geocode.ts";
-import type { OverpassClient } from "../osm/overpass.ts";
-import type { NominatimClient } from "../osm/nominatim.ts";
 
 // ---- query_osm: busy handling -----------------------------------------------
 
-test("query_osm: OsmBusyError returns normal result with busy message", async () => {
+test("query_osm: OverpassBusyError returns normal result with busy message", async () => {
 	const busyOverpass = {
-		query: mock(() =>
-			Promise.resolve(Result.err(new OsmBusyError({ status: 429, service: "Overpass" }))),
-		),
+		query: mock(() => Promise.resolve(Result.err(new OverpassBusyError({ status: 429 })))),
 	} as unknown as OverpassClient;
 	const tool = queryOsmModule.build({ overpass: busyOverpass });
 	const result = await tool.execute("call-1", { query: "[out:json];node(1);out;" });
@@ -28,25 +29,21 @@ test("query_osm: OsmBusyError returns normal result with busy message", async ()
 test("query_osm: generic error still propagates", async () => {
 	const brokenOverpass = {
 		query: mock(() =>
-			Promise.resolve(Result.err(new OsmHttpError({ message: "Network failure" }))),
+			Promise.resolve(Result.err(new OverpassHttpError({ message: "Network failure" }))),
 		),
 	} as unknown as OverpassClient;
 	const tool = queryOsmModule.build({ overpass: brokenOverpass });
 	await expect(tool.execute("call-2", { query: "[out:json];node(1);out;" })).rejects.toBeInstanceOf(
-		OsmHttpError,
+		OverpassHttpError,
 	);
 });
 
 // ---- reverse_geocode: busy handling -----------------------------------------
 
-test("reverse_geocode: OsmBusyError returns normal result with busy message", async () => {
+test("reverse_geocode: NominatimBusyError returns normal result with busy message", async () => {
 	const busyNominatim = {
-		reverse: mock(() =>
-			Promise.resolve(Result.err(new OsmBusyError({ status: 503, service: "Nominatim" }))),
-		),
-		search: mock(() =>
-			Promise.resolve(Result.err(new OsmBusyError({ status: 503, service: "Nominatim" }))),
-		),
+		reverse: mock(() => Promise.resolve(Result.err(new NominatimBusyError({ status: 503 })))),
+		search: mock(() => Promise.resolve(Result.err(new NominatimBusyError({ status: 503 })))),
 	} as unknown as NominatimClient;
 	const tool = reverseGeocodeModule.build({ nominatim: busyNominatim });
 	const result = await tool.execute("call-3", { lat: 52.5, lon: 13.4 });
@@ -58,28 +55,24 @@ test("reverse_geocode: OsmBusyError returns normal result with busy message", as
 test("reverse_geocode: generic error still propagates", async () => {
 	const brokenNominatim = {
 		reverse: mock(() =>
-			Promise.resolve(Result.err(new OsmHttpError({ message: "Network failure" }))),
+			Promise.resolve(Result.err(new NominatimHttpError({ message: "Network failure" }))),
 		),
 		search: mock(() =>
-			Promise.resolve(Result.err(new OsmHttpError({ message: "Network failure" }))),
+			Promise.resolve(Result.err(new NominatimHttpError({ message: "Network failure" }))),
 		),
 	} as unknown as NominatimClient;
 	const tool = reverseGeocodeModule.build({ nominatim: brokenNominatim });
 	await expect(tool.execute("call-4", { lat: 52.5, lon: 13.4 })).rejects.toBeInstanceOf(
-		OsmHttpError,
+		NominatimHttpError,
 	);
 });
 
 // ---- geocode: busy handling -------------------------------------------------
 
-test("geocode: OsmBusyError returns normal result with busy message", async () => {
+test("geocode: NominatimBusyError returns normal result with busy message", async () => {
 	const busyNominatim = {
-		search: mock(() =>
-			Promise.resolve(Result.err(new OsmBusyError({ status: 429, service: "Nominatim" }))),
-		),
-		reverse: mock(() =>
-			Promise.resolve(Result.err(new OsmBusyError({ status: 429, service: "Nominatim" }))),
-		),
+		search: mock(() => Promise.resolve(Result.err(new NominatimBusyError({ status: 429 })))),
+		reverse: mock(() => Promise.resolve(Result.err(new NominatimBusyError({ status: 429 })))),
 	} as unknown as NominatimClient;
 	const tool = geocodeModule.build({ nominatim: busyNominatim });
 	const result = await tool.execute("call-5", { query: "Berlin" });
@@ -91,12 +84,14 @@ test("geocode: OsmBusyError returns normal result with busy message", async () =
 test("geocode: generic error still propagates", async () => {
 	const brokenNominatim = {
 		search: mock(() =>
-			Promise.resolve(Result.err(new OsmHttpError({ message: "Network failure" }))),
+			Promise.resolve(Result.err(new NominatimHttpError({ message: "Network failure" }))),
 		),
 		reverse: mock(() =>
-			Promise.resolve(Result.err(new OsmHttpError({ message: "Network failure" }))),
+			Promise.resolve(Result.err(new NominatimHttpError({ message: "Network failure" }))),
 		),
 	} as unknown as NominatimClient;
 	const tool = geocodeModule.build({ nominatim: brokenNominatim });
-	await expect(tool.execute("call-6", { query: "Berlin" })).rejects.toBeInstanceOf(OsmHttpError);
+	await expect(tool.execute("call-6", { query: "Berlin" })).rejects.toBeInstanceOf(
+		NominatimHttpError,
+	);
 });

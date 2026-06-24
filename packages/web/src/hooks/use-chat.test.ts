@@ -131,7 +131,7 @@ test("error with errorTag dispatches friendly copy from errorToToastCopy", () =>
 	const { dispatch, actions } = capture();
 	const evt: SSEEvent = {
 		event: "error",
-		data: { message: "raw msg", errorTag: "OsmBusy", details: { status: 429 } },
+		data: { message: "raw msg", errorTag: "OverpassBusy", details: { status: 429 } },
 	};
 
 	dispatchSseEvent(evt, dispatch, () => {
@@ -140,7 +140,7 @@ test("error with errorTag dispatches friendly copy from errorToToastCopy", () =>
 
 	expect(actions).toHaveLength(1);
 	expect(actions[0]).toMatchObject({ type: "SET_ERROR" });
-	// OsmBusy copy from the error-copy table — NOT the raw server message.
+	// OverpassBusy copy from the error-copy table — NOT the raw server message.
 	expect((actions[0] as { message: string }).message).toContain("OpenStreetMap");
 	expect((actions[0] as { message: string }).message).not.toBe("raw msg");
 });

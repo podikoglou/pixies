@@ -4,8 +4,8 @@ import { Result } from "better-result";
 import { queryOsmModule } from "./tool-query-osm.ts";
 import { geocodeModule } from "./tool-geocode.ts";
 import { MAX_CONTENT_LINES } from "./content.ts";
-import type { OverpassClient } from "../osm/overpass.ts";
-import type { NominatimClient, NominatimResult } from "../osm/nominatim.ts";
+import type { OverpassClient } from "../clients/overpass.ts";
+import type { NominatimClient, NominatimResult } from "../clients/nominatim.ts";
 
 function makeOverpassElements(count: number) {
 	return Array.from({ length: count }, (_, i) => ({

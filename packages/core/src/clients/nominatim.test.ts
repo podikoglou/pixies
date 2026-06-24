@@ -1,10 +1,10 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
 import { Result } from "better-result";
-import { NominatimClient } from "./nominatim.ts";
+import { NominatimBusyError, NominatimClient, NominatimParseError } from "./nominatim.ts";
 import { createOsmClients } from "../agent.ts";
 import { type Logger } from "../logging/index.ts";
-import { OsmBusyError, OsmParseError, ToolAbortedError } from "../errors.ts";
+import { ToolAbortedError } from "../errors.ts";
 
 /** Build a JSON `Response`-like object osmFetch treats as a success. */
 function jsonResponse(data: unknown): Response {
@@ -100,9 +100,9 @@ test("abort while a request is running returns Err(ToolAbortedError)", async () 
 	hanging.resolve(jsonResponse([]));
 });
 
-// ---- OsmBusyError passthrough (CAVEAT #3) -----------------------------------
+// ---- NominatimBusyError passthrough ------------------------------------------
 
-test("429 from osmFetch returns Err(OsmBusyError)", async () => {
+test("429 returns Err(NominatimBusyError)", async () => {
 	const fetchMock = mock(() =>
 		Promise.resolve(new Response("too busy", { status: 429 })),
 	) as unknown as typeof fetch;
@@ -111,8 +111,8 @@ test("429 from osmFetch returns Err(OsmBusyError)", async () => {
 	const r = await client.search("Berlin");
 	expect(Result.isError(r)).toBe(true);
 	if (Result.isError(r)) {
-		expect(r.error._tag).toBe("OsmBusy");
-		expect(r.error).toBeInstanceOf(OsmBusyError);
+		expect(r.error._tag).toBe("NominatimBusy");
+		expect(r.error).toBeInstanceOf(NominatimBusyError);
 	}
 });
 
@@ -168,7 +168,7 @@ test("reverse() returns the parsed result", async () => {
 
 // ---- invalid-shape error contract (pinned for #104 Value.Parse refactor) -----
 
-test("search() returns Err(OsmParseError) on invalid shape and tags the cause", async () => {
+test("search() returns Err(NominatimParseError) on invalid shape and tags the cause", async () => {
 	const fetchMock = mock(
 		() => Promise.resolve(jsonResponse([{ place_id: "not-a-number" }])), // bad place_id
 	) as unknown as typeof fetch;
@@ -176,13 +176,13 @@ test("search() returns Err(OsmParseError) on invalid shape and tags the cause", 
 	const r = await client.search("Berlin");
 	expect(Result.isError(r)).toBe(true);
 	if (Result.isError(r)) {
-		expect(r.error._tag).toBe("OsmParse");
-		expect(r.error).toBeInstanceOf(OsmParseError);
+		expect(r.error._tag).toBe("NominatimParse");
+		expect(r.error).toBeInstanceOf(NominatimParseError);
 		expect(r.error.message).toBe("Nominatim: invalid search response shape");
 	}
 });
 
-test("reverse() returns Err(OsmParseError) on invalid shape", async () => {
+test("reverse() returns Err(NominatimParseError) on invalid shape", async () => {
 	const fetchMock = mock(() =>
 		Promise.resolve(
 			jsonResponse({ lat: "52.5" /* missing required lon, display_name, place_id */ }),
@@ -192,7 +192,8 @@ test("reverse() returns Err(OsmParseError) on invalid shape", async () => {
 	const r = await client.reverse(52.5, 13.4);
 	expect(Result.isError(r)).toBe(true);
 	if (Result.isError(r)) {
-		expect(r.error._tag).toBe("OsmParse");
+		expect(r.error._tag).toBe("NominatimParse");
+		expect(r.error).toBeInstanceOf(NominatimParseError);
 		expect(r.error.message).toBe("Nominatim: invalid reverse response shape");
 	}
 });
@@ -287,7 +288,7 @@ test("search cache key is case- and whitespace-insensitive", async () => {
 	expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
-test("OsmBusyError is NOT cached — retry hits the network again", async () => {
+test("NominatimBusyError is NOT cached — retry hits the network again", async () => {
 	const fetchMock = mock(() =>
 		Promise.resolve(new Response("too busy", { status: 429 })),
 	) as unknown as typeof fetch;
@@ -297,7 +298,7 @@ test("OsmBusyError is NOT cached — retry hits the network again", async () => 
 	const r2 = await client.search("Berlin");
 	expect(Result.isError(r1)).toBe(true);
 	expect(Result.isError(r2)).toBe(true);
-	if (Result.isError(r1)) expect(r1.error._tag).toBe("OsmBusy");
+	if (Result.isError(r1)) expect(r1.error._tag).toBe("NominatimBusy");
 
 	expect(fetchMock).toHaveBeenCalledTimes(2);
 });
@@ -391,7 +392,7 @@ test("caching is disabled when cacheMaxEntries is 0 (either knob disables)", asy
 	expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
-test("reverse() does NOT cache an OsmBusyError — retry hits the network again", async () => {
+test("reverse() does NOT cache a NominatimBusyError — retry hits the network again", async () => {
 	const fetchMock = mock(() =>
 		Promise.resolve(new Response("too busy", { status: 429 })),
 	) as unknown as typeof fetch;
@@ -401,7 +402,7 @@ test("reverse() does NOT cache an OsmBusyError — retry hits the network again"
 	const r2 = await client.reverse(52.51704, 13.38886);
 	expect(Result.isError(r1)).toBe(true);
 	expect(Result.isError(r2)).toBe(true);
-	if (Result.isError(r1)) expect(r1.error._tag).toBe("OsmBusy");
+	if (Result.isError(r1)) expect(r1.error._tag).toBe("NominatimBusy");
 
 	expect(fetchMock).toHaveBeenCalledTimes(2);
 });

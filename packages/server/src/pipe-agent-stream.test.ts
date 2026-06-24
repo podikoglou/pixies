@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { expect, mock, test } from "bun:test";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import { OsmBusyError } from "@pixies/core";
+import { OverpassBusyError } from "@pixies/core";
 import { type Logger } from "@pixies/core/logging";
 import { ConversationStore } from "./conversations.ts";
 import { pipeAgentStream } from "./index.ts";
@@ -70,7 +70,7 @@ function mockLogger() {
 
 test("pipeAgentStream emits errorTag + details when the stream rejects with a TaggedError (#109)", async () => {
 	const { logger, errorSpy } = mockLogger();
-	const err = new OsmBusyError({ status: 429, service: "Overpass" });
+	const err = new OverpassBusyError({ status: 429 });
 	const response = pipeAgentStream(stubStore(), { stream: rejectingStream(err) }, "conv-1", logger);
 
 	const text = await response.text();
@@ -80,8 +80,8 @@ test("pipeAgentStream emits errorTag + details when the stream rejects with a Ta
 
 	const data = errorFrame!.data as Record<string, unknown>;
 	expect(data.message).toBe("Overpass: OSM server busy (HTTP 429)");
-	expect(data.errorTag).toBe("OsmBusy");
-	expect(data.details).toMatchObject({ _tag: "OsmBusy", status: 429 });
+	expect(data.errorTag).toBe("OverpassBusy");
+	expect(data.details).toMatchObject({ _tag: "OverpassBusy", status: 429 });
 
 	// The catch block must also log the rejection (regression for the log line).
 	expect(errorSpy).toHaveBeenCalled();

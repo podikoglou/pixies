@@ -18,11 +18,14 @@ export interface ErrorCopyArgs {
 
 export function errorToToastCopy({ tag, defaultMessage, details }: ErrorCopyArgs): string {
 	switch (tag) {
-		case "OsmBusy":
+		case "NominatimBusy":
+		case "OverpassBusy":
 			return "OpenStreetMap's servers are busy. Try again in a moment.";
-		case "OsmHttp":
-		case "OsmParse":
-		case "OsmRemark":
+		case "NominatimHttp":
+		case "NominatimParse":
+		case "OverpassHttp":
+		case "OverpassParse":
+		case "OverpassRemark":
 			return "We couldn't reach OpenStreetMap just now. Try again.";
 		case "ToolAborted":
 			return defaultMessage || "Stopped.";
