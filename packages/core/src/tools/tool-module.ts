@@ -45,7 +45,7 @@ export function parseSchema<S extends TSchema, R>(
  *
  * Each tool declares exactly the context it needs (`TContext`) via `execute`'s
  * first parameter — an arbitrary object the tool types itself (e.g.
- * `{ nominatim }`, `{ overpass }`, `{}`) — so single-tool tests build the tool
+ * `{ nominatim }`, `{ overpass }`) — so single-tool tests build the tool
  * with one mock and no type-lies.
  *
  * For a tool that needs no context, pass `TContext = void`; `execute` then
