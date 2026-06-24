@@ -64,8 +64,6 @@ export type {
 } from "./sse-events.ts";
 export {
 	createTools,
-	ToolProgressSchema,
-	isToolProgress,
 	GeocodeResultEntrySchema,
 	OverpassResultEntrySchema,
 	GeocodeToolDetailsSchema,
@@ -82,7 +80,6 @@ export type {
 	QueryOsmToolDetails,
 	DisplayMapData,
 	DisplayMapToolDetails,
-	ToolProgress,
 	ToolResult,
 	GeocodeResultEntry,
 	OverpassResultEntry,
