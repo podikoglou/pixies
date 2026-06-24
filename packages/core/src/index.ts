@@ -59,7 +59,6 @@ export {
 	DisplayMapDataSchema,
 	DisplayMapToolDetailsSchema,
 	parseToolResult,
-	summarizeToolResult,
 } from "./tools/index.ts";
 export type {
 	GeocodeToolDetails,
