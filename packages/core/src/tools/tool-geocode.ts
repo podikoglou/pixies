@@ -1,6 +1,5 @@
 import { Result, matchErrorPartial } from "better-result";
 import { Type } from "typebox";
-import { Value } from "typebox/value";
 import type { NominatimClient } from "../osm/nominatim.ts";
 import { OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
 import { ToolAbortedError } from "../errors.ts";
@@ -11,7 +10,7 @@ import {
 	type GeocodeToolDetails,
 } from "./schemas.ts";
 import type { ToolProgress } from "./progress.ts";
-import { defineTool } from "./tool-module.ts";
+import { defineTool, parseSchema } from "./tool-module.ts";
 import { textResult, formatContentLines } from "./content.ts";
 
 const schema = Type.Object({
@@ -34,10 +33,7 @@ export const geocodeModule = defineTool<
 	parameters: schema,
 	executionMode: "sequential",
 	detailsSchema: GeocodeToolDetailsSchema,
-	parse: (details) => {
-		if (!Value.Check(GeocodeToolDetailsSchema, details)) return null;
-		return { kind: "geocode", entries: details.data };
-	},
+	parse: parseSchema(GeocodeToolDetailsSchema, (d) => ({ kind: "geocode", entries: d.data })),
 	summarize: (result) => {
 		const top = result.entries[0];
 		if (!top) return null;

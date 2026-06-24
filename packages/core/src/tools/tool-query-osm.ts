@@ -1,6 +1,5 @@
 import { Result, matchErrorPartial } from "better-result";
 import { Type } from "typebox";
-import { Value } from "typebox/value";
 import type { OverpassClient } from "../osm/overpass.ts";
 import { OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
 import { ToolAbortedError } from "../errors.ts";
@@ -11,7 +10,7 @@ import {
 	type QueryOsmToolDetails,
 } from "./schemas.ts";
 import type { ToolProgress } from "./progress.ts";
-import { defineTool } from "./tool-module.ts";
+import { defineTool, parseSchema } from "./tool-module.ts";
 import { textResult, formatContentLines } from "./content.ts";
 
 const schema = Type.Object({
@@ -33,10 +32,7 @@ export const queryOsmModule = defineTool<
 		"Run an Overpass QL query against OpenStreetMap data. Use for finding features by tag, area, or geometry. Always include '[out:json]' prefix and a timeout. Use 'out center;' for ways/relations to get center coordinates.",
 	parameters: schema,
 	detailsSchema: QueryOsmToolDetailsSchema,
-	parse: (details) => {
-		if (!Value.Check(QueryOsmToolDetailsSchema, details)) return null;
-		return { kind: "query_osm", entries: details.data };
-	},
+	parse: parseSchema(QueryOsmToolDetailsSchema, (d) => ({ kind: "query_osm", entries: d.data })),
 	summarize: (result) => `${result.entries.length} elements`,
 	factory: (overpass) => async (_toolCallId, params, signal, onUpdate) => {
 		if (signal?.aborted) throw new ToolAbortedError({ message: "Operation aborted" });

@@ -1,6 +1,5 @@
 import { Result, matchErrorPartial } from "better-result";
 import { Type } from "typebox";
-import { Value } from "typebox/value";
 import type { NominatimClient } from "../osm/nominatim.ts";
 import { OSM_SERVER_BUSY_MESSAGE } from "../osm/http.ts";
 import { ToolAbortedError } from "../errors.ts";
@@ -11,7 +10,7 @@ import {
 	type ReverseGeocodeToolDetails,
 } from "./schemas.ts";
 import type { ToolProgress } from "./progress.ts";
-import { defineTool } from "./tool-module.ts";
+import { defineTool, parseSchema } from "./tool-module.ts";
 import { textResult } from "./content.ts";
 
 const schema = Type.Object({
@@ -38,10 +37,10 @@ export const reverseGeocodeModule = defineTool<
 	parameters: schema,
 	executionMode: "sequential",
 	detailsSchema: ReverseGeocodeToolDetailsSchema,
-	parse: (details) => {
-		if (!Value.Check(ReverseGeocodeToolDetailsSchema, details)) return null;
-		return { kind: "reverse_geocode", entry: details.data };
-	},
+	parse: parseSchema(ReverseGeocodeToolDetailsSchema, (d) => ({
+		kind: "reverse_geocode",
+		entry: d.data,
+	})),
 	summarize: (result) => result.entry.name,
 	factory: (nominatim) => async (_toolCallId, params, signal, onUpdate) => {
 		if (signal?.aborted) throw new ToolAbortedError({ message: "Operation aborted" });

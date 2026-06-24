@@ -1,5 +1,6 @@
 import type { AgentTool, ToolExecutionMode } from "@earendil-works/pi-agent-core";
-import type { TSchema } from "typebox";
+import type { Static, TSchema } from "typebox";
+import { Value } from "typebox/value";
 import type { NominatimClient } from "../osm/nominatim.ts";
 import type { OverpassClient } from "../osm/overpass.ts";
 
@@ -12,6 +13,22 @@ export interface ToolModule<TResult extends { kind: string }> {
 	detailsSchema: TSchema;
 	parse: (details: unknown) => TResult | null;
 	summarize: (result: TResult) => string | null;
+}
+
+/**
+ * Build a {@link ToolModule.parse} function from a TypeBox schema and a mapping
+ * to the typed result. `Value.Check` both validates `details` at runtime and
+ * narrows it to `Static<typeof schema>` at compile time, so `toResult` receives
+ * a typed value. Returns `null` when `details` does not validate.
+ *
+ * @example
+ *   parse: parseSchema(GeocodeToolDetailsSchema, (d) => ({ kind: "geocode", entries: d.data })),
+ */
+export function parseSchema<S extends TSchema, R>(
+	schema: S,
+	toResult: (details: Static<S>) => R,
+): (details: unknown) => R | null {
+	return (details) => (Value.Check(schema, details) ? toResult(details) : null);
 }
 
 /**

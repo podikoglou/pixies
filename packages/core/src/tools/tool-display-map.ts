@@ -1,12 +1,11 @@
 import { Type } from "typebox";
-import { Value } from "typebox/value";
 import { DisplayMapValidationError } from "../errors.ts";
 import {
 	DisplayMapToolDetailsSchema,
 	type DisplayMapData,
 	type DisplayMapToolDetails,
 } from "./schemas.ts";
-import { defineTool } from "./tool-module.ts";
+import { defineTool, parseSchema } from "./tool-module.ts";
 
 const boundsSchema = Type.Object({
 	minlat: Type.Number({ description: "Minimum latitude" }),
@@ -54,10 +53,7 @@ export const displayMapModule = defineTool<
 		"Display markers on a map in the UI. For query_osm results, pass queryRef (the tool call ID of that query) instead of re-listing markers. Add elementIds to show a subset. Use inline markers only for hand-picked points.",
 	parameters: schema,
 	detailsSchema: DisplayMapToolDetailsSchema,
-	parse: (details) => {
-		if (!Value.Check(DisplayMapToolDetailsSchema, details)) return null;
-		return { kind: "display_map", data: details.data };
-	},
+	parse: parseSchema(DisplayMapToolDetailsSchema, (d) => ({ kind: "display_map", data: d.data })),
 	summarize: (result) => `${result.data.markers.length} marker(s)`,
 	factory: () => async (_toolCallId, params) => {
 		const hasMarkers = params.markers !== undefined;
