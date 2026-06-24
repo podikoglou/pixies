@@ -55,17 +55,17 @@ Some architecture decisions are documented in [docs/adr/](docs/adr/).
 
 ## Adding a tool
 
-1. Create `packages/core/src/tools/tool-<name>.ts` — export a `ToolModule` and a factory function. The module bundles everything the tool needs:
-   - `factory` — creates the `AgentTool` with OSM clients injected
+1. Create `packages/core/src/tools/tool-<name>.ts` — export a module built with `defineTool`. Each tool declares the context it depends on (`TContext` — an object the tool types itself, e.g. `{ nominatim }` or `{ overpass }`; `void` for a context-less tool); `defineTool` bundles:
+   - `execute` — the tool's behavior. Its first argument is the context (destructure your deps out of it); the remaining arguments are pi's `execute` signature.
    - `detailsSchema` — TypeBox schema for the structured result
-   - `parse` — validates `unknown` details against the schema and returns a typed result variant (or `null`)
+   - `parse` — validates `unknown` details against the schema and returns a typed result variant (or `null`); `parseSchema(schema, (d) => …)` does the validate + narrow + map in one step
    - `summarize` — produces a one-line display summary from the parsed result
    
    See [tool-geocode.ts](./packages/core/src/tools/tool-geocode.ts) for an example.
 
-2. Register in `packages/core/src/tools/index.ts` — add one entry to the `TOOL_MODULES` const.
+2. Register in `packages/core/src/tools/index.ts` — add one entry to the `TOOL_MODULES` const and one `module.build({ … })` line in `createTools`. The build list is keyed by tool name with a mapped type over `TOOL_MODULES`, so the two must stay in sync (missing/extra keys are compile errors).
 
-3. Preferably test: `packages/core/src/tools/<name>.test.ts` (see [display-map.test.ts](./packages/core/src/tools/display-map.test.ts))
+3. Preferably test: `packages/core/src/tools/<name>.test.ts` — construct via `module.build({ …context })` (or `module.build()` for context-less tools); see [display-map.test.ts](./packages/core/src/tools/display-map.test.ts).
 
 
 

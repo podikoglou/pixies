@@ -38,8 +38,23 @@ export type {
 	DisplayMapToolDetails,
 } from "./schemas.ts";
 
+/**
+ * Build every tool's `AgentTool` from the `OsmClients` bag. This is the only
+ * place that knows the bag; each tool's `build` takes just the context it
+ * depends on (or nothing, for context-less tools).
+ *
+ * `builds` is keyed by tool name with a mapped type over `TOOL_MODULES`, so the
+ * build path and the parse path cannot silently drift — adding a tool requires
+ * touching both, enforced at compile time.
+ */
 export function createTools(clients: OsmClients): AgentTool[] {
-	return Object.values(TOOL_MODULES).map((mod) => mod.factory(clients));
+	const builds: { [K in keyof typeof TOOL_MODULES]: AgentTool } = {
+		geocode: geocodeModule.build({ nominatim: clients.nominatim }),
+		reverse_geocode: reverseGeocodeModule.build({ nominatim: clients.nominatim }),
+		query_osm: queryOsmModule.build({ overpass: clients.overpass }),
+		display_map: displayMapModule.build(),
+	};
+	return Object.values(builds);
 }
 
 type ExtractResult<T> = T extends ToolModule<infer R> ? R : never;
