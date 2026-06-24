@@ -58,11 +58,7 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 			<StatusIcon status={item.status} />
 			<span className="text-foreground text-sm font-medium">{formatToolName(item.toolName)}</span>
 			{isRunning ? (
-				item.queued ? (
-					<Badge variant="warning">queued</Badge>
-				) : (
-					<Badge variant="secondary">running</Badge>
-				)
+				<Badge variant="secondary">running</Badge>
 			) : isWarning ? (
 				<Badge variant="warning">unavailable</Badge>
 			) : isError ? (
