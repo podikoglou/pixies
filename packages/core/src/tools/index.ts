@@ -68,9 +68,3 @@ export function parseToolResult(toolName: string, details: unknown): ToolResult 
 	if (!mod) return { kind: "empty" };
 	return mod.parse(details) ?? { kind: "empty" };
 }
-
-export function summarizeToolResult(result: ToolResult): string | null {
-	if (result.kind === "empty") return null;
-	const mod = TOOL_MODULES[result.kind as ToolName];
-	return mod?.summarize(result as never) ?? null;
-}

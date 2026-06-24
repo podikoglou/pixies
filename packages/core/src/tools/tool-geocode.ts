@@ -34,12 +34,6 @@ export const geocodeModule = defineTool<
 	executionMode: "sequential",
 	detailsSchema: GeocodeToolDetailsSchema,
 	parse: parseSchema(GeocodeToolDetailsSchema, (d) => ({ kind: "geocode", entries: d.data })),
-	summarize: (result) => {
-		const top = result.entries[0];
-		if (!top) return null;
-		const name = top.name || top.displayName?.split(",")[0] || "unknown";
-		return `${name} (${top.lat},${top.lon})`;
-	},
 	execute: async ({ nominatim }, _toolCallId, params, signal, onUpdate) => {
 		if (signal?.aborted) throw new ToolAbortedError({ message: "Operation aborted" });
 		const result = await Result.gen(async function* () {

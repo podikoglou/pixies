@@ -70,9 +70,6 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 			) : (
 				<Badge variant="success">done</Badge>
 			)}
-			{!isRunning && item.summary && (
-				<span className="text-muted-foreground truncate text-xs">{item.summary}</span>
-			)}
 		</div>
 	);
 
