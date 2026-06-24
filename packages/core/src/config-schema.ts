@@ -1,4 +1,5 @@
-import { z } from "zod";
+import { Type, Refine } from "typebox";
+import type { Static } from "typebox";
 import { getProviders } from "@earendil-works/pi-ai";
 
 /**
@@ -6,145 +7,136 @@ import { getProviders } from "@earendil-works/pi-ai";
  *
  * The registry is built once at pi-ai import time and never mutated, so a
  * module-load snapshot documents that assumption and avoids recomputing the
- * set on every config parse. Used by the `model` field's superRefine below and
+ * set on every config parse. Used by the `model` field's Refine below and
  * by the defense-in-depth guard in `agent.ts` `resolveModel`.
  */
 const KNOWN_PROVIDERS: ReadonlySet<string> = new Set(getProviders());
 
-export const PixiesConfigSchema = z.object({
-	model: z
-		.string()
-		.regex(/^[^/]+\/.+/)
+export const PixiesConfigSchema = Type.Object({
+	model: Refine(
 		// Defense-in-depth alongside the runtime guard in agent.ts `resolveModel`.
-		// The regex above only checks the "provider/model-id" shape; this superRefine
+		// The pattern below only checks the "provider/model-id" shape; this Refine
 		// additionally validates the provider prefix against pi-ai's registry, so a
 		// typo'd provider (e.g. `PIXIES_MODEL=antrophic/...`) fails fast at boot with
-		// a message naming the valid providers. superRefine (rather than refine with a
-		// message factory) because Zod v4's refine params type omits the dynamic-error
-		// field; addIssue(string) gives the same dynamic message cleanly.
-		.superRefine((val, ctx) => {
+		// a message naming the valid providers.
+		Type.String({ pattern: "^[^/]+/.+", description: 'Model in "provider/model-id" format' }),
+		(val) => {
 			const provider = val.slice(0, val.indexOf("/"));
-			if (!KNOWN_PROVIDERS.has(provider)) {
-				ctx.addIssue(
-					`Unknown provider "${provider}". Valid providers: ${[...KNOWN_PROVIDERS].join(", ")}`,
-				);
-			}
-		})
-		.describe('Model in "provider/model-id" format'),
-	apiKey: z.string().describe("API key for the AI provider"),
-	contactEmail: z.string().email().optional().describe("Contact email for OSM usage policy"),
-	overpassUrl: z
-		.string()
-		.url()
-		.default("https://overpass-api.de/api/interpreter")
-		.describe("Custom Overpass API URL"),
-	nominatimUrl: z
-		.string()
-		.url()
-		.default("https://nominatim.openstreetmap.org")
-		.describe("Custom Nominatim API URL"),
-	userAgent: z
-		.string()
-		.default("Pixies/1.0 (https://github.com/podikoglou/pixies)")
-		.describe("Custom User-Agent for OSM requests"),
-	host: z.string().default("127.0.0.1").describe("Server listen hostname"),
-	port: z.coerce.number().int().min(1).max(65535).default(3000).describe("Server listen port"),
-	thinkingLevel: z
-		.enum(["off", "low", "medium", "high"] as const)
-		.default("off")
-		.describe("AI thinking level"),
-	dbFile: z.string().default("pixies.db").describe("Path to SQLite database file"),
-	cacheSize: z.coerce
-		.number()
-		.int()
-		.min(0)
-		.default(50)
-		.describe("Max number of in-memory conversations"),
-	httpRateLimit: z.coerce
-		.number()
-		.int()
-		.min(0)
-		.default(30)
-		.describe("Max POST requests per IP per rate-limit window (0 disables)"),
-	httpRateLimitWindowMs: z.coerce
-		.number()
-		.int()
-		.min(1)
-		.default(60_000)
-		.describe("Per-IP HTTP rate-limit window length (ms)"),
-	trustProxy: z
-		.boolean()
-		.default(false)
-		.describe("Honor X-Forwarded-For for client IP (set true behind Caddy/Nginx)"),
-	trustedProxyHops: z.coerce
-		.number()
-		.int()
-		.min(0)
-		.default(1)
-		.describe("Number of trusted proxy hops when parsing X-Forwarded-For"),
-	nominatimConcurrency: z.coerce
-		.number()
-		.int()
-		.min(1)
-		.default(1)
-		.describe("Max concurrent in-flight Nominatim requests (default-instance policy: 1)"),
-	nominatimIntervalCap: z.coerce
-		.number()
-		.int()
-		.min(1)
-		.default(1)
-		.describe("Max Nominatim requests started per interval window (default-instance policy: 1)"),
-	nominatimIntervalMs: z.coerce
-		.number()
-		.int()
-		.min(1)
-		.default(1100)
-		.describe("Nominatim interval window length in ms (default-instance policy: 1100 → ~1 req/s)"),
-	nominatimCacheTtlMs: z.coerce
-		.number()
-		.int()
-		.min(0)
-		.default(86_400_000)
-		.describe(
+			return KNOWN_PROVIDERS.has(provider);
+		},
+		(val) => {
+			const provider = val.slice(0, val.indexOf("/"));
+			return `Unknown provider "${provider}". Valid providers: ${[...KNOWN_PROVIDERS].join(", ")}`;
+		},
+	),
+	apiKey: Type.String({ description: "API key for the AI provider" }),
+	contactEmail: Type.Optional(
+		Type.String({ format: "email", description: "Contact email for OSM usage policy" }),
+	),
+	overpassUrl: Type.String({
+		format: "url",
+		default: "https://overpass-api.de/api/interpreter",
+		description: "Custom Overpass API URL",
+	}),
+	nominatimUrl: Type.String({
+		format: "url",
+		default: "https://nominatim.openstreetmap.org",
+		description: "Custom Nominatim API URL",
+	}),
+	userAgent: Type.String({
+		default: "Pixies/1.0 (https://github.com/podikoglou/pixies)",
+		description: "Custom User-Agent for OSM requests",
+	}),
+	host: Type.String({ default: "127.0.0.1", description: "Server listen hostname" }),
+	port: Type.Integer({
+		minimum: 1,
+		maximum: 65535,
+		default: 3000,
+		description: "Server listen port",
+	}),
+	thinkingLevel: Type.Union(
+		[Type.Literal("off"), Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")],
+		{ default: "off", description: "AI thinking level" },
+	),
+	dbFile: Type.String({ default: "pixies.db", description: "Path to SQLite database file" }),
+	cacheSize: Type.Integer({
+		minimum: 0,
+		default: 50,
+		description: "Max number of in-memory conversations",
+	}),
+	httpRateLimit: Type.Integer({
+		minimum: 0,
+		default: 30,
+		description: "Max POST requests per IP per rate-limit window (0 disables)",
+	}),
+	httpRateLimitWindowMs: Type.Integer({
+		minimum: 1,
+		default: 60_000,
+		description: "Per-IP HTTP rate-limit window length (ms)",
+	}),
+	trustProxy: Type.Boolean({
+		default: false,
+		description: "Honor X-Forwarded-For for client IP (set true behind Caddy/Nginx)",
+	}),
+	trustedProxyHops: Type.Integer({
+		minimum: 0,
+		default: 1,
+		description: "Number of trusted proxy hops when parsing X-Forwarded-For",
+	}),
+	nominatimConcurrency: Type.Integer({
+		minimum: 1,
+		default: 1,
+		description: "Max concurrent in-flight Nominatim requests (default-instance policy: 1)",
+	}),
+	nominatimIntervalCap: Type.Integer({
+		minimum: 1,
+		default: 1,
+		description: "Max Nominatim requests started per interval window (default-instance policy: 1)",
+	}),
+	nominatimIntervalMs: Type.Integer({
+		minimum: 1,
+		default: 1100,
+		description:
+			"Nominatim interval window length in ms (default-instance policy: 1100 → ~1 req/s)",
+	}),
+	nominatimCacheTtlMs: Type.Integer({
+		minimum: 0,
+		default: 86_400_000,
+		description:
 			"TTL for cached Nominatim search/reverse responses in ms (default: 24h). 0 disables caching.",
-		),
-	nominatimCacheMaxEntries: z.coerce
-		.number()
-		.int()
-		.min(0)
-		.default(1000)
-		.describe("Max cached Nominatim responses (LRU eviction). 0 disables caching."),
-	overpassConcurrency: z.coerce
-		.number()
-		.int()
-		.min(1)
-		.default(2)
-		.describe("Max concurrent in-flight Overpass requests (default-instance policy: 2)"),
-	overpassIntervalCap: z.coerce
-		.number()
-		.int()
-		.min(1)
-		.default(2)
-		.describe("Max Overpass requests started per interval window (default-instance policy: 2)"),
-	overpassIntervalMs: z.coerce
-		.number()
-		.int()
-		.min(1)
-		.default(1000)
-		.describe("Overpass interval window length in ms (default-instance policy: 1000)"),
-	discordWebhookUrl: z
-		.string()
-		.url()
-		.optional()
-		.describe("Discord webhook URL to receive error/fatal log alerts"),
-	conversationTokenBudget: z.coerce
-		.number()
-		.int()
-		.min(0)
-		.default(0)
-		.describe(
+	}),
+	nominatimCacheMaxEntries: Type.Integer({
+		minimum: 0,
+		default: 1000,
+		description: "Max cached Nominatim responses (LRU eviction). 0 disables caching.",
+	}),
+	overpassConcurrency: Type.Integer({
+		minimum: 1,
+		default: 2,
+		description: "Max concurrent in-flight Overpass requests (default-instance policy: 2)",
+	}),
+	overpassIntervalCap: Type.Integer({
+		minimum: 1,
+		default: 2,
+		description: "Max Overpass requests started per interval window (default-instance policy: 2)",
+	}),
+	overpassIntervalMs: Type.Integer({
+		minimum: 1,
+		default: 1000,
+		description: "Overpass interval window length in ms (default-instance policy: 1000)",
+	}),
+	discordWebhookUrl: Type.Optional(
+		Type.String({
+			format: "url",
+			description: "Discord webhook URL to receive error/fatal log alerts",
+		}),
+	),
+	conversationTokenBudget: Type.Integer({
+		minimum: 0,
+		default: 0,
+		description:
 			"Max tokens (input + output) a single conversation may consume across all turns. 0 = unlimited.",
-		),
+	}),
 });
 
-export type ResolvedPixiesConfig = z.output<typeof PixiesConfigSchema>;
+export type ResolvedPixiesConfig = Static<typeof PixiesConfigSchema>;
