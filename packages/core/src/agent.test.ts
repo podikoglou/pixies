@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { afterEach, expect, mock, test } from "bun:test";
-import { ZodError } from "zod";
+import { ParseError } from "typebox/value";
 import { createOsmClients, readConfigFromEnv } from "./agent.ts";
 import type { ResolvedPixiesConfig } from "./config-schema.ts";
 
@@ -395,12 +395,12 @@ test("readConfigFromEnv surfaces the unknown-provider message with the valid-pro
 	} catch (err) {
 		caught = err;
 	}
-	expect(caught).toBeInstanceOf(ZodError);
-	// In Zod v4 the ZodError message is a serialized issue array, so inspect
-	// the structured issues directly. The refine's message names the bad
-	// provider AND lists valid ones, so operators can fix a typo without
-	// grepping pi-ai.
-	const issueMsg = (caught as ZodError).issues[0]?.message ?? "";
+	expect(caught).toBeInstanceOf(ParseError);
+	// TypeBox's Value.Parse throws a ParseError whose `.cause.errors` array
+	// carries the structured validation issues. The Refine's error callback
+	// names the bad provider AND lists valid ones, so operators can fix a
+	// typo without grepping pi-ai.
+	const issueMsg = (caught as ParseError).cause.errors[0]?.message ?? "";
 	expect(issueMsg).toContain('Unknown provider "notaprovider"');
 	expect(issueMsg).toContain("anthropic");
 	expect(issueMsg).toContain("openai");
