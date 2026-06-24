@@ -17,7 +17,6 @@ test("STREAM_DONE with responseTimeMs attaches to last item", () => {
 				queued: false,
 				resultText: "3 results",
 				result: { kind: "query_osm" as const, entries: [], count: 3 },
-				summary: "3 results",
 			},
 		],
 	};

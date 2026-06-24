@@ -1,6 +1,5 @@
 import type { ConversationTranscript } from "../api/conversations.ts";
 import { parseToolResult, type ToolProgress, type ToolResult } from "@pixies/core";
-import { summarizeResult } from "../lib/summarize-result.ts";
 
 export type TimelineItem =
 	| { kind: "user-message"; text: string; responseTimeMs?: number }
@@ -14,7 +13,6 @@ export type TimelineItem =
 			queued: boolean;
 			resultText: string | null;
 			result: ToolResult;
-			summary: string | null;
 			responseTimeMs?: number;
 	  };
 
@@ -95,7 +93,6 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 						queued: false,
 						resultText: null,
 						result: { kind: "empty" },
-						summary: null,
 					},
 				],
 			};
@@ -124,7 +121,6 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 						queued: false,
 						resultText: action.resultText,
 						result: parsed,
-						summary: summarizeResult(parsed),
 					};
 				}),
 			};
@@ -185,7 +181,6 @@ export function transcriptToItems(transcript: ConversationTranscript): TimelineI
 					queued: false,
 					resultText: joinContentText(msg.content, "\n") || null,
 					result: parsed,
-					summary: summarizeResult(parsed),
 				});
 				break;
 			}
