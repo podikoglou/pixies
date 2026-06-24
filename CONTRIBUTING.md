@@ -59,7 +59,6 @@ Some architecture decisions are documented in [docs/adr/](docs/adr/).
    - `execute` — the tool's behavior. Its first argument is the context (destructure your deps out of it); the remaining arguments are pi's `execute` signature.
    - `detailsSchema` — TypeBox schema for the structured result
    - `parse` — validates `unknown` details against the schema and returns a typed result variant (or `null`); `parseSchema(schema, (d) => …)` does the validate + narrow + map in one step
-   - `summarize` — produces a one-line display summary from the parsed result
    
    See [tool-geocode.ts](./packages/core/src/tools/tool-geocode.ts) for an example.
 
