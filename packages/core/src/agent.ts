@@ -1,6 +1,7 @@
 import { Agent } from "@earendil-works/pi-agent-core";
 import { getModels, getProviders } from "@earendil-works/pi-ai";
 import type { Api, KnownProvider, Model } from "@earendil-works/pi-ai";
+import { Value } from "typebox/value";
 import { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
 import { silentLogger, type Logger } from "./logging/index.ts";
 import { NominatimClient } from "./osm/nominatim.ts";
@@ -31,7 +32,7 @@ function resolveModel(modelRef: string): Model<Api> {
 	const provider = modelRef.slice(0, slashIndex);
 	const modelId = modelRef.slice(slashIndex + 1);
 
-	// Defense-in-depth: the Zod schema in config-schema.ts already rejects
+	// Defense-in-depth: the config schema in config-schema.ts already rejects
 	// unknown providers at boot, but `resolveModel` is exported-reachable
 	// (and unit-testable) on its own, so it must not trust its input. The guard
 	// also narrows `provider` to `KnownProvider`, removing the `as` cast on the
@@ -63,36 +64,56 @@ function env(name: string): string | undefined {
 	return v && v.trim().length > 0 ? v : undefined;
 }
 
+/**
+ * Read a numeric env var, returning `undefined` when unset/empty so the schema
+ * applies its documented default. Coercion is an explicit `Number()` — NOT
+ * `Value.Convert` (which silently truncates "3.5" → 3) — so non-integer
+ * strings like "3.5" are rejected by `Type.Integer` just like Zod's
+ * `z.coerce.number().int()` did. See config cleanup (#101/#103/#105).
+ */
+function num(name: string): number | undefined {
+	const v = env(name);
+	return v === undefined ? undefined : Number(v);
+}
+
 export function readConfigFromEnv(): ResolvedPixiesConfig {
-	return PixiesConfigSchema.parse({
-		model: env("PIXIES_MODEL"),
-		apiKey: env("PIXIES_API_KEY"),
-		contactEmail: env("PIXIES_CONTACT_EMAIL"),
-		overpassUrl: env("PIXIES_OVERPASS_URL"),
-		nominatimUrl: env("PIXIES_NOMINATIM_URL"),
-		userAgent: env("PIXIES_USER_AGENT"),
-		host: env("PIXIES_HOST"),
-		port: env("PIXIES_PORT"),
-		thinkingLevel: env("PIXIES_THINKING_LEVEL"),
-		dbFile: env("PIXIES_DB_FILE"),
-		cacheSize: env("PIXIES_CACHE_SIZE"),
-		httpRateLimit: env("PIXIES_HTTP_RATE_LIMIT"),
-		httpRateLimitWindowMs: env("PIXIES_HTTP_RATE_LIMIT_WINDOW_MS"),
-		// Boolean coercion must NOT use the env() helper or z.coerce.boolean() —
-		// both would coerce "false" → true. Keep the explicit === "true" check.
-		trustProxy: process.env.PIXIES_TRUST_PROXY === "true",
-		trustedProxyHops: env("PIXIES_TRUSTED_PROXY_HOPS"),
-		nominatimConcurrency: env("PIXIES_NOMINATIM_CONCURRENCY"),
-		nominatimIntervalCap: env("PIXIES_NOMINATIM_INTERVAL_CAP"),
-		nominatimIntervalMs: env("PIXIES_NOMINATIM_INTERVAL_MS"),
-		nominatimCacheTtlMs: env("PIXIES_NOMINATIM_CACHE_TTL_MS"),
-		nominatimCacheMaxEntries: env("PIXIES_NOMINATIM_CACHE_MAX_ENTRIES"),
-		overpassConcurrency: env("PIXIES_OVERPASS_CONCURRENCY"),
-		overpassIntervalCap: env("PIXIES_OVERPASS_INTERVAL_CAP"),
-		overpassIntervalMs: env("PIXIES_OVERPASS_INTERVAL_MS"),
-		discordWebhookUrl: env("PIXIES_DISCORD_WEBHOOK_URL"),
-		conversationTokenBudget: env("PIXIES_CONVERSATION_TOKEN_BUDGET"),
-	});
+	// `Value.Default` fills in documented defaults for missing/empty fields;
+	// `Value.Parse` then validates (formats, integer bounds, the provider
+	// Refine). Unlike Zod's `.parse()`, Value.Parse does NOT apply defaults on
+	// its own, so both run in sequence. Value.Default mutates its input, which
+	// is safe here — the object literal below is freshly built per call.
+	return Value.Parse(
+		PixiesConfigSchema,
+		Value.Default(PixiesConfigSchema, {
+			model: env("PIXIES_MODEL"),
+			apiKey: env("PIXIES_API_KEY"),
+			contactEmail: env("PIXIES_CONTACT_EMAIL"),
+			overpassUrl: env("PIXIES_OVERPASS_URL"),
+			nominatimUrl: env("PIXIES_NOMINATIM_URL"),
+			userAgent: env("PIXIES_USER_AGENT"),
+			host: env("PIXIES_HOST"),
+			port: num("PIXIES_PORT"),
+			thinkingLevel: env("PIXIES_THINKING_LEVEL"),
+			dbFile: env("PIXIES_DB_FILE"),
+			cacheSize: num("PIXIES_CACHE_SIZE"),
+			httpRateLimit: num("PIXIES_HTTP_RATE_LIMIT"),
+			httpRateLimitWindowMs: num("PIXIES_HTTP_RATE_LIMIT_WINDOW_MS"),
+			// Boolean coercion must NOT use the env() helper or coerce-from-string —
+			// both would coerce "false" → true. Keep the explicit === "true" check.
+			trustProxy: process.env.PIXIES_TRUST_PROXY === "true",
+			trustedProxyHops: num("PIXIES_TRUSTED_PROXY_HOPS"),
+			nominatimConcurrency: num("PIXIES_NOMINATIM_CONCURRENCY"),
+			nominatimIntervalCap: num("PIXIES_NOMINATIM_INTERVAL_CAP"),
+			nominatimIntervalMs: num("PIXIES_NOMINATIM_INTERVAL_MS"),
+			nominatimCacheTtlMs: num("PIXIES_NOMINATIM_CACHE_TTL_MS"),
+			nominatimCacheMaxEntries: num("PIXIES_NOMINATIM_CACHE_MAX_ENTRIES"),
+			overpassConcurrency: num("PIXIES_OVERPASS_CONCURRENCY"),
+			overpassIntervalCap: num("PIXIES_OVERPASS_INTERVAL_CAP"),
+			overpassIntervalMs: num("PIXIES_OVERPASS_INTERVAL_MS"),
+			discordWebhookUrl: env("PIXIES_DISCORD_WEBHOOK_URL"),
+			conversationTokenBudget: num("PIXIES_CONVERSATION_TOKEN_BUDGET"),
+		}),
+	);
 }
 
 export interface CreateAgentOptions {
