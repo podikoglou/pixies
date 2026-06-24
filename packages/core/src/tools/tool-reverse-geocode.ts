@@ -41,7 +41,6 @@ export const reverseGeocodeModule = defineTool<
 		kind: "reverse_geocode",
 		entry: d.data,
 	})),
-	summarize: (result) => result.entry.name,
 	execute: async ({ nominatim }, _toolCallId, params, signal, onUpdate) => {
 		if (signal?.aborted) throw new ToolAbortedError({ message: "Operation aborted" });
 		const result = await Result.gen(async function* () {
