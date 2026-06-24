@@ -89,3 +89,11 @@ This decision holds for as long as:
 - `packages/core/src/osm/nominatim.ts`, `packages/core/src/osm/overpass.ts` — per-service config.
 - [p-queue](https://github.com/sindresorhus/p-queue) — concurrency + interval + strict sliding window.
 - Rate limiting (HTTP API + OSM clients).
+
+## Revision — 2026-06-25
+
+**Progress callbacks removed.** The `RateLimitCallbacks` interface (`onProgress` emitting `"queued"`/`"running"`) and the `callbacks` parameter on `withRateLimit(fn, signal?, callbacks?)` were deleted as part of the `ToolProgress` concept removal. `withRateLimit` now accepts only `(fn, signal?)`.
+
+The `TDetails` generic on tool implementations no longer includes `ToolProgress` in its union. The `tool_execution_update` SSE event is removed from the wire protocol.
+
+The underlying p-queue limiter, its per-service config, and ADR-0004's structural invariant are unchanged. The quorum note about `queued` emission divergence (Negative consequence, paragraphs 69-70) is now moot — the divergence never had a consumer.
