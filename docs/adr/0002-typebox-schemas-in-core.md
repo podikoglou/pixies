@@ -1,6 +1,6 @@
 # ADR-0002: TypeBox schemas in core for shared type contracts
 
-**Status:** Accepted — 2026-06-15; revised 2026-06-15 (config moved to Zod; see Revision below).
+**Status:** Accepted — 2026-06-15; revised 2026-06-15 (config moved to Zod; see Revision below). Superseded (config portion) by ADR-0006 — 2026-06-24.
 
 ## Revision — 2026-06-15
 
