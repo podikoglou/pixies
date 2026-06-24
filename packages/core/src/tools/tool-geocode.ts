@@ -8,10 +8,9 @@ import {
 	type GeocodeResultEntry,
 	type GeocodeToolDetails,
 } from "./schemas.ts";
-import type { ToolProgress } from "./progress.ts";
 import { defineTool, parseSchema } from "./tool-module.ts";
 import { textResult, formatContentLines } from "./content.ts";
-import { throwIfAborted, forwardProgress, recoverBusyOrThrow } from "./control-flow.ts";
+import { throwIfAborted, recoverBusyOrThrow } from "./control-flow.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -24,7 +23,7 @@ export const geocodeModule = defineTool<
 	{ kind: "geocode"; entries: GeocodeResultEntry[] },
 	{ nominatim: NominatimClient },
 	typeof schema,
-	ToolProgress | GeocodeToolDetails | { busy: true }
+	GeocodeToolDetails | { busy: true }
 >({
 	name: "geocode",
 	label: "Geocode",
@@ -34,13 +33,11 @@ export const geocodeModule = defineTool<
 	executionMode: "sequential",
 	detailsSchema: GeocodeToolDetailsSchema,
 	parse: parseSchema(GeocodeToolDetailsSchema, (d) => ({ kind: "geocode", entries: d.data })),
-	execute: async ({ nominatim }, _toolCallId, params, signal, onUpdate) => {
+	execute: async ({ nominatim }, _toolCallId, params, signal, _onUpdate) => {
 		throwIfAborted(signal);
 		const result = await Result.gen(async function* () {
 			const results = yield* Result.await(
-				nominatim.search(params.query, { limit: params.limit }, signal, {
-					onProgress: forwardProgress(onUpdate),
-				}),
+				nominatim.search(params.query, { limit: params.limit }, signal),
 			);
 			if (results.length === 0) {
 				return Result.ok({

@@ -6,7 +6,6 @@ import { Value } from "typebox/value";
 import { silentLogger, type Logger } from "../logging/index.ts";
 import { ToolAbortedError } from "../errors.ts";
 import { isAbortError, mergeSignals } from "../utils/abort.ts";
-import type { ToolProgress } from "../tools/progress.ts";
 
 /** Overpass returned a busy / non-retryable condition; see {@link isOverpassBusyResponse} for the status/marker set. */
 export class OverpassBusyError extends TaggedError("OverpassBusy")<{
@@ -49,11 +48,6 @@ export type OverpassError =
 	| OverpassParseError
 	| OverpassRemarkError
 	| ToolAbortedError;
-
-/** Progress callbacks emitted around Overpass queue waits and execution. */
-export interface OverpassRateLimitCallbacks {
-	onProgress?: (progress: ToolProgress) => void;
-}
 
 /** TypeBox schema for a single Overpass element. */
 export const OverpassElementSchema = Type.Object({
@@ -181,7 +175,6 @@ export class OverpassClient {
 	async query(
 		query: string,
 		parentSignal?: AbortSignal,
-		callbacks: OverpassRateLimitCallbacks = {},
 	): Promise<Result<OverpassResponse, OverpassError>> {
 		const logger = this.logger;
 		return Result.tryPromise({
@@ -239,21 +232,15 @@ export class OverpassClient {
 							});
 							throw new OverpassRemarkError({ remark: parsed.remark });
 						}
-						return parsed;
-					},
+					return parsed;
+				},
 					parentSignal,
-					callbacks,
 				),
 			catch: toOverpassError,
 		});
 	}
 
-	private withRateLimit<T>(
-		fn: () => Promise<T>,
-		signal?: AbortSignal,
-		callbacks: OverpassRateLimitCallbacks = {},
-	): Promise<T> {
-		if (this.queue.pending >= this.concurrency) callbacks.onProgress?.({ type: "queued" });
+	private withRateLimit<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
 		if (this.queue.size > 0) {
 			this.logger.debug("queue backpressure", {
 				service: "Overpass",
@@ -272,7 +259,6 @@ export class OverpassClient {
 						queueSize: this.queue.size,
 						pending: this.queue.pending,
 					});
-					callbacks.onProgress?.({ type: "running" });
 					return fn();
 				},
 				{ signal },

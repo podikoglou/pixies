@@ -8,10 +8,9 @@ import {
 	type GeocodeResultEntry,
 	type ReverseGeocodeToolDetails,
 } from "./schemas.ts";
-import type { ToolProgress } from "./progress.ts";
 import { defineTool, parseSchema } from "./tool-module.ts";
 import { textResult } from "./content.ts";
-import { throwIfAborted, forwardProgress, recoverBusyOrThrow } from "./control-flow.ts";
+import { throwIfAborted, recoverBusyOrThrow } from "./control-flow.ts";
 
 const schema = Type.Object({
 	lat: Type.Number({ description: "Latitude" }),
@@ -28,7 +27,7 @@ export const reverseGeocodeModule = defineTool<
 	{ kind: "reverse_geocode"; entry: GeocodeResultEntry },
 	{ nominatim: NominatimClient },
 	typeof schema,
-	ToolProgress | ReverseGeocodeToolDetails | { busy: true } | undefined
+	ReverseGeocodeToolDetails | { busy: true } | undefined
 >({
 	name: "reverse_geocode",
 	label: "Reverse geocode",
@@ -41,13 +40,11 @@ export const reverseGeocodeModule = defineTool<
 		kind: "reverse_geocode",
 		entry: d.data,
 	})),
-	execute: async ({ nominatim }, _toolCallId, params, signal, onUpdate) => {
+	execute: async ({ nominatim }, _toolCallId, params, signal, _onUpdate) => {
 		throwIfAborted(signal);
 		const result = await Result.gen(async function* () {
 			const result = yield* Result.await(
-				nominatim.reverse(params.lat, params.lon, { zoom: params.zoom }, signal, {
-					onProgress: forwardProgress(onUpdate),
-				}),
+				nominatim.reverse(params.lat, params.lon, { zoom: params.zoom }, signal),
 			);
 			if (!result || !result.display_name) {
 				return Result.ok({

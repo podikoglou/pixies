@@ -109,14 +109,12 @@ export { NominatimClient, formatNominatimResult } from "./clients/nominatim.ts";
 export type {
 	NominatimConfig,
 	NominatimResult,
-	NominatimRateLimitCallbacks,
 } from "./clients/nominatim.ts";
 export { OverpassClient, formatElement } from "./clients/overpass.ts";
 export type {
 	OverpassConfig,
 	OverpassElement,
 	OverpassResponse,
-	OverpassRateLimitCallbacks,
 } from "./clients/overpass.ts";
 export { NOMINATIM_BUSY_MESSAGE } from "./clients/nominatim.ts";
 export { OVERPASS_BUSY_MESSAGE } from "./clients/overpass.ts";
