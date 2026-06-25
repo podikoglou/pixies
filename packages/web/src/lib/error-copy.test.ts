@@ -50,6 +50,6 @@ test("PromptConflict / ConversationNotFound render their copy", () => {
 	expect(copy("ConversationNotFound")).toBe("This conversation no longer exists.");
 });
 
-test("undefined tag (legacy server) falls back to the default message", () => {
+test("undefined tag (absent or rejected at the boundary) falls back to the default message", () => {
 	expect(copy(undefined, "legacy server message")).toBe("legacy server message");
 });
