@@ -9,7 +9,7 @@ import { ToolAbortedError } from "../errors.ts";
 import { isAbortError, mergeSignals } from "../utils/abort.ts";
 import type { ToolProgress } from "../tools/progress.ts";
 
-/** Nominatim returned a busy / non-retryable condition (429 / 503 / markers). */
+/** Nominatim returned a busy / non-retryable condition; see {@link isNominatimBusyResponse} for the status/marker set. */
 export class NominatimBusyError extends TaggedError("NominatimBusy")<{
 	status: number;
 	message: string;
