@@ -36,6 +36,14 @@ component rather than abandoning it.
 Keep layouts as simple as possible. Avoid nested wrapper divs, complex CSS grids,
 or unnecessary container elements. Prefer inline flex with minimal padding/margin.
 
+## Persistence
+
+Any Drizzle column declared as `text({ mode: "json" }).$type<T>()` MUST be
+re-validated with a TypeBox `Value.Check` at its read boundary before its value
+is trusted — `$type<>` is compile-time only and performs no runtime validation;
+persisted JSON is untrusted. Each `$type<>` column in `schema.ts` carries a
+comment naming its guard. See ADR-0008.
+
 ## Animations
 
 For animation principles (interruptible, enter/exit, stagger, contextual icon
