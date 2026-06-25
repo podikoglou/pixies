@@ -29,10 +29,10 @@ test("BudgetExceededError derives its message (byte-identical to old server stri
 	);
 });
 
-// PixiesErrorTagSchema is the wire-trust boundary for the SSE `errorTag` field
-// (CONVENTIONS.local.md §3: parse, don't cast). The drift guard in errors.ts
-// pins its literals to the TaggedError union, so a representative sample is
-// enough here — exhaustive enumeration would be over-specification (§5).
+// PixiesErrorTagSchema is the wire-trust boundary for the SSE `errorTag`
+// field. The drift guard in errors.ts pins its literals to the TaggedError
+// union, so a representative sample is enough here — exhaustive enumeration
+// would be over-specification.
 
 test("PixiesErrorTagSchema accepts every known Pixies tag", () => {
 	for (const tag of [
