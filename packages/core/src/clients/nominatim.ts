@@ -408,7 +408,7 @@ async function fetchNominatimResponse(
 }
 
 function isNominatimBusyResponse(status: number, body: string): boolean {
-	if (status === 429 || status === 503) return true;
+	if ([429, 502, 503, 504].includes(status)) return true;
 	return BUSY_BODY_MARKERS.some((marker) => body.includes(marker));
 }
 
