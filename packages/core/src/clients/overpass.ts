@@ -8,7 +8,7 @@ import { ToolAbortedError } from "../errors.ts";
 import { isAbortError, mergeSignals } from "../utils/abort.ts";
 import type { ToolProgress } from "../tools/progress.ts";
 
-/** Overpass returned a busy / non-retryable condition (429 / 503 / markers). */
+/** Overpass returned a busy / non-retryable condition; see {@link isOverpassBusyResponse} for the status/marker set. */
 export class OverpassBusyError extends TaggedError("OverpassBusy")<{
 	status: number;
 	message: string;
