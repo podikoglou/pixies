@@ -13,13 +13,13 @@ Off by default. Set `VITE_POSTHOG_KEY` and the SPA initialises the PostHog clien
 
 ## What is collected
 
-The client mounts with every capture surface disabled (`packages/web/src/contexts/posthog-provider.tsx`):
+The client mounts with these capture surfaces (`packages/web/src/contexts/posthog-provider.tsx`):
 
-- `autocapture: false`
-- `capture_exceptions: false`
-- `disable_session_recording: true`
+- `autocapture: false` — no automatic element/click capture.
+- `capture_exceptions: true` — unhandled errors (`window.onerror`), unhandled promise rejections, and React render crashes (caught by the error boundary in `packages/web/src/components/error-boundary.tsx`) are sent to PostHog Error Tracking. Each carries its JS stack trace; React crashes additionally carry the component stack.
+- `disable_session_recording: true` — no DOM recording.
 
-The only traffic is PostHog's decide/handshake request and an anonymous `distinct_id` in `localStorage`. PostHog Cloud receives the client IP on ingest by default. No query text, DOM content, or input values are sent.
+Beyond PostHog's decide/handshake request and an anonymous `distinct_id` in `localStorage`, the only events sent are these exception events, and only when one actually occurs. PostHog Cloud receives the client IP on ingest by default. Stack traces and component stacks carry code paths (file names, line/column, component names) — never query text, DOM content, or input values.
 
 Events are anonymous: Pixies has no authentication, so `posthog.identify()` is never called and PostHog assigns a random per-browser `distinct_id`.
 
