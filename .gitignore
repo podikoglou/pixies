@@ -8,3 +8,4 @@ deploy.sh
 
 # personal files
 *.local.md
+docs/priv
