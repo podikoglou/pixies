@@ -44,6 +44,24 @@ function registerGlobalHandlers(logger: Logger): void {
 	});
 }
 
+let gracefulShutdownRegistered = false;
+
+function registerGracefulShutdown(handlers: Array<() => void>): void {
+	if (gracefulShutdownRegistered) return;
+	gracefulShutdownRegistered = true;
+	const cleanup = () => {
+		for (const handler of handlers) handler();
+		process.exit(0);
+	};
+	process.on("SIGTERM", cleanup);
+	process.on("SIGINT", cleanup);
+}
+
+export interface ServerInstance {
+	readonly server: Bun.Server<undefined>;
+	stop(): void;
+}
+
 export interface StartServerOptions extends Partial<Pick<ResolvedPixiesConfig, "host" | "port">> {
 	config?: ResolvedPixiesConfig;
 	logger?: Logger;
@@ -197,7 +215,7 @@ function logResolvedConfig(logger: Logger, config: ResolvedPixiesConfig): void {
 	);
 }
 
-export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined> {
+export function startServer(opts: StartServerOptions = {}): ServerInstance {
 	let config: ResolvedPixiesConfig;
 	try {
 		config = opts.config ?? readConfigFromEnv();
@@ -295,7 +313,17 @@ export function startServer(opts: StartServerOptions = {}): Bun.Server<undefined
 	const url = `http://${hostname}:${port}`;
 	logger.info({ url }, "pixies server listening");
 	opts.onReady?.(url);
-	return server;
+
+	registerGracefulShutdown([() => store.stop(), () => rateLimiter.stop(), () => server.stop(true)]);
+
+	return {
+		server,
+		stop: () => {
+			store.stop();
+			rateLimiter.stop();
+			server.stop(true);
+		},
+	};
 }
 
 if (import.meta.main) {

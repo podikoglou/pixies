@@ -2,7 +2,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { type ResolvedPixiesConfig } from "@pixies/core";
 import { silentLogger } from "@pixies/core/logging";
-import { startServer } from "./index.ts";
+import { startServer, type ServerInstance } from "./index.ts";
 
 /**
  * Regression for #97: `startServer` used to call
@@ -44,12 +44,17 @@ const config: ResolvedPixiesConfig = {
 	conversationTokenBudget: 0,
 };
 
-const server = startServer({ config, logger: silentLogger, host: "127.0.0.1", port: 0 });
+const instance: ServerInstance = startServer({
+	config,
+	logger: silentLogger,
+	host: "127.0.0.1",
+	port: 0,
+});
 
-afterAll(() => server.stop(true));
+afterAll(() => instance.stop());
 
 test("startServer boots and serves /health regardless of cwd (#97)", async () => {
-	const base = `http://localhost:${server.port}`;
+	const base = `http://localhost:${instance.server.port}`;
 	const res = await fetch(`${base}/health`);
 	expect(res.status).toBe(200);
 	const body = await res.json();
