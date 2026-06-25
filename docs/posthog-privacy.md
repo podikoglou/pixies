@@ -11,17 +11,17 @@ PostHog ships **off by default**. Set `VITE_POSTHOG_KEY` to enable; leave it uns
 
 `VITE_POSTHOG_KEY` can only *write* events, never read them. Keep the secret server key out of the web package.
 
-## What the foundation (#170) sends
+## What this integration sends
 
 The client initialises but every capture surface is off:
 
 - `autocapture: false`
-- `capture_exceptions: false` → #172
-- `disable_session_recording: true` → #175
+- `capture_exceptions: false`
+- `disable_session_recording: true`
 
 The only traffic is PostHog's decide/handshake request and an anonymous `distinct_id` stored in `localStorage`. Events stay anonymous — Pixies has no auth, so `posthog.identify()` is never called. No query text, DOM content, or input values leave the browser while these stay off.
 
-#173 (product analytics) and #175 (replay) must update this section when they turn capture on, and must not send query strings — those carry sensitive location data.
+When product analytics or session replay are later enabled, this section must be updated, and query strings must never be captured — they carry sensitive location data.
 
 ## Controls
 
