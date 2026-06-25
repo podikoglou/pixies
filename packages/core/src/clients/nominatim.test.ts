@@ -171,6 +171,34 @@ test("429 returns Err(NominatimBusyError)", async () => {
 	}
 });
 
+test("502 returns Err(NominatimBusyError)", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(new Response("bad gateway", { status: 502 })),
+	) as unknown as typeof fetch;
+	const client = makeClient(fetchMock);
+
+	const r = await client.search("Berlin");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("NominatimBusy");
+		expect(r.error).toBeInstanceOf(NominatimBusyError);
+	}
+});
+
+test("504 returns Err(NominatimBusyError)", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(new Response("gateway timeout", { status: 504 })),
+	) as unknown as typeof fetch;
+	const client = makeClient(fetchMock);
+
+	const r = await client.search("Berlin");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("NominatimBusy");
+		expect(r.error).toBeInstanceOf(NominatimBusyError);
+	}
+});
+
 test("generic non-abort error returns Err with the message", async () => {
 	const fetchMock = mock(() =>
 		Promise.reject(new Error("network down")),
