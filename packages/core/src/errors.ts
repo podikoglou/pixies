@@ -122,11 +122,11 @@ export type PixiesErrorTag = PixiesError["_tag"];
 
 /**
  * TypeBox mirror of {@link PixiesErrorTag} — the closed set of `_tag` string
- * literals carried by the SSE `error` event's `errorTag` field. Per ADR-0002
- * the schema is the wire contract; per CONVENTIONS.local.md §3 the web client
- * parses the raw `string` off the wire through this schema (rather than
- * `as`-casting), so unknown tags deterministically become `undefined` at the
- * read boundary instead of leaning on a downstream `default` arm.
+ * literals carried by the SSE `error` event's `errorTag` field. The web client
+ * parses the raw `string` off the wire through this schema (ADR-0002: TypeBox
+ * + `Value.Check` is the SSE boundary primitive), so unknown tags
+ * deterministically become `undefined` at the read boundary instead of being
+ * `as`-cast and leaning on a downstream `default` arm.
  *
  * The literals MUST stay in sync with the `TaggedError(...)` classes that make
  * up {@link PixiesError}. The `_errorTagSchemaInSync` const below is a
