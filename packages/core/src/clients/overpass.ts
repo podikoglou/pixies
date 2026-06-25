@@ -7,7 +7,6 @@ import { silentLogger, type Logger } from "../logging/index.ts";
 import { ToolAbortedError } from "../errors.ts";
 import { isAbortError, mergeSignals } from "../utils/abort.ts";
 import type { ToolProgress } from "../tools/progress.ts";
-import type { OverpassResultEntry } from "../tools/index.ts";
 
 /** Overpass returned a busy / non-retryable condition (429 / 503 / markers). */
 export class OverpassBusyError extends TaggedError("OverpassBusy")<{
@@ -278,28 +277,6 @@ export function formatElement(el: OverpassElement): string {
 	return segments.join(" | ");
 }
 
-/**
- * Structured, lossless representation of an Overpass element for UI consumers.
- * Content-side counterpart to {@link formatElement}. `name` is hoisted to a
- * top-level field (mirroring {@link formatElement}) and excluded from `tags`
- * so each piece of information appears once in the rendered tree.
- */
-export function overpassElementToData(el: OverpassElement): OverpassResultEntry {
-	const coord = getElementCoords(el);
-	const otherTags = el.tags
-		? Object.fromEntries(Object.entries(el.tags).filter(([k]) => k !== "name"))
-		: undefined;
-	const data: OverpassResultEntry = {
-		type: el.type,
-		id: el.id,
-		...(coord ? { lat: coord.lat, lon: coord.lon } : {}),
-		...(el.tags?.name ? { name: el.tags.name } : {}),
-		...(otherTags && Object.keys(otherTags).length > 0 ? { tags: otherTags } : {}),
-		...(el.geometry && el.geometry.length > 0 ? { geometryPoints: el.geometry.length } : {}),
-	};
-	return data;
-}
-
 interface FetchOverpassOptions {
 	method: string;
 	headers: Record<string, string>;
@@ -358,7 +335,11 @@ function formatCoord(lat: number, lon: number): string {
 	return `${lat},${lon}`;
 }
 
-function getElementCoords(el: OverpassElement): { lat: number; lon: number } | null {
+/**
+ * Resolve the best coordinate for an Overpass element: direct `lat`/`lon`,
+ * else the `center` (ways/relations queried with `out center;`), else none.
+ */
+export function getElementCoords(el: OverpassElement): { lat: number; lon: number } | null {
 	if (el.lat !== undefined && el.lon !== undefined) return { lat: el.lat, lon: el.lon };
 	if (el.center) return el.center;
 	return null;
