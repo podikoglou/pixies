@@ -22,7 +22,7 @@ export function captureReactError(
 }
 
 /** Event → props mapping for `captureEvent`. */
-type EventProps = {
+export type EventProps = {
 	message_sent: { is_new_conversation: boolean };
 	map_opened: { marker_count: number };
 	tool_error: { tool_name: string };

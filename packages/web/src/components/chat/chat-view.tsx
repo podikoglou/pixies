@@ -36,10 +36,10 @@ export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 	const handleSubmit = () => {
 		const trimmed = text.trim();
 		if (!trimmed || state.isStreaming) return;
-		analytics.messageSent(state.conversationId === null);
+		analytics.capture("message_sent", { is_new_conversation: state.conversationId === null });
 		sendMessage(trimmed, {
 			onConversationCreated,
-			onToolError: analytics.toolError,
+			onToolError: (toolName) => analytics.capture("tool_error", { tool_name: toolName }),
 		});
 		setText("");
 	};

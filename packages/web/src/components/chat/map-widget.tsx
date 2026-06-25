@@ -117,7 +117,7 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 	useEffect(() => {
 		if (openedCapturedRef.current) return;
 		if (!markers || markers.length === 0) return;
-		analytics.mapOpened(markers.length);
+		analytics.capture("map_opened", { marker_count: markers.length });
 		openedCapturedRef.current = true;
 	}, [markers, analytics]);
 
