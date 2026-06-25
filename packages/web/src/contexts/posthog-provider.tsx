@@ -20,7 +20,7 @@ export function OptionalPostHogProvider({ children }: { children: ReactNode }) {
 			options={{
 				api_host: POSTHOG_HOST,
 				autocapture: false,
-				capture_exceptions: false,
+				capture_exceptions: true,
 				disable_session_recording: true,
 				debug: import.meta.env.DEV,
 			}}
