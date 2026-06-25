@@ -1,4 +1,6 @@
 import { TaggedError } from "better-result";
+import { Type } from "typebox";
+import type { Static } from "typebox";
 import type { NominatimError } from "./clients/nominatim.ts";
 import type { OverpassError } from "./clients/overpass.ts";
 
@@ -117,3 +119,45 @@ export type PixiesError =
 
 /** Discriminant string for any {@link PixiesError}. */
 export type PixiesErrorTag = PixiesError["_tag"];
+
+/**
+ * TypeBox mirror of {@link PixiesErrorTag} — the closed set of `_tag` string
+ * literals carried by the SSE `error` event's `errorTag` field. The web client
+ * parses the raw `string` off the wire through this schema (ADR-0002: TypeBox
+ * + `Value.Check` is the SSE boundary primitive), so unknown tags
+ * deterministically become `undefined` at the read boundary instead of being
+ * `as`-cast and leaning on a downstream `default` arm.
+ *
+ * The literals MUST stay in sync with the `TaggedError(...)` classes that make
+ * up {@link PixiesError}. The `_errorTagSchemaInSync` const below is a
+ * compile-time drift guard — adding a TaggedError without updating this schema
+ * (or vice versa) fails typecheck.
+ */
+export const PixiesErrorTagSchema = Type.Union([
+	Type.Literal("NominatimBusy"),
+	Type.Literal("NominatimParse"),
+	Type.Literal("NominatimHttp"),
+	Type.Literal("OverpassBusy"),
+	Type.Literal("OverpassHttp"),
+	Type.Literal("OverpassParse"),
+	Type.Literal("OverpassRemark"),
+	Type.Literal("ToolAborted"),
+	Type.Literal("DisplayMapValidation"),
+	Type.Literal("ConversationNotFound"),
+	Type.Literal("PromptConflict"),
+	Type.Literal("BudgetExceeded"),
+	Type.Literal("InvalidJson"),
+	Type.Literal("Validation"),
+	Type.Literal("Config"),
+	Type.Literal("InvalidTranscript"),
+]);
+
+// Compile-time drift guard: the schema's literal set must equal PixiesError["_tag"]
+// exactly. If a TaggedError is added/removed without updating the schema (or vice
+// versa), the conditional resolves to a string-literal error hint instead of
+// `true`, and the `= true` assignment below fails typecheck with that hint.
+const _errorTagSchemaInSync: [Static<typeof PixiesErrorTagSchema>] extends [PixiesError["_tag"]]
+	? [PixiesError["_tag"]] extends [Static<typeof PixiesErrorTagSchema>]
+		? true
+		: "schema_missing_tags"
+	: "schema_has_extra_tags" = true;

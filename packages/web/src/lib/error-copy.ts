@@ -3,12 +3,12 @@ import type { PixiesErrorTag } from "@pixies/core";
 /**
  * Pick friendly toast copy for an SSE `"error"` event.
  *
- * The server forwards a {@link PixiesErrorTag} string in `errorTag` (and a
- * `toJSON()` snapshot in `details`) when the agent rejects with a TaggedError;
- * otherwise `errorTag` is absent and we fall back to the raw `message`
- * (issue #109). The switch is exhaustive over the known tag union, so adding a
- * new TaggedError forces a copy arm here; the `default` covers the
- * wire-trust boundary (a server may send an unknown tag string).
+ * The read boundary in `use-chat.ts` parses the raw `errorTag` string through
+ * `PixiesErrorTagSchema`, so this function only ever receives a known
+ * {@link PixiesErrorTag} or `undefined` (absent on the wire, or rejected by
+ * the schema). The switch is exhaustive over the known tag union, so adding a
+ * new TaggedError forces a copy arm here; the `undefined`/`default` arm is the
+ * fallback for a missing tag.
  */
 export interface ErrorCopyArgs {
 	tag: PixiesErrorTag | undefined;
