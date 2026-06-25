@@ -144,3 +144,20 @@ test("error with errorTag dispatches friendly copy from errorToToastCopy", () =>
 	expect((actions[0] as { message: string }).message).toContain("OpenStreetMap");
 	expect((actions[0] as { message: string }).message).not.toBe("raw msg");
 });
+
+test("error with unknown errorTag falls back to the raw message (wire-trust boundary, #149)", () => {
+	const { dispatch, actions } = capture();
+	const evt: SSEEvent = {
+		event: "error",
+		data: { message: "raw msg", errorTag: "NotARealTag", details: {} },
+	};
+
+	dispatchSseEvent(evt, dispatch, () => {
+		throw new Error("should not fire");
+	});
+
+	expect(actions).toHaveLength(1);
+	expect(actions[0]).toMatchObject({ type: "SET_ERROR" });
+	// Unknown tag is rejected at the read boundary → undefined → defaultMessage.
+	expect((actions[0] as { message: string }).message).toBe("raw msg");
+});
