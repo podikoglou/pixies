@@ -20,21 +20,3 @@ export function mergeSignals(...signals: (AbortSignal | undefined)[]): AbortSign
 	}
 	return controller.signal;
 }
-
-/** Run `fetch` while also rejecting if a provided signal aborts before fetch settles. */
-export function fetchWithAbort(
-	fetchFn: typeof globalThis.fetch,
-	url: string | URL,
-	init: RequestInit,
-	signal: AbortSignal,
-): Promise<Response> {
-	if (signal.aborted)
-		return Promise.reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
-	return new Promise((resolve, reject) => {
-		const abort = () => reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
-		signal.addEventListener("abort", abort, { once: true });
-		fetchFn(url, init)
-			.then(resolve, reject)
-			.finally(() => signal.removeEventListener("abort", abort));
-	});
-}

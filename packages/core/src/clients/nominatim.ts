@@ -6,7 +6,7 @@ import { Value } from "typebox/value";
 import { LRUCache } from "lru-cache";
 import { silentLogger, type Logger } from "../logging/index.ts";
 import { ToolAbortedError } from "../errors.ts";
-import { fetchWithAbort, isAbortError, mergeSignals } from "../utils/abort.ts";
+import { isAbortError, mergeSignals } from "../utils/abort.ts";
 import type { ToolProgress } from "../tools/progress.ts";
 import type { GeocodeResultEntry } from "../tools/index.ts";
 
@@ -407,7 +407,7 @@ async function fetchNominatimResponse(
 	const { signal, timeoutMs = 60_000, ...rest } = opts;
 	const merged = mergeSignals(signal, AbortSignal.timeout(timeoutMs));
 	try {
-		const res = await fetchWithAbort(fetchFn, url, { ...rest, signal: merged }, merged);
+		const res = await fetchFn(url, { ...rest, signal: merged });
 		if (!res.ok) {
 			const body = await res.text();
 			if (isNominatimBusyResponse(res.status, body)) {

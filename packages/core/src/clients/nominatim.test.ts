@@ -88,11 +88,24 @@ test("one NominatimClient serializes concurrent searches (ADR-0004 invariant)", 
 
 test("abort while a request is running returns Err(ToolAbortedError)", async () => {
 	const hanging = deferred<Response>();
-	const fetchMock = mock(() => hanging.promise) as unknown as typeof fetch;
+	const fetchMock = mock((_url: unknown, init: { signal?: AbortSignal }) => {
+		const sig = init.signal;
+		return new Promise<Response>((resolve, reject) => {
+			const onAbort = () => reject(sig?.reason ?? new DOMException("Aborted", "AbortError"));
+			if (sig?.aborted) return onAbort();
+			sig?.addEventListener("abort", onAbort, { once: true });
+			hanging.promise.then(resolve, reject);
+		});
+	}) as unknown as typeof fetch;
 	const client = makeClient(fetchMock);
 
 	const controller = new AbortController();
 	const p = client.search("Berlin", {}, controller.signal);
+	// Let the rate-limit slot be acquired and fetch start before aborting.
+	await Promise.resolve();
+	await Promise.resolve();
+	expect(fetchMock).toHaveBeenCalledTimes(1);
+
 	controller.abort();
 
 	const r = await p;

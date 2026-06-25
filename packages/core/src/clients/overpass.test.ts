@@ -124,8 +124,14 @@ test("abort while running returns Err and the signal threaded to fetch is aborte
 	const seenSignals: AbortSignal[] = [];
 	const blocker = deferred<Response>();
 	const fetchMock = mock((_url: unknown, init: { signal?: AbortSignal }) => {
-		if (init.signal) seenSignals.push(init.signal);
-		return blocker.promise;
+		const sig = init.signal;
+		if (sig) seenSignals.push(sig);
+		return new Promise<Response>((resolve, reject) => {
+			const onAbort = () => reject(sig?.reason ?? new DOMException("Aborted", "AbortError"));
+			if (sig?.aborted) return onAbort();
+			sig?.addEventListener("abort", onAbort, { once: true });
+			blocker.promise.then(resolve, reject);
+		});
 	}) as unknown as typeof fetch;
 	const client = makeOverpass(fetchMock);
 
