@@ -6,7 +6,7 @@
 
 Nominatim's [usage policy](https://operations.osmfoundation.org/policies/nominatim/) caps requests at **1 per second per source IP** (interpreted in code as `RATE_LIMIT_MS = 1100` to stay safely under the limit). The cap is per IP, not per client instance and not per conversation.
 
-`NominatimClient` enforces this with an internal queue (`withRateLimit`, `packages/core/src/clients/nominatim.ts`). Pre-refactor that queue's predecessor lived at module scope, so it serialized *all* calls in the process — correct for the server by accident, surprising for the TUI (issue #4). Commit `76d6094` ("Move rate-limit state off module scope into `NominatimClient` instance") moved the mutex and `lastCallTime` onto the instance to fix the TUI's hidden-global complaint — and in doing so dropped the cross-conversation serializer with nothing in its place. The note in issue #4 requiring that semantics be preserved lived in a closed issue and was effectively invisible.
+`NominatimClient` enforces this with an internal promise-chain mutex (`withRateLimit`, `packages/core/src/osm/nominatim.ts`). Pre-refactor that mutex lived at module scope, so it serialized *all* calls in the process — correct for the server by accident, surprising for the TUI (issue #4). Commit `76d6094` ("Move rate-limit state off module scope into `NominatimClient` instance") moved the mutex and `lastCallTime` onto the instance to fix the TUI's hidden-global complaint — and in doing so dropped the cross-conversation serializer with nothing in its place. The note in issue #4 requiring that semantics be preserved lived in a closed issue and was effectively invisible.
 
 The consequence: `createAgent()` news a `NominatimClient` on every call, and `ConversationStore.create()` calls `createAgent()` per conversation. So **N concurrent conversations ⇒ N independent rate-limit chains ⇒ up to N parallel Nominatim requests from one server IP within 1.1s**. That is a usage-policy violation under load, not a theoretical inefficiency. This is a P0 regression.
 
@@ -69,10 +69,23 @@ If the server ever becomes multi-process, this ADR's *constraint* (one chain per
 ## References
 
 - ADR-0001 — interface-independent core; this ADR refines its seam.
-- ADR-0007 — self-contained OSM service clients; the invariant here (one client ⇒ one queue ⇒ one chain) is unchanged.
-- `packages/core/src/clients/nominatim.ts` — Nominatim-owned `p-queue` throttle.
+- ADR-0005 — the bespoke Nominatim mutex is now a shared `p-queue` rate limiter; the invariant here (one client ⇒ one queue ⇒ one chain) is unchanged.
+- `packages/core/src/osm/nominatim.ts` — `createRateLimiter`-backed throttle.
 - `packages/core/src/agent.ts` — `createAgent({ osmClients })`, `createOsmClients`.
 - `packages/server/src/conversations.ts` — single `OsmClients` per `ConversationStore`.
 - `docs/api/sse.md` — Concurrency section describes the implemented invariant.
 - Issue #4 — flagged the module-global mutex as a hidden global; this ADR preserves its *multi-tenant* requirement explicitly.
 - Issue #18 — this regression and its framing.
+
+## Revision — 2026-06-25
+
+ADR-0007 (self-contained OSM service clients) moved code referenced above
+without changing this ADR's invariant. The Context, Decision, Rationale, and
+Consequences text is left as written at acceptance; this section records the
+pointer/mechanism update only.
+
+- `packages/core/src/osm/nominatim.ts` → `packages/core/src/clients/nominatim.ts`.
+- The shared `createRateLimiter` (ADR-0005, now superseded) was replaced by a
+  direct per-client `p-queue`. The Nominatim client still owns one queue, so
+  "one client ⇒ one queue ⇒ one chain" still holds.
+- Forward reference ADR-0005 → ADR-0007.
