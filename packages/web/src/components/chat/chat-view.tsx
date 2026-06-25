@@ -4,7 +4,7 @@ import { usePostHog } from "@posthog/react";
 import type { PostHog } from "posthog-js";
 import { toast } from "sonner";
 import { useChatContext } from "@/contexts/chat-context";
-import { captureMessageSent, captureToolError } from "@/lib/posthog-capture";
+import { captureEvent } from "@/lib/posthog-capture";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatInput } from "./chat-input";
 import { ChatTimeline } from "./chat-timeline";
@@ -40,10 +40,10 @@ export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 	const handleSubmit = () => {
 		const trimmed = text.trim();
 		if (!trimmed || state.isStreaming) return;
-		captureMessageSent(posthog, { isNewConversation: state.conversationId === null });
+		captureEvent(posthog, "message_sent", { is_new_conversation: state.conversationId === null });
 		sendMessage(trimmed, {
 			onConversationCreated,
-			onToolError: (toolName) => captureToolError(posthog, toolName),
+			onToolError: (toolName) => captureEvent(posthog, "tool_error", { tool_name: toolName }),
 		});
 		setText("");
 	};

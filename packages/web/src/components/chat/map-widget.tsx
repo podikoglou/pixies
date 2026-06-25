@@ -5,7 +5,7 @@ import L from "leaflet";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
-import { captureMapOpened } from "@/lib/posthog-capture";
+import { captureEvent } from "@/lib/posthog-capture";
 import { cn } from "@/lib/utils";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -36,7 +36,7 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 	const mapRef = useRef<L.Map | null>(null);
 	const markersLayerRef = useRef<L.MarkerClusterGroup | null>(null);
 	// Typed non-nullable by @posthog/react, but `undefined` at runtime when no
-	// provider is mounted (telemetry off); captureMapOpened no-ops on that.
+	// provider is mounted (telemetry off); captureEvent no-ops on that.
 	const posthog = usePostHog() as PostHog | undefined;
 	const openedCapturedRef = useRef(false);
 
@@ -121,7 +121,7 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 	useEffect(() => {
 		if (openedCapturedRef.current) return;
 		if (!markers || markers.length === 0) return;
-		captureMapOpened(posthog, { markerCount: markers.length });
+		captureEvent(posthog, "map_opened", { marker_count: markers.length });
 		openedCapturedRef.current = true;
 	}, [markers, posthog]);
 
