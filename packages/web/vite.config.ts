@@ -5,6 +5,9 @@ import path from "node:path";
 
 export default defineConfig({
 	plugins: [react(), tailwindcss()],
+	// Read `.env` from the monorepo root so the web SPA shares the single root
+	// `.env` with the server (PIXIES_* + VITE_* live together).
+	envDir: path.resolve(__dirname, "../../"),
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),
