@@ -11,7 +11,7 @@ import { createOsmClients } from "../agent.ts";
 import { type Logger } from "../logging/index.ts";
 import { ToolAbortedError } from "../errors.ts";
 
-/** Build a JSON `Response`-like object osmFetch treats as a success. */
+/** Build a JSON `Response` the Nominatim client treats as a success. */
 function jsonResponse(data: unknown): Response {
 	return new Response(JSON.stringify(data), {
 		status: 200,

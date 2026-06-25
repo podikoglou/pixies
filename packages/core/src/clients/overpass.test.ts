@@ -11,7 +11,7 @@ import {
 import { type Logger } from "../logging/index.ts";
 import { ToolAbortedError } from "../errors.ts";
 
-/** Build a JSON `Response` osmFetch treats as a success. */
+/** Build a JSON `Response` the Overpass client treats as a success. */
 function jsonResponse(data: unknown): Response {
 	return new Response(JSON.stringify(data), {
 		status: 200,
@@ -118,7 +118,7 @@ test("abort while queued returns Err and the task never runs", async () => {
 	await p2;
 });
 
-// ---- abort while running threads the signal into osmFetch -------------------
+// ---- abort while running threads the signal into fetch --------------------
 
 test("abort while running returns Err and the signal threaded to fetch is aborted", async () => {
 	const seenSignals: AbortSignal[] = [];
@@ -140,8 +140,8 @@ test("abort while running returns Err and the signal threaded to fetch is aborte
 	const r = await p;
 	expect(Result.isError(r)).toBe(true);
 	if (Result.isError(r)) expect(r.error._tag).toBe("ToolAborted");
-	// The parent signal is merged into the fetch signal inside osmFetch; once
-	// the parent aborts, the merged signal passed to fetch is aborted too.
+	// The parent signal is merged into the fetch signal inside fetchOverpassResponse;
+	// once the parent aborts, the merged signal passed to fetch is aborted too.
 	expect(seenSignals[0]!.aborted).toBe(true);
 
 	blocker.resolve(jsonResponse({ elements: [] }));

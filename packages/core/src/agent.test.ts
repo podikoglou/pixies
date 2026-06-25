@@ -138,7 +138,7 @@ test("readConfigFromEnv coerces the 8 OSM env vars with Number()", () => {
 
 // ---- behavioral: smaller Nominatim intervalMs speeds up serialization --------
 
-/** Build a JSON success `Response` osmFetch accepts. */
+/** Build a JSON success `Response` the Nominatim client accepts. */
 function jsonResponse(data: unknown): Response {
 	return new Response(JSON.stringify(data), {
 		status: 200,
