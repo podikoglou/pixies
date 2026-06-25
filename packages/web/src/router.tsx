@@ -3,6 +3,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query-client";
 import { ChatProvider } from "@/contexts/chat-context";
 import { OptionalPostHogProvider } from "@/contexts/posthog-provider";
+import { PostHogErrorBoundary } from "@/components/error-boundary";
 import { Toaster } from "@/components/ui/sonner";
 import { NewConversationPage } from "@/pages/new-conversation";
 import { ConversationPage } from "@/pages/conversation";
@@ -11,10 +12,12 @@ const rootRoute = createRootRoute({
 	component: () => (
 		<QueryClientProvider client={queryClient}>
 			<OptionalPostHogProvider>
-				<ChatProvider>
-					<Outlet />
-					<Toaster />
-				</ChatProvider>
+				<PostHogErrorBoundary>
+					<ChatProvider>
+						<Outlet />
+						<Toaster />
+					</ChatProvider>
+				</PostHogErrorBoundary>
 			</OptionalPostHogProvider>
 		</QueryClientProvider>
 	),
