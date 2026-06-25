@@ -95,7 +95,7 @@ export class ConversationStore {
 			.insert(conversationsTable)
 			.values({ id, transcript: [] })
 			.catch((err) =>
-				this.logger.error({ conversationId: id, err }, "failed to insert conversation"),
+				this.logger.error("failed to insert conversation", { conversationId: id, err }),
 			);
 		return conv.id;
 	}
@@ -210,7 +210,10 @@ export class ConversationStore {
 							})
 							.where(eq(conversationsTable.id, id))
 							.catch((err) =>
-								this.logger.error({ conversationId: id, err }, "failed to persist transcript"),
+								this.logger.error("failed to persist transcript", {
+									conversationId: id,
+									err,
+								}),
 							);
 					});
 			},
@@ -233,7 +236,7 @@ export class ConversationStore {
 			.delete(conversationsTable)
 			.where(eq(conversationsTable.id, id))
 			.catch((err) =>
-				this.logger.error({ conversationId: id, err }, "failed to delete conversation"),
+				this.logger.error("failed to delete conversation", { conversationId: id, err }),
 			);
 		return true;
 	}
@@ -260,10 +263,10 @@ export class ConversationStore {
 	private rehydrateTranscript(conv: Conversation, transcript: unknown, id: string): void {
 		if (!Array.isArray(transcript) || transcript.length === 0) return;
 		if (!isPersistedTranscript(transcript)) {
-			this.logger.warn(
-				{ conversationId: id, count: transcript.length },
-				"transcript failed validation; starting fresh",
-			);
+			this.logger.warning("transcript failed validation; starting fresh", {
+				conversationId: id,
+				count: transcript.length,
+			});
 			return;
 		}
 		conv.agent.state.messages = transcript;

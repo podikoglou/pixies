@@ -159,7 +159,7 @@ export class OverpassClient {
 			try: () =>
 				this.withRateLimit(
 					async () => {
-						logger.debug({ service: "Overpass", queryLength: query.length }, "request");
+						logger.debug("request", { service: "Overpass", queryLength: query.length });
 						const start = Date.now();
 						const res = await fetchOverpassResponse(this.baseUrl, this.fetchFn, {
 							method: "POST",
@@ -170,16 +170,18 @@ export class OverpassClient {
 							body: `data=${encodeURIComponent(query)}`,
 							signal: parentSignal,
 						});
-						logger.debug(
-							{ service: "Overpass", statusCode: res.status, durationMs: Date.now() - start },
-							"response",
-						);
+						logger.debug("response", {
+							service: "Overpass",
+							statusCode: res.status,
+							durationMs: Date.now() - start,
+						});
 						const contentType = res.headers.get("content-type") ?? "";
 						if (!contentType.includes("application/json")) {
-							logger.warn(
-								{ service: "Overpass", statusCode: res.status, contentType },
-								"non-json content type",
-							);
+							logger.warning("non-json content type", {
+								service: "Overpass",
+								statusCode: res.status,
+								contentType,
+							});
 							throw new OverpassParseError({ message: "Only [out:json] is supported" });
 						}
 						const json = await res.json();
@@ -187,20 +189,24 @@ export class OverpassClient {
 						try {
 							parsed = Value.Parse(OverpassResponseSchema, json);
 						} catch (err) {
-							logger.warn(
-								{ service: "Overpass", statusCode: res.status, contentType, cause: err },
-								"invalid response shape",
-							);
+							logger.warning("invalid response shape", {
+								service: "Overpass",
+								statusCode: res.status,
+								contentType,
+								cause: err,
+							});
 							throw new OverpassParseError({
 								message: "Overpass: invalid response shape",
 								cause: err,
 							});
 						}
 						if (parsed.remark) {
-							logger.warn(
-								{ service: "Overpass", statusCode: res.status, contentType, remark: parsed.remark },
-								"overpass remark",
-							);
+							logger.warning("overpass remark", {
+								service: "Overpass",
+								statusCode: res.status,
+								contentType,
+								remark: parsed.remark,
+							});
 							throw new OverpassRemarkError({ remark: parsed.remark });
 						}
 						return parsed;
@@ -219,25 +225,23 @@ export class OverpassClient {
 	): Promise<T> {
 		if (this.queue.pending >= this.concurrency) callbacks.onProgress?.({ type: "queued" });
 		if (this.queue.size > 0) {
-			this.logger.debug(
-				{ service: "Overpass", queueSize: this.queue.size, pending: this.queue.pending },
-				"queue backpressure",
-			);
+			this.logger.debug("queue backpressure", {
+				service: "Overpass",
+				queueSize: this.queue.size,
+				pending: this.queue.pending,
+			});
 		}
 
 		const enqueuedAt = Date.now();
 		return this.queue
 			.add(
 				async () => {
-					this.logger.debug(
-						{
-							service: "Overpass",
-							waitMs: Date.now() - enqueuedAt,
-							queueSize: this.queue.size,
-							pending: this.queue.pending,
-						},
-						"rate-limit slot acquired",
-					);
+					this.logger.debug("rate-limit slot acquired", {
+						service: "Overpass",
+						waitMs: Date.now() - enqueuedAt,
+						queueSize: this.queue.size,
+						pending: this.queue.pending,
+					});
 					callbacks.onProgress?.({ type: "running" });
 					return fn();
 				},

@@ -250,7 +250,7 @@ test("sweep: empty map is a no-op", () => {
 });
 
 test("sweep: logs rate_limit_windows_cleaned with exact fields on non-zero eviction", () => {
-	const info = mock((_fields: Record<string, unknown>, _msg?: string) => {});
+	const info = mock((_msg?: string, _fields?: Record<string, unknown>) => {});
 	const logger = { info } as unknown as Logger;
 	const limiter = makeLimiter({
 		maxRequests: 5,
@@ -261,14 +261,15 @@ test("sweep: logs rate_limit_windows_cleaned with exact fields on non-zero evict
 	});
 	limiter.consume("1.1.1.1", 0);
 	limiter.sweep(1000);
-	expect(info).toHaveBeenCalledWith(
-		{ evictedCount: 1, windowCount: 0, event: "rate_limit_windows_cleaned" },
-		"rate-limit windows cleaned",
-	);
+	expect(info).toHaveBeenCalledWith("rate-limit windows cleaned", {
+		evictedCount: 1,
+		windowCount: 0,
+		event: "rate_limit_windows_cleaned",
+	});
 });
 
 test("sweep: does not log when nothing was evicted (avoid log spam)", () => {
-	const info = mock((_fields: Record<string, unknown>, _msg?: string) => {});
+	const info = mock((_msg?: string, _fields?: Record<string, unknown>) => {});
 	const logger = { info } as unknown as Logger;
 	const limiter = makeLimiter({
 		maxRequests: 5,
@@ -286,7 +287,7 @@ test("background interval calls sweep automatically", async () => {
 	// bun:test cannot fast-forward `setInterval` (see conversations.ts sweep
 	// comment), so this uses a short windowMs + real wall-clock wait to prove
 	// the constructor's interval fires sweep without an explicit call.
-	const info = mock((_fields: Record<string, unknown>, _msg?: string) => {});
+	const info = mock((_msg?: string, _fields?: Record<string, unknown>) => {});
 	const logger = { info } as unknown as Logger;
 	const limiter = makeLimiter({
 		maxRequests: 5,
@@ -299,13 +300,13 @@ test("background interval calls sweep automatically", async () => {
 	// Wait long enough for >=2 interval ticks; the entry's window elapses at
 	// +50ms, so at least one auto-sweep must evict it and emit the log.
 	await new Promise((r) => setTimeout(r, 130));
-	const cleanupCall = info.mock.calls.find((c) => c[0]?.event === "rate_limit_windows_cleaned");
+	const cleanupCall = info.mock.calls.find((c) => c[1]?.event === "rate_limit_windows_cleaned");
 	expect(cleanupCall).toBeDefined();
-	expect(cleanupCall?.[0]?.evictedCount).toBeGreaterThanOrEqual(1);
+	expect(cleanupCall?.[1]?.evictedCount).toBeGreaterThanOrEqual(1);
 });
 
 test("stop: clears the interval (no further sweeps after stop)", async () => {
-	const info = mock((_fields: Record<string, unknown>, _msg?: string) => {});
+	const info = mock((_msg?: string, _fields?: Record<string, unknown>) => {});
 	const logger = { info } as unknown as Logger;
 	const limiter = makeLimiter({
 		maxRequests: 5,
@@ -317,6 +318,6 @@ test("stop: clears the interval (no further sweeps after stop)", async () => {
 	limiter.stop();
 	limiter.consume("1.1.1.1"); // would be evicted by an auto-sweep if the interval were live
 	await new Promise((r) => setTimeout(r, 130));
-	const cleanupCall = info.mock.calls.find((c) => c[0]?.event === "rate_limit_windows_cleaned");
+	const cleanupCall = info.mock.calls.find((c) => c[1]?.event === "rate_limit_windows_cleaned");
 	expect(cleanupCall).toBeUndefined();
 });

@@ -10,7 +10,7 @@ import {
 } from "@pixies/core";
 import { createDb } from "@pixies/core/db";
 import { createLogger, type Logger } from "@pixies/core/logging";
-import { DiscordTransport } from "@pixies/core/logging/discord-transport";
+import { getDiscordSink } from "@pixies/core/logging/discord-sink";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
@@ -31,16 +31,14 @@ function registerGlobalHandlers(logger: Logger): void {
 	if (globalHandlersRegistered) return;
 	globalHandlersRegistered = true;
 	process.on("unhandledRejection", (reason) => {
-		logger.fatal(
-			{ err: reason instanceof Error ? reason : new Error(String(reason)) },
-			"unhandled rejection",
-		);
+		logger.fatal("unhandled rejection", {
+			err: reason instanceof Error ? reason : new Error(String(reason)),
+		});
 	});
 	process.on("uncaughtException", (err) => {
-		logger.error(
-			{ err: err instanceof Error ? err : new Error(String(err)) },
-			"uncaught exception",
-		);
+		logger.error("uncaught exception", {
+			err: err instanceof Error ? err : new Error(String(err)),
+		});
 	});
 }
 
@@ -117,7 +115,7 @@ export function pipeAgentStream(
 			writer.write("done", { durationMs: Date.now() - startTime });
 		} catch (err) {
 			const loggedErr = err instanceof Error ? err : new Error(String(err));
-			logger.error({ conversationId: abortId, err: loggedErr }, "agent stream error");
+			logger.error("agent stream error", { conversationId: abortId, err: loggedErr });
 			// Forward structured error metadata when the agent rejected with a
 			// TaggedError (issue #109). Non-tagged errors emit only `message`,
 			// which is byte-identical to the pre-#109 wire format.
@@ -171,48 +169,42 @@ function withRequestLogging(
 	return async (req, server) => {
 		const start = Date.now();
 		const res = await handler(req, server);
-		logger.info(
-			{
-				method: req.method,
-				path: new URL(req.url).pathname,
-				statusCode: res.status,
-				durationMs: Date.now() - start,
-			},
-			"request",
-		);
+		logger.info("request", {
+			method: req.method,
+			path: new URL(req.url).pathname,
+			statusCode: res.status,
+			durationMs: Date.now() - start,
+		});
 		return res;
 	};
 }
 
 function logResolvedConfig(logger: Logger, config: ResolvedPixiesConfig): void {
-	logger.info(
-		{
-			host: config.host,
-			port: config.port,
-			model: config.model,
-			thinkingLevel: config.thinkingLevel,
-			dbFile: config.dbFile,
-			cacheSize: config.cacheSize,
-			httpRateLimit: config.httpRateLimit,
-			httpRateLimitWindowMs: config.httpRateLimitWindowMs,
-			trustProxy: config.trustProxy,
-			trustedProxyHops: config.trustedProxyHops,
-			conversationTokenBudget: config.conversationTokenBudget,
-			discordWebhookUrl: config.discordWebhookUrl ? "set" : "unset",
-			apiKey: config.apiKey ? "set" : "unset",
-			contactEmail: config.contactEmail ?? "unset",
-			overpassUrl: config.overpassUrl,
-			nominatimUrl: config.nominatimUrl,
-			userAgent: config.userAgent,
-			nominatimConcurrency: config.nominatimConcurrency,
-			nominatimIntervalCap: config.nominatimIntervalCap,
-			nominatimIntervalMs: config.nominatimIntervalMs,
-			overpassConcurrency: config.overpassConcurrency,
-			overpassIntervalCap: config.overpassIntervalCap,
-			overpassIntervalMs: config.overpassIntervalMs,
-		},
-		"pixies server configuration",
-	);
+	logger.info("pixies server configuration", {
+		host: config.host,
+		port: config.port,
+		model: config.model,
+		thinkingLevel: config.thinkingLevel,
+		dbFile: config.dbFile,
+		cacheSize: config.cacheSize,
+		httpRateLimit: config.httpRateLimit,
+		httpRateLimitWindowMs: config.httpRateLimitWindowMs,
+		trustProxy: config.trustProxy,
+		trustedProxyHops: config.trustedProxyHops,
+		conversationTokenBudget: config.conversationTokenBudget,
+		discordWebhookUrl: config.discordWebhookUrl ? "set" : "unset",
+		apiKey: config.apiKey ? "set" : "unset",
+		contactEmail: config.contactEmail ?? "unset",
+		overpassUrl: config.overpassUrl,
+		nominatimUrl: config.nominatimUrl,
+		userAgent: config.userAgent,
+		nominatimConcurrency: config.nominatimConcurrency,
+		nominatimIntervalCap: config.nominatimIntervalCap,
+		nominatimIntervalMs: config.nominatimIntervalMs,
+		overpassConcurrency: config.overpassConcurrency,
+		overpassIntervalCap: config.overpassIntervalCap,
+		overpassIntervalMs: config.overpassIntervalMs,
+	});
 }
 
 export function startServer(opts: StartServerOptions = {}): ServerInstance {
@@ -227,10 +219,10 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 	}
 	const db = createDb(config.dbFile);
 	migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-	const transport = config.discordWebhookUrl
-		? new DiscordTransport({ url: config.discordWebhookUrl })
+	const sink = config.discordWebhookUrl
+		? getDiscordSink({ url: config.discordWebhookUrl })
 		: undefined;
-	const logger = opts.logger ?? createLogger({ discordTransport: transport });
+	const logger = opts.logger ?? createLogger({ discordSink: sink });
 	registerGlobalHandlers(logger);
 	logResolvedConfig(logger, config);
 	const store = new ConversationStore(config, db, createAgent, logger);
@@ -311,7 +303,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 	});
 
 	const url = `http://${hostname}:${port}`;
-	logger.info({ url }, "pixies server listening");
+	logger.info("pixies server listening", { url });
 	opts.onReady?.(url);
 
 	registerGracefulShutdown([() => store.stop(), () => rateLimiter.stop(), () => server.stop(true)]);

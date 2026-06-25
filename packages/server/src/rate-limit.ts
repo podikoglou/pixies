@@ -76,10 +76,12 @@ export class IpRateLimiter {
 		state.count++;
 		if (state.count > this.maxRequests) {
 			const retryAfterMs = Math.max(1, state.windowStart + this.windowMs - now);
-			this.logger.warn(
-				{ ip, requestCount: state.count, maxRequests: this.maxRequests, retryAfterMs },
-				"rate limit denied",
-			);
+			this.logger.warning("rate limit denied", {
+				ip,
+				requestCount: state.count,
+				maxRequests: this.maxRequests,
+				retryAfterMs,
+			});
 			return { allowed: false, retryAfterMs };
 		}
 		return { allowed: true, retryAfterMs: 0 };
@@ -107,10 +109,11 @@ export class IpRateLimiter {
 		const windowCount = this.windows.size;
 		// Only log when something was evicted — avoids spamming on every idle tick.
 		if (evictedCount > 0) {
-			this.logger.info(
-				{ evictedCount, windowCount, event: "rate_limit_windows_cleaned" },
-				"rate-limit windows cleaned",
-			);
+			this.logger.info("rate-limit windows cleaned", {
+				evictedCount,
+				windowCount,
+				event: "rate_limit_windows_cleaned",
+			});
 		}
 		return { evictedCount, windowCount };
 	}
@@ -178,10 +181,9 @@ export function checkRateLimit(
 ): Response | null {
 	const ip = getClientIp(req, server, limiter.trustProxy, limiter.trustedProxyHops);
 	if (!ip) {
-		limiter.logger.warn(
-			{ event: "rate_limit_no_ip" },
-			"could not determine client IP; allowing request",
-		);
+		limiter.logger.warning("could not determine client IP; allowing request", {
+			event: "rate_limit_no_ip",
+		});
 		return null;
 	}
 	const { allowed, retryAfterMs } = limiter.consume(ip);

@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
-import { DiscordTransport, formatDiscordPayload } from "./discord-transport.ts";
+import type { LogRecord } from "@logtape/logtape";
+import { getDiscordSink, formatDiscordPayload } from "./discord-sink.ts";
 
 /** A fetch-shaped mock: bun infers call args as `[input, init?]`. */
 type FetchMock = ReturnType<typeof mock<(input: string, init?: RequestInit) => Promise<Response>>>;
@@ -10,12 +11,24 @@ function okFetch(): FetchMock {
 	return mock(() => Promise.resolve(new Response(null, { status: 204 })));
 }
 
-/** Cast any fetch mock to the full `typeof fetch` the transport expects. */
+/** Cast any fetch mock to the full `typeof fetch` the sink expects. */
 const asFetch = (fn: FetchMock): typeof fetch => fn as unknown as typeof fetch;
 
-/** A pino-shaped error-level JSON line as a UTF-8 buffer. */
-function line(entry: Record<string, unknown>): Buffer {
-	return Buffer.from(`${JSON.stringify({ level: 50, msg: "boom", ...entry })}\n`, "utf8");
+/** Build a real LogTape LogRecord for tests. */
+function record(
+	level: LogRecord["level"],
+	message: string,
+	properties: Record<string, unknown> = {},
+	timestamp = 1_700_000_000_000,
+): LogRecord {
+	return {
+		category: ["pixies"],
+		level,
+		message: [message],
+		rawMessage: message,
+		timestamp,
+		properties,
+	};
 }
 
 /** Promote the next macrotask so fire-and-forget POSTs settle. */
@@ -23,21 +36,16 @@ function settle(): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-/** Write a chunk synchronously and wait for the stream's write callback. */
-function writeSync(stream: DiscordTransport, chunk: Buffer): Promise<void> {
-	return new Promise((resolve) => stream.write(chunk, () => resolve()));
-}
+// ---- 1. error-level record fires fetch --------------------------------------
 
-// ---- 1. error-level entry fires fetch ---------------------------------------
-
-test("error-level entry POSTs to Discord with an embed body", async () => {
+test("error-level record POSTs to Discord with an embed body", async () => {
 	const fetchFn = okFetch();
-	const transport = new DiscordTransport({
+	const sink = getDiscordSink({
 		url: "https://discord.test/api/webhooks/x",
 		fetch: asFetch(fetchFn),
 	});
 
-	await writeSync(transport, line({ msg: "something failed", conversationId: "abc" }));
+	sink(record("error", "something failed", { conversationId: "abc" }));
 
 	expect(fetchFn).toHaveBeenCalledTimes(1);
 	const [calledUrl, init] = fetchFn.mock.calls[0]!;
@@ -50,87 +58,31 @@ test("error-level entry POSTs to Discord with an embed body", async () => {
 	expect(body.embeds[0].color).toBe(0xed4245);
 });
 
-// ---- 2. info-level entry does NOT fire fetch --------------------------------
+// ---- 2. info-level record does NOT fire fetch -------------------------------
 
-test("info-level entry is filtered out (no fetch)", async () => {
+test("info-level record is filtered out (no fetch)", async () => {
 	const fetchFn = okFetch();
-	const transport = new DiscordTransport({
+	const sink = getDiscordSink({
 		url: "https://discord.test/api/webhooks/x",
 		fetch: asFetch(fetchFn),
 	});
 
-	await writeSync(
-		transport,
-		Buffer.from(`${JSON.stringify({ level: 30, msg: "just info" })}\n`, "utf8"),
-	);
+	sink(record("info", "just info"));
 
 	expect(fetchFn).not.toHaveBeenCalled();
 });
 
-// ---- 3. malformed JSON does not throw and does not fetch --------------------
+// ---- 3. fatal-level formatting ----------------------------------------------
 
-test("malformed JSON chunk is swallowed (no throw, no fetch)", async () => {
+test("fatal-level record gets fatal title, black color, and record timestamp", async () => {
 	const fetchFn = okFetch();
-	const transport = new DiscordTransport({
-		url: "https://discord.test/api/webhooks/x",
-		fetch: asFetch(fetchFn),
-	});
-
-	await expect(
-		writeSync(transport, Buffer.from("{not valid json\n", "utf8")),
-	).resolves.toBeUndefined();
-
-	expect(fetchFn).not.toHaveBeenCalled();
-});
-
-// ---- 4. fetch rejection is swallowed (never crashes the app) ---------------
-
-test("fetch rejection is swallowed (no throw)", async () => {
-	const failingFetch = mock(() => Promise.reject(new Error("network down")));
-	const transport = new DiscordTransport({
-		url: "https://discord.test/api/webhooks/x",
-		fetch: failingFetch as unknown as typeof fetch,
-	});
-
-	// Should not reject — the transport catches internally.
-	await expect(writeSync(transport, line({ msg: "still logs" }))).resolves.toBeUndefined();
-	// Allow the rejected promise's .catch/.finally to run without throwing.
-	await settle();
-});
-
-// ---- 5. concurrency cap drops extras ----------------------------------------
-
-test("drops POSTs beyond maxConcurrent to avoid fetch storms", async () => {
-	const fetchFn = okFetch();
-	const transport = new DiscordTransport({
-		url: "https://discord.test/api/webhooks/x",
-		fetch: asFetch(fetchFn),
-		maxConcurrent: 2,
-	});
-
-	// Push maxConcurrent + 2 synchronously; only maxConcurrent should fire.
-	for (let i = 0; i < 4; i++) {
-		transport.write(line({ msg: `err ${i}` }));
-	}
-	await settle();
-
-	expect(fetchFn).toHaveBeenCalledTimes(2);
-});
-
-// ---- 6. fatal-level formatting ----------------------------------------------
-
-test("fatal-level (60) entry gets fatal title and black color", async () => {
-	const fetchFn = okFetch();
-	const transport = new DiscordTransport({
+	const sink = getDiscordSink({
 		url: "https://discord.test/api/webhooks/x",
 		fetch: asFetch(fetchFn),
 	});
 	const time = 1_700_000_000_000;
 
-	await writeSync(
-		transport,
-		Buffer.from(`${JSON.stringify({ level: 60, msg: "catastrophe", time })}\n`, "utf8"),
-	);
+	sink(record("fatal", "catastrophe", {}, time));
 
 	expect(fetchFn).toHaveBeenCalledTimes(1);
 	const [, init] = fetchFn.mock.calls[0]!;
@@ -140,48 +92,76 @@ test("fatal-level (60) entry gets fatal title and black color", async () => {
 	expect(body.embeds[0].timestamp).toBe(new Date(time).toISOString());
 });
 
+// ---- 4. fetch rejection is swallowed (never crashes the app) ----------------
+
+test("fetch rejection is swallowed (no throw)", async () => {
+	const failingFetch = mock(() => Promise.reject(new Error("network down")));
+	const sink = getDiscordSink({
+		url: "https://discord.test/api/webhooks/x",
+		fetch: failingFetch as unknown as typeof fetch,
+	});
+
+	// Should not throw — the sink catches internally.
+	expect(() => sink(record("error", "still logs"))).not.toThrow();
+	// Allow the rejected promise's .catch/.finally to run without throwing.
+	await settle();
+});
+
+// ---- 5. concurrency cap drops extras ----------------------------------------
+
+test("drops POSTs beyond maxConcurrent to avoid fetch storms", async () => {
+	const fetchFn = okFetch();
+	const sink = getDiscordSink({
+		url: "https://discord.test/api/webhooks/x",
+		fetch: asFetch(fetchFn),
+		maxConcurrent: 2,
+	});
+
+	// Push maxConcurrent + 2 synchronously; only maxConcurrent should fire.
+	for (let i = 0; i < 4; i++) sink(record("error", `err ${i}`));
+	await settle();
+
+	expect(fetchFn).toHaveBeenCalledTimes(2);
+});
+
 // ---- formatDiscordPayload unit tests ----------------------------------------
 
 test("formatDiscordPayload promotes extra context to inline fields", () => {
-	const payload = formatDiscordPayload({
-		level: 50,
-		msg: "failed to persist transcript",
-		conversationId: "id-123",
-		pid: 1,
-		hostname: "vps",
-		name: "pixies",
-		err: { message: "boom", stack: "Error: boom\n  at foo" },
-	});
+	const payload = formatDiscordPayload(
+		record("error", "failed to persist transcript", {
+			conversationId: "id-123",
+			pid: 1,
+			hostname: "vps",
+			name: "pixies",
+			err: { message: "boom", stack: "Error: boom\n  at foo" },
+		}),
+	);
 
 	const fields = payload.embeds[0]!.fields as Array<{ name: string; value: string }>;
 	const names = fields.map((f) => f.name);
-	// conversationId becomes a field; reserved pino keys do not.
+	// conversationId becomes a field; err does not (it is surfaced as stack).
 	expect(names).toContain("conversationId");
-	for (const reserved of ["level", "msg", "pid", "hostname", "name", "err"]) {
-		expect(names).not.toContain(reserved);
-	}
+	expect(names).not.toContain("err");
 	// stack is appended as its own field, wrapped in a code block.
 	const stackField = fields.find((f) => f.name === "stack");
 	expect(stackField?.value).toContain("```");
 	expect(stackField?.value).toContain("Error: boom");
 });
 
-test("formatDiscordPayload uses a placeholder when msg is absent", () => {
-	const payload = formatDiscordPayload({ level: 50 });
+test("formatDiscordPayload uses a placeholder when message is empty", () => {
+	const payload = formatDiscordPayload(record("error", ""));
 	expect(payload.embeds[0]!.description).toBe("(no message)");
 });
 
 test("formatDiscordPayload never exceeds Discord's 25-field limit (regression for #95)", () => {
 	// 25 non-reserved context keys + an err.stack would previously yield 26
 	// fields and Discord would reject the embed with a silent 400.
-	const entry: Record<string, unknown> = {
-		level: 50,
-		msg: "many fields",
+	const properties: Record<string, unknown> = {
 		err: { stack: "Error: boom\n  at foo" },
 	};
-	for (let i = 0; i < 25; i++) entry[`key${i}`] = `value${i}`;
+	for (let i = 0; i < 25; i++) properties[`key${i}`] = `value${i}`;
 
-	const payload = formatDiscordPayload(entry);
+	const payload = formatDiscordPayload(record("error", "many fields", properties));
 	const fields = payload.embeds[0]!.fields as Array<{ name: string; value: string }>;
 
 	expect(fields.length).toBe(25);
@@ -191,10 +171,10 @@ test("formatDiscordPayload never exceeds Discord's 25-field limit (regression fo
 });
 
 test("formatDiscordPayload fills all 25 slots with context when no stack is present", () => {
-	const entry: Record<string, unknown> = { level: 50, msg: "no stack" };
-	for (let i = 0; i < 25; i++) entry[`key${i}`] = `value${i}`;
+	const properties: Record<string, unknown> = {};
+	for (let i = 0; i < 25; i++) properties[`key${i}`] = `value${i}`;
 
-	const payload = formatDiscordPayload(entry);
+	const payload = formatDiscordPayload(record("error", "no stack", properties));
 	const fields = payload.embeds[0]!.fields as Array<{ name: string; value: string }>;
 
 	expect(fields.length).toBe(25);
