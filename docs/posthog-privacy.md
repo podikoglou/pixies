@@ -42,7 +42,7 @@ None carry the query text, place names, coordinates, or error messages — only 
 
 ## Server logs (PostHog Logs)
 
-Off by default; enabled by setting `POSTHOG_API_KEY` (the server secret — must never reach the browser; it is distinct from the `VITE_POSTHOG_KEY` browser token). `POSTHOG_HOST` selects the PostHog Cloud region (default `https://eu.i.posthog.com`).
+Off by default; enabled by setting `PIXIES_POSTHOG_API_KEY` (the server secret — must never reach the browser; it is distinct from the `VITE_POSTHOG_KEY` browser token). `PIXIES_POSTHOG_HOST` selects the PostHog Cloud region (default `https://eu.i.posthog.com`). Both are parsed through the TypeBox config schema, so a malformed host is rejected at boot.
 
 When enabled, `info`+ server log records are shipped to PostHog Logs over OTLP/HTTP (`<host>/i/v1/logs`). `debug`-level records are dropped at the logger threshold and never leave the instance.
 

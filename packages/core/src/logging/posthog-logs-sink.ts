@@ -6,9 +6,9 @@
  * PostHog project token via `Authorization: Bearer <token>`.
  *
  * ## Off by default
- * The server only constructs this sink when `POSTHOG_API_KEY` is present
- * (see `packages/server/src/index.ts`). Unset → no records leave the instance;
- * the console sink continues to carry full detail.
+ * The server only constructs this sink when a PostHog key is configured (see
+ * `packages/server/src/index.ts`). Unset → no records leave the instance; the
+ * console sink continues to carry full detail.
  *
  * ## Redaction at egress (defense-in-depth)
  * The console sink keeps every field verbatim; **only this egress path

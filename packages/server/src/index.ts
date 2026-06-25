@@ -223,13 +223,14 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 	const sink = config.discordWebhookUrl
 		? getDiscordSink({ url: config.discordWebhookUrl })
 		: undefined;
-	// Server-side PostHog Logs (off when POSTHOG_API_KEY is unset). These are
-	// NOT PIXIES_-prefixed config vars — read directly from the environment.
-	// Distinct from the VITE_POSTHOG_* browser vars: this is the server secret.
-	const posthogKey = process.env.POSTHOG_API_KEY;
-	const posthogHost = process.env.POSTHOG_HOST ?? "https://eu.i.posthog.com";
-	const posthogSink = posthogKey
-		? getPostHogLogsSink({ endpoint: `${posthogHost}/i/v1/logs`, token: posthogKey })
+	// Server-side PostHog Logs, env-gated via the TypeBox config (off when
+	// PIXIES_POSTHOG_API_KEY is unset). Distinct from the VITE_POSTHOG_* browser
+	// vars: this is the server secret.
+	const posthogSink = config.posthogApiKey
+		? getPostHogLogsSink({
+				endpoint: `${config.posthogHost}/i/v1/logs`,
+				token: config.posthogApiKey,
+			})
 		: undefined;
 	const logger = opts.logger ?? createLogger({ discordSink: sink, posthogSink });
 	registerGlobalHandlers(logger);

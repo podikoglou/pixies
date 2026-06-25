@@ -100,6 +100,7 @@ const baseConfig: ResolvedPixiesConfig = {
 	overpassConcurrency: 2,
 	overpassIntervalCap: 2,
 	overpassIntervalMs: 1000,
+	posthogHost: "https://eu.i.posthog.com",
 	conversationTokenBudget: 0,
 };
 

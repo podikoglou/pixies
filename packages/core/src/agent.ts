@@ -111,6 +111,8 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 			overpassIntervalCap: num("PIXIES_OVERPASS_INTERVAL_CAP"),
 			overpassIntervalMs: num("PIXIES_OVERPASS_INTERVAL_MS"),
 			discordWebhookUrl: env("PIXIES_DISCORD_WEBHOOK_URL"),
+			posthogHost: env("PIXIES_POSTHOG_HOST"),
+			posthogApiKey: env("PIXIES_POSTHOG_API_KEY"),
 			conversationTokenBudget: num("PIXIES_CONVERSATION_TOKEN_BUDGET"),
 		}),
 	);
