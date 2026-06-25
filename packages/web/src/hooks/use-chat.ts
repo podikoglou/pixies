@@ -71,10 +71,9 @@ export function dispatchSseEvent(
 			dispatch({ type: "STREAM_DONE", responseTimeMs: evt.data.durationMs });
 			break;
 		case "error": {
-			// Wire-trust boundary (CONVENTIONS.local.md §3): parse the raw `errorTag`
-			// string through PixiesErrorTagSchema rather than `as`-casting, so an
-			// unknown tag becomes `undefined` here instead of leaning on
-			// errorToToastCopy's `default` arm downstream.
+			// Parse the raw `errorTag` string through PixiesErrorTagSchema rather
+			// than `as`-casting it, so an unknown tag becomes `undefined` here
+			// instead of leaning on errorToToastCopy's `default` arm downstream.
 			const rawTag = evt.data.errorTag;
 			const tag: PixiesErrorTag | undefined =
 				rawTag !== undefined && Value.Check(PixiesErrorTagSchema, rawTag) ? rawTag : undefined;
