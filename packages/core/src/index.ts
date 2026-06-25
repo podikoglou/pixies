@@ -26,6 +26,7 @@ export {
 export type { NominatimError } from "./clients/nominatim.ts";
 export type { OverpassError } from "./clients/overpass.ts";
 export type { StreamPromptError, PixiesError, PixiesErrorTag } from "./errors.ts";
+export { PixiesErrorTagSchema } from "./errors.ts";
 
 export { createAgent, createOsmClients, readConfigFromEnv } from "./agent.ts";
 export type { CreateAgentOptions, CreateOsmClientsOptions } from "./agent.ts";
