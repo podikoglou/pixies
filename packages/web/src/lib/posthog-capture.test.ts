@@ -56,12 +56,8 @@ test("captureEvent no-ops when PostHog is disabled (client undefined)", () => {
 	expect(() =>
 		captureEvent(undefined, "message_sent", { is_new_conversation: true }),
 	).not.toThrow();
-	expect(() =>
-		captureEvent(undefined, "map_opened", { marker_count: 3 }),
-	).not.toThrow();
-	expect(() =>
-		captureEvent(undefined, "tool_error", { tool_name: "query_osm" }),
-	).not.toThrow();
+	expect(() => captureEvent(undefined, "map_opened", { marker_count: 3 })).not.toThrow();
+	expect(() => captureEvent(undefined, "tool_error", { tool_name: "query_osm" })).not.toThrow();
 });
 
 test("captureEvent emits message_sent with the new-conversation flag", () => {
