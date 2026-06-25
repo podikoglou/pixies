@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { usePostHog } from "@posthog/react";
-import type { PostHog } from "posthog-js";
 import { toast } from "sonner";
 import { useChatContext } from "@/contexts/chat-context";
-import { captureEvent } from "@/lib/posthog-capture";
+import { useAnalytics } from "@/hooks/use-analytics";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatInput } from "./chat-input";
 import { ChatTimeline } from "./chat-timeline";
@@ -24,9 +22,7 @@ interface ChatViewProps {
 export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 	const { state, sendMessage, abort, reset } = useChatContext();
 	const navigate = useNavigate();
-	// Typed non-nullable by @posthog/react, but `undefined` at runtime when no
-	// provider is mounted (telemetry off); the capture helpers no-op on that.
-	const posthog = usePostHog() as PostHog | undefined;
+	const analytics = useAnalytics();
 	const [text, setText] = useState("");
 	const rootRef = useRef<HTMLDivElement>(null);
 	const isPinnedRef = useRef(true);
@@ -40,10 +36,10 @@ export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 	const handleSubmit = () => {
 		const trimmed = text.trim();
 		if (!trimmed || state.isStreaming) return;
-		captureEvent(posthog, "message_sent", { is_new_conversation: state.conversationId === null });
+		analytics.messageSent(state.conversationId === null);
 		sendMessage(trimmed, {
 			onConversationCreated,
-			onToolError: (toolName) => captureEvent(posthog, "tool_error", { tool_name: toolName }),
+			onToolError: analytics.toolError,
 		});
 		setText("");
 	};
