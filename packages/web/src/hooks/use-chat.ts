@@ -118,7 +118,7 @@ export function useChat() {
 
 			// `tool_execution_end` carries only toolCallId + isError — the tool name
 			// arrived earlier on `tool_execution_start`, so remember it to attribute
-			// any error to the right tool for product analytics (#173).
+			// any error to the right tool for product analytics.
 			const toolNames = new Map<string, string>();
 			try {
 				for await (const evt of stream) {

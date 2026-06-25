@@ -23,7 +23,7 @@ Beyond PostHog's decide/handshake request and an anonymous `distinct_id` in `loc
 
 Events are anonymous: Pixies has no authentication, so `posthog.identify()` is never called and PostHog assigns a random per-browser `distinct_id`.
 
-### Product analytics events (#173)
+### Product analytics events
 
 A small set of explicit events are fired at specific user-action sites (`packages/web/src/lib/posthog-capture.ts`), each carrying only coarse metadata:
 
