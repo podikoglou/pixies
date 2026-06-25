@@ -3,6 +3,7 @@ import L from "leaflet";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
+import { useAnalytics } from "@/hooks/use-analytics";
 import { cn } from "@/lib/utils";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -32,6 +33,8 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const mapRef = useRef<L.Map | null>(null);
 	const markersLayerRef = useRef<L.MarkerClusterGroup | null>(null);
+	const analytics = useAnalytics();
+	const openedCapturedRef = useRef(false);
 
 	useEffect(() => {
 		const container = containerRef.current;
@@ -107,6 +110,16 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 			}
 		}
 	}, [markers, bounds]);
+
+	// A map "opens" for the user once it actually shows results; capture that
+	// once per widget instance — each tool result mounts its own MapWidget, and
+	// the count reveals result richness, never the query itself.
+	useEffect(() => {
+		if (openedCapturedRef.current) return;
+		if (!markers || markers.length === 0) return;
+		analytics.capture("map_opened", { marker_count: markers.length });
+		openedCapturedRef.current = true;
+	}, [markers, analytics]);
 
 	return <div ref={containerRef} className={cn("h-[400px] w-full rounded-md border", className)} />;
 }

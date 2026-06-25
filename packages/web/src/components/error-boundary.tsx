@@ -1,8 +1,6 @@
 import { useCallback, type ErrorInfo, type ReactNode } from "react";
 import { Component } from "react";
-import { usePostHog } from "@posthog/react";
-import type { PostHog } from "posthog-js";
-import { captureReactError } from "@/lib/posthog-capture";
+import { useAnalytics } from "@/hooks/use-analytics";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { TriangleAlertIcon } from "@/components/icons";
@@ -71,18 +69,15 @@ export function ErrorFallback() {
 /**
  * Error boundary wired to PostHog Error Tracking. Render crashes are forwarded
  * with their component stack when telemetry is on, and silently swallowed (the
- * fallback still shows) when it is off — `usePostHog()` returns `undefined` in
- * that case, which {@link captureReactError} no-ops on.
+ * fallback still shows) when it is off — `useAnalytics` no-ops in that case.
  */
 export function PostHogErrorBoundary({ children }: { children: ReactNode }) {
-	// Typed non-nullable by @posthog/react, but `undefined` at runtime when no
-	// provider is mounted (telemetry off).
-	const posthog = usePostHog() as PostHog | undefined;
+	const analytics = useAnalytics();
 	const onError = useCallback(
 		(error: unknown, info: ErrorInfo) => {
-			captureReactError(posthog, error, info.componentStack ?? "");
+			analytics.captureError(error, info.componentStack ?? "");
 		},
-		[posthog],
+		[analytics],
 	);
 	return (
 		<ErrorBoundary fallback={<ErrorFallback />} onError={onError}>

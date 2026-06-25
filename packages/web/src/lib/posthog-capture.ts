@@ -20,3 +20,25 @@ export function captureReactError(
 	if (!client) return;
 	client.captureException(error, { componentStack });
 }
+
+/** Event → props mapping for `captureEvent`. */
+export type EventProps = {
+	message_sent: { is_new_conversation: boolean };
+	map_opened: { marker_count: number };
+	tool_error: { tool_name: string };
+};
+
+/**
+ * Fire a product-analytics event, no-oping when telemetry is off.
+ *
+ * Each event carries only booleans, counts, or internal tool identifiers —
+ * never the query text, place names, or coordinates (see docs/posthog-privacy.md).
+ */
+export function captureEvent<E extends keyof EventProps>(
+	client: PostHog | undefined,
+	event: E,
+	props: EventProps[E],
+): void {
+	if (!client) return;
+	client.capture(event as string, props);
+}

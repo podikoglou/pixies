@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useChatContext } from "@/contexts/chat-context";
+import { useAnalytics } from "@/hooks/use-analytics";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatInput } from "./chat-input";
 import { ChatTimeline } from "./chat-timeline";
@@ -21,6 +22,7 @@ interface ChatViewProps {
 export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 	const { state, sendMessage, abort, reset } = useChatContext();
 	const navigate = useNavigate();
+	const analytics = useAnalytics();
 	const [text, setText] = useState("");
 	const rootRef = useRef<HTMLDivElement>(null);
 	const isPinnedRef = useRef(true);
@@ -34,7 +36,11 @@ export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 	const handleSubmit = () => {
 		const trimmed = text.trim();
 		if (!trimmed || state.isStreaming) return;
-		sendMessage(trimmed, { onConversationCreated });
+		analytics.capture("message_sent", { is_new_conversation: state.conversationId === null });
+		sendMessage(trimmed, {
+			onConversationCreated,
+			onToolError: (toolName) => analytics.capture("tool_error", { tool_name: toolName }),
+		});
 		setText("");
 	};
 

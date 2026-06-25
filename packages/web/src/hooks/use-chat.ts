@@ -98,7 +98,13 @@ export function useChat() {
 	const startTimeRef = useRef<number>(0);
 
 	const sendMessage = useCallback(
-		async (message: string, opts?: { onConversationCreated?: (id: string) => void }) => {
+		async (
+			message: string,
+			opts?: {
+				onConversationCreated?: (id: string) => void;
+				onToolError?: (toolName: string) => void;
+			},
+		) => {
 			if (!message.trim()) return;
 			const controller = new AbortController();
 			abortRef.current = controller;
@@ -110,9 +116,20 @@ export function useChat() {
 				? sendMessageStream(conversationId, message, controller.signal)
 				: createConversationStream(message, controller.signal);
 
+			// `tool_execution_end` carries only toolCallId + isError — the tool name
+			// arrived earlier on `tool_execution_start`, so remember it to attribute
+			// any error to the right tool for product analytics.
+			const toolNames = new Map<string, string>();
 			try {
-				for await (const evt of stream)
+				for await (const evt of stream) {
+					if (evt.event === "tool_execution_start")
+						toolNames.set(evt.data.toolCallId, evt.data.toolName);
+					else if (evt.event === "tool_execution_end" && evt.data.isError) {
+						const toolName = toolNames.get(evt.data.toolCallId);
+						if (toolName) opts?.onToolError?.(toolName);
+					}
 					dispatchSseEvent(evt, dispatch, opts?.onConversationCreated, startTimeRef.current);
+				}
 			} catch (err) {
 				if (isAbortError(err)) {
 					dispatch({ type: "STREAM_DONE" });
