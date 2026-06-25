@@ -74,7 +74,7 @@ export interface PostHogLogsSinkOptions {
 /**
  * Build a LogTape sink that forwards `info`+ records to PostHog Logs over
  * OTLP/HTTP, scrubbing `redactKeys` from each record's properties first. Off
- * when unset (the server only builds this when `POSTHOG_API_KEY` is present).
+ * when unset (the server only builds this when a PostHog key is configured).
  * Uses `@logtape/otel`'s shortcut exporter mode so core imports no
  * `@opentelemetry/*` packages directly.
  */

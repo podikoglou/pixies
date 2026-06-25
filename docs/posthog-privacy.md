@@ -9,7 +9,7 @@ Off by default. Set `VITE_POSTHOG_KEY` and the SPA initialises the PostHog clien
 | Variable | Package | Exposure |
 |---|---|---|
 | `VITE_POSTHOG_KEY` | web | Public project token — safe to bundle, write-only |
-| `POSTHOG_API_KEY` | server | Secret — must never reach the browser |
+| `PIXIES_POSTHOG_API_KEY` | server | Secret — must never reach the browser |
 
 ## What is collected
 
