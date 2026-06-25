@@ -1,11 +1,17 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
 import { Result } from "better-result";
-import { OverpassClient } from "./overpass.ts";
+import {
+	OverpassBusyError,
+	OverpassClient,
+	OverpassHttpError,
+	OverpassParseError,
+	OverpassRemarkError,
+} from "./overpass.ts";
 import { type Logger } from "../logging/index.ts";
-import { ToolAbortedError, OsmBusyError, OsmParseError } from "../errors.ts";
+import { ToolAbortedError } from "../errors.ts";
 
-/** Build a JSON `Response` osmFetch treats as a success. */
+/** Build a JSON `Response` the Overpass client treats as a success. */
 function jsonResponse(data: unknown): Response {
 	return new Response(JSON.stringify(data), {
 		status: 200,
@@ -112,14 +118,20 @@ test("abort while queued returns Err and the task never runs", async () => {
 	await p2;
 });
 
-// ---- abort while running threads the signal into osmFetch -------------------
+// ---- abort while running threads the signal into fetch --------------------
 
 test("abort while running returns Err and the signal threaded to fetch is aborted", async () => {
 	const seenSignals: AbortSignal[] = [];
 	const blocker = deferred<Response>();
 	const fetchMock = mock((_url: unknown, init: { signal?: AbortSignal }) => {
-		if (init.signal) seenSignals.push(init.signal);
-		return blocker.promise;
+		const sig = init.signal;
+		if (sig) seenSignals.push(sig);
+		return new Promise<Response>((resolve, reject) => {
+			const onAbort = () => reject(sig?.reason ?? new DOMException("Aborted", "AbortError"));
+			if (sig?.aborted) return onAbort();
+			sig?.addEventListener("abort", onAbort, { once: true });
+			blocker.promise.then(resolve, reject);
+		});
 	}) as unknown as typeof fetch;
 	const client = makeOverpass(fetchMock);
 
@@ -134,16 +146,51 @@ test("abort while running returns Err and the signal threaded to fetch is aborte
 	const r = await p;
 	expect(Result.isError(r)).toBe(true);
 	if (Result.isError(r)) expect(r.error._tag).toBe("ToolAborted");
-	// The parent signal is merged into the fetch signal inside osmFetch; once
-	// the parent aborts, the merged signal passed to fetch is aborted too.
+	// The parent signal is merged into the fetch signal inside fetchOverpassResponse;
+	// once the parent aborts, the merged signal passed to fetch is aborted too.
 	expect(seenSignals[0]!.aborted).toBe(true);
 
 	blocker.resolve(jsonResponse({ elements: [] }));
 });
 
-// ---- OsmBusyError (429) surfaces as Err (CAVEAT #3) -------------------------
+// ---- HTTP classification -----------------------------------------------------
 
-test("429 returns Err(OsmBusyError)", async () => {
+test("500 non-busy response returns Err(OverpassHttpError)", async () => {
+	const body = "internal server error";
+	const fetchMock = mock(() =>
+		Promise.resolve(new Response(body, { status: 500 })),
+	) as unknown as typeof fetch;
+	const client = makeOverpass(fetchMock);
+
+	const r = await client.query("[out:json];node(1);out;");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("OverpassHttp");
+		expect(r.error).toBeInstanceOf(OverpassHttpError);
+		expect(r.error).not.toBeInstanceOf(OverpassBusyError);
+		if (!(r.error instanceof OverpassHttpError)) throw new Error("expected OverpassHttpError");
+		expect(r.error.status).toBe(500);
+		expect(r.error.body).toBe(body);
+	}
+});
+
+test("busy body marker on non-ok response returns Err(OverpassBusyError)", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(new Response("<status>HTTP 503</status>", { status: 500 })),
+	) as unknown as typeof fetch;
+	const client = makeOverpass(fetchMock);
+
+	const r = await client.query("[out:json];node(1);out;");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("OverpassBusy");
+		expect(r.error).toBeInstanceOf(OverpassBusyError);
+		if (!(r.error instanceof OverpassBusyError)) throw new Error("expected OverpassBusyError");
+		expect(r.error.status).toBe(500);
+	}
+});
+
+test("429 returns Err(OverpassBusyError)", async () => {
 	const fetchMock = mock(() =>
 		Promise.resolve(new Response("busy", { status: 429 })),
 	) as unknown as typeof fetch;
@@ -151,8 +198,8 @@ test("429 returns Err(OsmBusyError)", async () => {
 	const r = await client.query("[out:json];node(1);out;");
 	expect(Result.isError(r)).toBe(true);
 	if (Result.isError(r)) {
-		expect(r.error._tag).toBe("OsmBusy");
-		expect(r.error).toBeInstanceOf(OsmBusyError);
+		expect(r.error._tag).toBe("OverpassBusy");
+		expect(r.error).toBeInstanceOf(OverpassBusyError);
 	}
 });
 
@@ -170,7 +217,7 @@ test("query returns parsed OverpassResponse on success", async () => {
 
 // ---- invalid-shape error contract (pinned for #104 Value.Parse refactor) -----
 
-test("query() returns Err(OsmParseError) on invalid shape and tags the cause", async () => {
+test("query() returns Err(OverpassParseError) on invalid shape and tags the cause", async () => {
 	const fetchMock = mock(
 		() => Promise.resolve(jsonResponse({ elements: "not-an-array" })), // bad elements
 	) as unknown as typeof fetch;
@@ -178,9 +225,23 @@ test("query() returns Err(OsmParseError) on invalid shape and tags the cause", a
 	const r = await client.query("[out:json];node(1);out;");
 	expect(Result.isError(r)).toBe(true);
 	if (Result.isError(r)) {
-		expect(r.error._tag).toBe("OsmParse");
-		expect(r.error).toBeInstanceOf(OsmParseError);
+		expect(r.error._tag).toBe("OverpassParse");
+		expect(r.error).toBeInstanceOf(OverpassParseError);
 		expect(r.error.message).toBe("Overpass: invalid response shape");
 		expect(r.error.cause).toBeDefined();
+	}
+});
+
+test("query() returns Err(OverpassRemarkError) when Overpass returns a remark", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse({ elements: [], remark: "runtime error" })),
+	) as unknown as typeof fetch;
+	const client = makeOverpass(fetchMock);
+	const r = await client.query("[out:json];node(1);out;");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("OverpassRemark");
+		expect(r.error).toBeInstanceOf(OverpassRemarkError);
+		expect(r.error.message).toBe("Overpass: runtime error");
 	}
 });

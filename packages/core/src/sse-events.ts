@@ -99,7 +99,7 @@ export const DoneData = Type.Object({
  *
  * `message` is always present (the wire contract since launch). `errorTag` and
  * `details` are **additive** (issue #109): when the server catches a
- * `TaggedError` it forwards its `_tag` (e.g. `"OsmBusy"`, `"BudgetExceeded"`)
+ * `TaggedError` it forwards its `_tag` (e.g. `"OverpassBusy"`, `"BudgetExceeded"`)
  * and a `toJSON()` snapshot of its props so clients can render tag-specific
  * copy. Old clients ignore the unknown fields; new clients fall back to
  * `message` when `errorTag` is absent. The schema does NOT set

@@ -11,15 +11,19 @@ function copy(
 	return errorToToastCopy({ tag, defaultMessage, details });
 }
 
-test("OsmBusy → friendly busy copy", () => {
-	expect(copy("OsmBusy", "raw")).toBe("OpenStreetMap's servers are busy. Try again in a moment.");
+test("service busy tags → friendly busy copy", () => {
+	const expected = "OpenStreetMap's servers are busy. Try again in a moment.";
+	expect(copy("NominatimBusy", "raw")).toBe(expected);
+	expect(copy("OverpassBusy", "raw")).toBe(expected);
 });
 
-test("OsmHttp / OsmParse / OsmRemark share the generic OSM-reach copy", () => {
+test("service HTTP / parse / remark tags share the generic OSM-reach copy", () => {
 	const expected = "We couldn't reach OpenStreetMap just now. Try again.";
-	expect(copy("OsmHttp")).toBe(expected);
-	expect(copy("OsmParse")).toBe(expected);
-	expect(copy("OsmRemark")).toBe(expected);
+	expect(copy("NominatimHttp")).toBe(expected);
+	expect(copy("NominatimParse")).toBe(expected);
+	expect(copy("OverpassHttp")).toBe(expected);
+	expect(copy("OverpassParse")).toBe(expected);
+	expect(copy("OverpassRemark")).toBe(expected);
 });
 
 test("ToolAborted falls back to the default message", () => {

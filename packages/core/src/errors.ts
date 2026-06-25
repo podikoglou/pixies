@@ -1,20 +1,22 @@
 import { TaggedError } from "better-result";
+import type { NominatimError } from "./clients/nominatim.ts";
+import type { OverpassError } from "./clients/overpass.ts";
 
 /**
  * Pixies' TaggedError hierarchy.
  *
- * Every recoverable, classifiable failure mode in the app is a {@link
- * https://nick-codes.github.io/better-result/ TaggedError} subclass living in
- * this file. Each carries a PascalCase `_tag` discriminant so callers can
- * exhaustively match via `matchError` / `matchErrorPartial` (the same pattern
- * `better-result` uses). All errors are re-exported from `@pixies/core`.
+ * Recoverable, classifiable failure modes carry a PascalCase `_tag`
+ * discriminant so callers can exhaustively match via `matchError` /
+ * `matchErrorPartial` (the same pattern `better-result` uses). Shared app and
+ * tool errors live here; service-owned errors live with their clients and are
+ * re-exported from `@pixies/core`.
  *
  * Conventions:
  * - `_tag` values are PascalCase domain tokens with no `Error` suffix
- *   (`"OsmBusy"`, `"ConversationNotFound"`, ...).
+ *   (`"NominatimBusy"`, `"ConversationNotFound"`, ...).
  * - `name` is set to the `_tag` by the TaggedError base class.
- * - Computed-message classes (`OsmBusyError`, `OsmRemarkError`,
- *   `BudgetExceededError`) derive their `message` in the constructor so their
+ * - Computed-message classes (`BudgetExceededError`, plus service-specific
+ *   classes in the clients) derive their `message` in the constructor so their
  *   text matches the historical throw strings byte-for-byte.
  * - Fail-fast / programmer-bug throws (config parsing, etc.) are intentionally
  *   NOT migrated (see issue #109, Phase 5 skips). `ConfigError` is defined
@@ -23,46 +25,6 @@ import { TaggedError } from "better-result";
  * See `errors.test.ts` for the per-class contract and `AGENTS.md` /
  * `docs/CONVENTIONS.md` for placement rationale.
  */
-
-// --- OSM layer ---
-
-/** OSM server signalled a busy / non-retryable condition (429 / 503 / markers). */
-export class OsmBusyError extends TaggedError("OsmBusy")<{
-	status: number;
-	service?: string;
-	message: string;
-}>() {
-	constructor(args: { status: number; service?: string }) {
-		const prefix = args.service ? `${args.service}: ` : "";
-		super({ ...args, message: `${prefix}OSM server busy (HTTP ${args.status})` });
-	}
-}
-
-/** Non-ok OSM response that is not a busy signal, or a network/timeout failure. */
-export class OsmHttpError extends TaggedError("OsmHttp")<{
-	status?: number;
-	body?: string;
-	service?: string;
-	message: string;
-	cause?: unknown;
-}>() {}
-
-/** OSM response body did not match the expected TypeBox schema. */
-export class OsmParseError extends TaggedError("OsmParse")<{
-	service: "Overpass" | "Nominatim";
-	message: string;
-	cause?: unknown;
-}>() {}
-
-/** Overpass returned a `remark` field (runtime error string). */
-export class OsmRemarkError extends TaggedError("OsmRemark")<{
-	remark: string;
-	message: string;
-}>() {
-	constructor(args: { remark: string }) {
-		super({ ...args, message: `Overpass: ${args.remark}` });
-	}
-}
 
 // --- Tool layer ---
 
@@ -136,14 +98,6 @@ export class InvalidTranscriptError extends TaggedError("InvalidTranscript")<{
 
 // --- Canonical unions ---
 
-/** Union of all errors an OSM client method can return. */
-export type OsmError =
-	| OsmBusyError
-	| OsmHttpError
-	| OsmParseError
-	| OsmRemarkError
-	| ToolAbortedError;
-
 /** Union of all errors `ConversationStore.streamPrompt` can return. */
 export type StreamPromptError =
 	| ConversationNotFoundError
@@ -152,7 +106,8 @@ export type StreamPromptError =
 
 /** Union of every Pixies TaggedError. */
 export type PixiesError =
-	| OsmError
+	| NominatimError
+	| OverpassError
 	| DisplayMapValidationError
 	| StreamPromptError
 	| InvalidJsonError

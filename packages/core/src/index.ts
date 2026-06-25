@@ -2,10 +2,17 @@
 export { Result, TaggedError, matchError, matchErrorPartial, isTaggedError } from "better-result";
 export type { SerializedResult } from "better-result";
 export {
-	OsmBusyError,
-	OsmHttpError,
-	OsmParseError,
-	OsmRemarkError,
+	NominatimBusyError,
+	NominatimHttpError,
+	NominatimParseError,
+} from "./clients/nominatim.ts";
+export {
+	OverpassBusyError,
+	OverpassHttpError,
+	OverpassParseError,
+	OverpassRemarkError,
+} from "./clients/overpass.ts";
+export {
 	ToolAbortedError,
 	DisplayMapValidationError,
 	ConversationNotFoundError,
@@ -16,7 +23,9 @@ export {
 	ConfigError,
 	InvalidTranscriptError,
 } from "./errors.ts";
-export type { OsmError, StreamPromptError, PixiesError, PixiesErrorTag } from "./errors.ts";
+export type { NominatimError } from "./clients/nominatim.ts";
+export type { OverpassError } from "./clients/overpass.ts";
+export type { StreamPromptError, PixiesError, PixiesErrorTag } from "./errors.ts";
 
 export { createAgent, createOsmClients, readConfigFromEnv } from "./agent.ts";
 export type { CreateAgentOptions, CreateOsmClientsOptions } from "./agent.ts";
@@ -89,15 +98,22 @@ export type {
 	TranscriptMessage,
 } from "./transcript-schema.ts";
 
-export { NominatimClient } from "./osm/nominatim.ts";
-export type { NominatimConfig, NominatimResult } from "./osm/nominatim.ts";
-export { OverpassClient } from "./osm/overpass.ts";
-export type { OverpassConfig, OverpassResponse } from "./osm/overpass.ts";
-export { createRateLimiter } from "./osm/rate-limiter.ts";
-export type { RateLimiterOptions, RateLimiter, RateLimitCallbacks } from "./osm/rate-limiter.ts";
 export {
-	OSM_SERVER_BUSY_MESSAGE,
-	isServerBusyResponse,
-	SERVER_BUSY_BODY_MARKERS,
-	isAbortError,
-} from "./osm/http.ts";
+	NominatimClient,
+	formatNominatimResult,
+	nominatimResultToData,
+} from "./clients/nominatim.ts";
+export type {
+	NominatimConfig,
+	NominatimResult,
+	NominatimRateLimitCallbacks,
+} from "./clients/nominatim.ts";
+export { OverpassClient, formatElement, overpassElementToData } from "./clients/overpass.ts";
+export type {
+	OverpassConfig,
+	OverpassElement,
+	OverpassResponse,
+	OverpassRateLimitCallbacks,
+} from "./clients/overpass.ts";
+export { OSM_SERVER_BUSY_MESSAGE } from "./tools/busy-message.ts";
+export { isAbortError } from "./utils/abort.ts";

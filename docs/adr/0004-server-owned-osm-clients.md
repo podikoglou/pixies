@@ -76,3 +76,16 @@ If the server ever becomes multi-process, this ADR's *constraint* (one chain per
 - `docs/api/sse.md` — Concurrency section describes the implemented invariant.
 - Issue #4 — flagged the module-global mutex as a hidden global; this ADR preserves its *multi-tenant* requirement explicitly.
 - Issue #18 — this regression and its framing.
+
+## Revision — 2026-06-25
+
+ADR-0007 (self-contained OSM service clients) moved code referenced above
+without changing this ADR's invariant. The Context, Decision, Rationale, and
+Consequences text is left as written at acceptance; this section records the
+pointer/mechanism update only.
+
+- `packages/core/src/osm/nominatim.ts` → `packages/core/src/clients/nominatim.ts`.
+- The shared `createRateLimiter` (ADR-0005, now superseded) was replaced by a
+  direct per-client `p-queue`. The Nominatim client still owns one queue, so
+  "one client ⇒ one queue ⇒ one chain" still holds.
+- Forward reference ADR-0005 → ADR-0007.

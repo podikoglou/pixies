@@ -1,8 +1,8 @@
 import type { AgentTool, ToolExecutionMode } from "@earendil-works/pi-agent-core";
 import type { Static, TSchema } from "typebox";
 import { Value } from "typebox/value";
-import type { NominatimClient } from "../osm/nominatim.ts";
-import type { OverpassClient } from "../osm/overpass.ts";
+import type { NominatimClient } from "../clients/nominatim.ts";
+import type { OverpassClient } from "../clients/overpass.ts";
 
 export interface OsmClients {
 	nominatim: NominatimClient;

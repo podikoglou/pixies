@@ -4,8 +4,8 @@ import type { Api, KnownProvider, Model } from "@earendil-works/pi-ai";
 import { Value } from "typebox/value";
 import { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
 import { silentLogger, type Logger } from "./logging/index.ts";
-import { NominatimClient } from "./osm/nominatim.ts";
-import { OverpassClient } from "./osm/overpass.ts";
+import { NominatimClient } from "./clients/nominatim.ts";
+import { OverpassClient } from "./clients/overpass.ts";
 import { createTools, type OsmClients } from "./tools/index.ts";
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 
