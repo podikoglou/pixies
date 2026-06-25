@@ -1,0 +1,3 @@
+[submodule "docs/priv"]
+    path = docs/priv
+    url = git@github.com:podikoglou/pixies-private.git
