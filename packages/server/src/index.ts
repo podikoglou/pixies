@@ -11,6 +11,7 @@ import {
 import { createDb } from "@pixies/core/db";
 import { createLogger, type Logger } from "@pixies/core/logging";
 import { getDiscordSink } from "@pixies/core/logging/discord-sink";
+import { getPostHogLogsSink } from "@pixies/core/logging/posthog-logs-sink";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
@@ -222,7 +223,15 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 	const sink = config.discordWebhookUrl
 		? getDiscordSink({ url: config.discordWebhookUrl })
 		: undefined;
-	const logger = opts.logger ?? createLogger({ discordSink: sink });
+	// Server-side PostHog Logs (off when POSTHOG_API_KEY is unset). These are
+	// NOT PIXIES_-prefixed config vars — read directly from the environment.
+	// Distinct from the VITE_POSTHOG_* browser vars: this is the server secret.
+	const posthogKey = process.env.POSTHOG_API_KEY;
+	const posthogHost = process.env.POSTHOG_HOST ?? "https://eu.i.posthog.com";
+	const posthogSink = posthogKey
+		? getPostHogLogsSink({ endpoint: `${posthogHost}/i/v1/logs`, token: posthogKey })
+		: undefined;
+	const logger = opts.logger ?? createLogger({ discordSink: sink, posthogSink });
 	registerGlobalHandlers(logger);
 	logResolvedConfig(logger, config);
 	const store = new ConversationStore(config, db, createAgent, logger);

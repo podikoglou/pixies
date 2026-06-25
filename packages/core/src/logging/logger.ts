@@ -4,7 +4,9 @@
  * Every log line goes to the console. When a `discordSink` is provided (e.g.
  * {@link getDiscordSink}), `error`+ lines are *additionally* forwarded to it
  * (the sink self-filters and fires non-blocking, never blocking the request
- * path).
+ * path). When a `posthogSink` is provided (e.g.
+ * {@link getPostHogLogsSink}), `info`+ lines are *additionally* shipped to
+ * PostHog Logs over OTel (redacted at the egress sink, off when unset).
  *
  * LogTape is configured exactly once per process via `configureSync`
  * (guarded by the module-level `configured` flag). Library code MUST NOT call
@@ -28,6 +30,8 @@ export interface CreateLoggerOptions {
 	level?: LogLevel;
 	/** Optional sink for `error`+ log lines (e.g. {@link getDiscordSink}). */
 	discordSink?: Sink;
+	/** Optional sink for `info`+ log lines shipped off-instance (e.g. {@link getPostHogLogsSink}). */
+	posthogSink?: Sink;
 }
 
 /**
@@ -50,6 +54,10 @@ export function createLogger(opts: CreateLoggerOptions = {}): Logger {
 		if (opts.discordSink) {
 			sinks.discord = opts.discordSink;
 			rootSinks.push("discord");
+		}
+		if (opts.posthogSink) {
+			sinks.posthog = opts.posthogSink;
+			rootSinks.push("posthog");
 		}
 		configureSync({
 			sinks,
