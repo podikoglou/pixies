@@ -9,7 +9,7 @@ import { ToolAbortedError } from "../errors.ts";
 import { isAbortError, mergeSignals } from "../utils/abort.ts";
 import type { ToolProgress } from "../tools/progress.ts";
 
-/** Nominatim returned a busy / non-retryable condition (429 / 503 / markers). */
+/** Nominatim returned a busy / non-retryable condition; see {@link isNominatimBusyResponse} for the status/marker set. */
 export class NominatimBusyError extends TaggedError("NominatimBusy")<{
 	status: number;
 	message: string;
@@ -408,7 +408,7 @@ async function fetchNominatimResponse(
 }
 
 function isNominatimBusyResponse(status: number, body: string): boolean {
-	if (status === 429 || status === 503) return true;
+	if ([429, 502, 503, 504].includes(status)) return true;
 	return BUSY_BODY_MARKERS.some((marker) => body.includes(marker));
 }
 

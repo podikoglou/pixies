@@ -203,6 +203,32 @@ test("429 returns Err(OverpassBusyError)", async () => {
 	}
 });
 
+test("502 returns Err(OverpassBusyError)", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(new Response("bad gateway", { status: 502 })),
+	) as unknown as typeof fetch;
+	const client = makeOverpass(fetchMock);
+	const r = await client.query("[out:json];node(1);out;");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("OverpassBusy");
+		expect(r.error).toBeInstanceOf(OverpassBusyError);
+	}
+});
+
+test("504 returns Err(OverpassBusyError)", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(new Response("gateway timeout", { status: 504 })),
+	) as unknown as typeof fetch;
+	const client = makeOverpass(fetchMock);
+	const r = await client.query("[out:json];node(1);out;");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("OverpassBusy");
+		expect(r.error).toBeInstanceOf(OverpassBusyError);
+	}
+});
+
 // ---- success ----------------------------------------------------------------
 
 test("query returns parsed OverpassResponse on success", async () => {
