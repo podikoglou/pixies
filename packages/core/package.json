@@ -17,9 +17,13 @@
       "types": "./src/logging/index.ts",
       "default": "./src/logging/index.ts"
     },
-    "./logging/discord-transport": {
-      "types": "./src/logging/discord-transport.ts",
-      "default": "./src/logging/discord-transport.ts"
+    "./logging/discord-sink": {
+      "types": "./src/logging/discord-sink.ts",
+      "default": "./src/logging/discord-sink.ts"
+    },
+    "./logging/posthog-logs-sink": {
+      "types": "./src/logging/posthog-logs-sink.ts",
+      "default": "./src/logging/posthog-logs-sink.ts"
     }
   },
   "scripts": {
@@ -33,11 +37,12 @@
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.79.3",
     "@earendil-works/pi-ai": "0.79.3",
+    "@logtape/logtape": "^2.1.1",
+    "@logtape/otel": "^2.1.1",
     "better-result": "^2.9.2",
     "drizzle-orm": "^0.45.2",
     "lru-cache": "^11.2.1",
     "p-queue": "^9.3.0",
-    "pino": "^10.3.1",
     "typebox": "1.1.38"
   },
   "devDependencies": {

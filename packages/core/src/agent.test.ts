@@ -48,6 +48,9 @@ const URL_EMAIL_ENV_KEYS = [
 /** User-Agent env key (string default, covered by #108). */
 const USER_AGENT_ENV_KEYS = ["PIXIES_USER_AGENT"] as const;
 
+/** PostHog server-log shipping keys (optional host URL + token). */
+const POSTHOG_ENV_KEYS = ["PIXIES_POSTHOG_HOST", "PIXIES_POSTHOG_API_KEY"] as const;
+
 /** Keys readConfigFromEnv consults; snapshot/restore keeps tests hermetic. */
 const SNAPSHOT_KEYS = [
 	"PIXIES_MODEL",
@@ -84,6 +87,7 @@ function setEnv(overrides: Record<string, string> = {}) {
 		...NUMERIC_ENV_KEYS,
 		...URL_EMAIL_ENV_KEYS,
 		...USER_AGENT_ENV_KEYS,
+		...POSTHOG_ENV_KEYS,
 	]) {
 		delete process.env[key];
 	}
@@ -377,6 +381,28 @@ test('PIXIES_OVERPASS_URL="" resolves to the default URL (empty-as-unset, D3) [#
 test('PIXIES_CONTACT_EMAIL="" resolves to undefined (empty-as-unset, D3) [#103]', () => {
 	setEnv({ PIXIES_CONTACT_EMAIL: "" });
 	expect(readConfigFromEnv().contactEmail).toBeUndefined();
+});
+
+// ---- PostHog server-log shipping (host URL validated; key is the off-switch) -
+
+test('PIXIES_POSTHOG_HOST="not-a-url" is rejected at config time [#103]', () => {
+	setEnv({ PIXIES_POSTHOG_HOST: "not-a-url" });
+	expect(() => readConfigFromEnv()).toThrow();
+});
+
+test('PIXIES_POSTHOG_HOST="" resolves to the default host (empty-as-unset, D3) [#103]', () => {
+	setEnv({ PIXIES_POSTHOG_HOST: "" });
+	expect(readConfigFromEnv().posthogHost).toBe("https://eu.i.posthog.com");
+});
+
+test("PIXIES_POSTHOG_API_KEY unset leaves log shipping off (posthogApiKey undefined)", () => {
+	setEnv({});
+	expect(readConfigFromEnv().posthogApiKey).toBeUndefined();
+});
+
+test("PIXIES_POSTHOG_API_KEY set reads the token", () => {
+	setEnv({ PIXIES_POSTHOG_API_KEY: "phc-test-token" });
+	expect(readConfigFromEnv().posthogApiKey).toBe("phc-test-token");
 });
 
 // ---- #106 Gap 2: provider prefix validated against pi-ai's registry ---------

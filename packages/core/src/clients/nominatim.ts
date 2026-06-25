@@ -182,25 +182,23 @@ export class NominatimClient {
 	): Promise<T> {
 		if (this.queue.pending >= this.concurrency) callbacks.onProgress?.({ type: "queued" });
 		if (this.queue.size > 0) {
-			this.logger.debug(
-				{ service: "Nominatim", queueSize: this.queue.size, pending: this.queue.pending },
-				"queue backpressure",
-			);
+			this.logger.debug("queue backpressure", {
+				service: "Nominatim",
+				queueSize: this.queue.size,
+				pending: this.queue.pending,
+			});
 		}
 
 		const enqueuedAt = Date.now();
 		return this.queue
 			.add(
 				async () => {
-					this.logger.debug(
-						{
-							service: "Nominatim",
-							waitMs: Date.now() - enqueuedAt,
-							queueSize: this.queue.size,
-							pending: this.queue.pending,
-						},
-						"rate-limit slot acquired",
-					);
+					this.logger.debug("rate-limit slot acquired", {
+						service: "Nominatim",
+						waitMs: Date.now() - enqueuedAt,
+						queueSize: this.queue.size,
+						pending: this.queue.pending,
+					});
 					callbacks.onProgress?.({ type: "running" });
 					return fn();
 				},
@@ -219,16 +217,17 @@ export class NominatimClient {
 	): Promise<{ json: unknown; statusCode: number; contentType: string }> {
 		return this.withRateLimit(
 			async () => {
-				this.logger.debug({ service: "Nominatim", url: url.toString() }, "request");
+				this.logger.debug("request", { service: "Nominatim", url: url.toString() });
 				const start = Date.now();
 				const res = await fetchNominatimResponse(url, this.fetchFn, {
 					headers: { "User-Agent": this.userAgent },
 					signal,
 				});
-				this.logger.debug(
-					{ service: "Nominatim", statusCode: res.status, durationMs: Date.now() - start },
-					"response",
-				);
+				this.logger.debug("response", {
+					service: "Nominatim",
+					statusCode: res.status,
+					durationMs: Date.now() - start,
+				});
 				const contentType = res.headers.get("content-type") ?? "";
 				const json = await res.json();
 				return { json, statusCode: res.status, contentType };
@@ -248,7 +247,7 @@ export class NominatimClient {
 		const key = `search:${query.trim().toLowerCase()}:${opts.limit ?? ""}`;
 		const cached = this.cache?.get(key);
 		if (cached !== undefined) {
-			this.logger.debug({ service: "Nominatim", event: "cache_hit" }, "cache hit");
+			this.logger.debug("cache hit", { service: "Nominatim", event: "cache_hit" });
 			return Result.ok(cached as NominatimResult[]);
 		}
 		const url = this.buildUrl("/search", {
@@ -272,10 +271,12 @@ export class NominatimClient {
 				return parsed;
 			},
 			catch: (err) => {
-				logger.warn(
-					{ service: "Nominatim", statusCode, contentType, cause: err },
-					"invalid search response shape",
-				);
+				logger.warning("invalid search response shape", {
+					service: "Nominatim",
+					statusCode,
+					contentType,
+					cause: err,
+				});
 				return new NominatimParseError({
 					message: "Nominatim: invalid search response shape",
 					cause: err,
@@ -295,7 +296,7 @@ export class NominatimClient {
 		const key = `reverse:${lat.toFixed(5)}:${lon.toFixed(5)}:${opts.zoom ?? ""}`;
 		const cached = this.cache?.get(key);
 		if (cached !== undefined) {
-			this.logger.debug({ service: "Nominatim", event: "cache_hit" }, "cache hit");
+			this.logger.debug("cache hit", { service: "Nominatim", event: "cache_hit" });
 			return Result.ok(cached as NominatimResult);
 		}
 		const url = this.buildUrl("/reverse", {
@@ -316,15 +317,20 @@ export class NominatimClient {
 		return Result.try({
 			try: () => {
 				if (typeof json !== "object" || json === null) {
-					logger.warn(
-						{ service: "Nominatim", statusCode, contentType },
-						"invalid reverse response",
-					);
+					logger.warning("invalid reverse response", {
+						service: "Nominatim",
+						statusCode,
+						contentType,
+					});
 					throw new NominatimParseError({ message: "Nominatim: invalid reverse response" });
 				}
 				const result = json as NominatimResult | { error?: string };
 				if ("error" in result && result.error) {
-					logger.warn({ service: "Nominatim", statusCode, contentType }, "reverse error response");
+					logger.warning("reverse error response", {
+						service: "Nominatim",
+						statusCode,
+						contentType,
+					});
 					throw new NominatimParseError({ message: `Nominatim: ${result.error}` });
 				}
 				try {
@@ -332,10 +338,12 @@ export class NominatimClient {
 					cache?.set(key, parsed);
 					return parsed;
 				} catch (err) {
-					logger.warn(
-						{ service: "Nominatim", statusCode, contentType, cause: err },
-						"invalid reverse response shape",
-					);
+					logger.warning("invalid reverse response shape", {
+						service: "Nominatim",
+						statusCode,
+						contentType,
+						cause: err,
+					});
 					throw new NominatimParseError({
 						message: "Nominatim: invalid reverse response shape",
 						cause: err,

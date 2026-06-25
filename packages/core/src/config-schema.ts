@@ -131,6 +131,18 @@ export const PixiesConfigSchema = Type.Object({
 			description: "Discord webhook URL to receive error/fatal log alerts",
 		}),
 	),
+	posthogHost: Type.String({
+		format: "url",
+		default: "https://eu.i.posthog.com",
+		description:
+			"PostHog Cloud host for server-log shipping via OTel (e.g. https://eu.i.posthog.com)",
+	}),
+	posthogApiKey: Type.Optional(
+		Type.String({
+			description:
+				"PostHog server token. When set, info+ server logs ship to PostHog Logs via OTel (off when unset). Server secret — never expose to the browser.",
+		}),
+	),
 	conversationTokenBudget: Type.Integer({
 		minimum: 0,
 		default: 0,

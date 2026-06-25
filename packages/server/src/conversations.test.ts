@@ -100,6 +100,7 @@ const baseConfig: ResolvedPixiesConfig = {
 	overpassConcurrency: 2,
 	overpassIntervalCap: 2,
 	overpassIntervalMs: 1000,
+	posthogHost: "https://eu.i.posthog.com",
 	conversationTokenBudget: 0,
 };
 
@@ -198,10 +199,8 @@ test("get() cache miss rehydrates a non-empty transcript from the DB", async () 
 });
 
 test("get() warns and starts empty when the persisted transcript is grossly corrupt [#106]", async () => {
-	const warnSpy = mock(
-		(_context: { conversationId?: string; count?: number }, _msg?: string) => {},
-	);
-	const mockLogger = { warn: warnSpy, error: mock(() => {}) } as unknown as Logger;
+	const warnSpy = mock((_msg?: string, _properties?: Record<string, unknown>) => {});
+	const mockLogger = { warning: warnSpy, error: mock(() => {}) } as unknown as Logger;
 	const db = createTestDb();
 	const store = new ConversationStore(baseConfig, db, makeFakeFactory(), mockLogger);
 	stores.push(store);
@@ -221,18 +220,16 @@ test("get() warns and starts empty when the persisted transcript is grossly corr
 
 	const logged = warnSpy.mock.calls.find(
 		(call) =>
-			call[1] === "transcript failed validation; starting fresh" && call[0]?.conversationId === id,
+			call[0] === "transcript failed validation; starting fresh" && call[1]?.conversationId === id,
 	);
 	expect(logged).toBeDefined();
-	expect(logged?.[0]?.count).toBe(1);
+	expect(logged?.[1]?.count).toBe(1);
 });
 
 test("streamPrompt() warns and proceeds with empty state when the persisted transcript is grossly corrupt [#106]", async () => {
 	const agents: FakeAgent[] = [];
-	const warnSpy = mock(
-		(_context: { conversationId?: string; count?: number }, _msg?: string) => {},
-	);
-	const mockLogger = { warn: warnSpy, error: mock(() => {}) } as unknown as Logger;
+	const warnSpy = mock((_msg?: string, _properties?: Record<string, unknown>) => {});
+	const mockLogger = { warning: warnSpy, error: mock(() => {}) } as unknown as Logger;
 	const db = createTestDb();
 	const store = new ConversationStore(baseConfig, db, makeFakeFactory(agents), mockLogger);
 	stores.push(store);
@@ -464,9 +461,7 @@ test("DB persistence failures are surfaced via logger.error (regression for #59)
 		},
 	}) as unknown as DbClient;
 
-	const errorSpy = mock(
-		(_context: { conversationId?: string; err?: unknown }, _msg?: string) => {},
-	);
+	const errorSpy = mock((_msg?: string, _properties?: Record<string, unknown>) => {});
 	const mockLogger = { error: errorSpy } as unknown as Logger;
 	const store = new ConversationStore(baseConfig, errorDb, makeFakeFactory(), mockLogger);
 	stores.push(store);
@@ -483,8 +478,8 @@ test("DB persistence failures are surfaced via logger.error (regression for #59)
 
 	expect(errorSpy).toHaveBeenCalled();
 	const logged = errorSpy.mock.calls.find(
-		(call) => call[1] === "failed to persist transcript" && call[0]?.conversationId === id,
+		(call) => call[0] === "failed to persist transcript" && call[1]?.conversationId === id,
 	);
 	expect(logged).toBeDefined();
-	expect(logged?.[0]?.err).toBeInstanceOf(Error);
+	expect(logged?.[1]?.err).toBeInstanceOf(Error);
 });

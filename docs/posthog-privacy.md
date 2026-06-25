@@ -9,7 +9,7 @@ Off by default. Set `VITE_POSTHOG_KEY` and the SPA initialises the PostHog clien
 | Variable | Package | Exposure |
 |---|---|---|
 | `VITE_POSTHOG_KEY` | web | Public project token — safe to bundle, write-only |
-| `POSTHOG_API_KEY` | server | Secret — must never reach the browser |
+| `PIXIES_POSTHOG_API_KEY` | server | Secret — must never reach the browser |
 
 ## What is collected
 
@@ -40,6 +40,16 @@ None carry the query text, place names, coordinates, or error messages — only 
 - No reverse proxy: the SPA posts direct to PostHog Cloud, so ad blockers may silently drop events. A `/ingest` proxy through the pixies server is a future option.
 - No consent UI: operators in jurisdictions that require consent must gate `VITE_POSTHOG_KEY` behind their own consent flow.
 
+## Server logs (PostHog Logs)
+
+Off by default; enabled by setting `PIXIES_POSTHOG_API_KEY` (the server secret — must never reach the browser; it is distinct from the `VITE_POSTHOG_KEY` browser token). `PIXIES_POSTHOG_HOST` selects the PostHog Cloud region (default `https://eu.i.posthog.com`). Both are parsed through the TypeBox config schema, so a malformed host is rejected at boot.
+
+When enabled, `info`+ server log records are shipped to PostHog Logs over OTLP/HTTP (`<host>/i/v1/logs`). `debug`-level records are dropped at the logger threshold and never leave the instance.
+
+**Redaction at egress:** the `url` and `query` properties are replaced with `"[redacted]"` before egress, because Nominatim request URLs encode the `q=<place>` query parameter (sensitive location data). Local stdout retains full detail — redaction applies only on the off-instance egress path. This is defense-in-depth: today's location-bearing fields are `debug` (already dropped), but the redaction protects against an operator raising the level to `debug` and against future info+ fields.
+
+Records DO carry: the message string, category, level, timestamp, and other structured properties (counts, durations, service names, conversation ids, error tags). They never carry the query text or place names — those live only in the `url`/`query` fields, which are redacted.
+
 ## Changing this
 
-Any change that enables a capture surface or adds a `capture` call must update this document, and must never capture query strings — they may contain sensitive location data.
+Any change that enables a capture surface or adds a `capture` call must update this document, and must never capture query strings — they may contain sensitive location data. Any new server log field that could carry location data must be added to the PostHog sink's `redactKeys` (`packages/core/src/logging/posthog-logs-sink.ts`).

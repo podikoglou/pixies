@@ -64,7 +64,7 @@ function stubStore(): ConversationStore {
 
 /** Mock logger that captures `error` calls (mirrors conversations.test.ts). */
 function mockLogger() {
-	const errorSpy = mock((_ctx: { conversationId?: string; err?: unknown }, _msg?: string) => {});
+	const errorSpy = mock((_msg?: string, _properties?: Record<string, unknown>) => {});
 	return { logger: { error: errorSpy } as unknown as Logger, errorSpy };
 }
 
@@ -86,10 +86,10 @@ test("pipeAgentStream emits errorTag + details when the stream rejects with a Ta
 	// The catch block must also log the rejection (regression for the log line).
 	expect(errorSpy).toHaveBeenCalled();
 	const logged = errorSpy.mock.calls.find(
-		(call) => call[0]?.conversationId === "conv-1" && call[1] === "agent stream error",
+		(call) => call[0] === "agent stream error" && call[1]?.conversationId === "conv-1",
 	);
 	expect(logged).toBeDefined();
-	expect(logged?.[0]?.err).toBe(err);
+	expect(logged?.[1]?.err).toBe(err);
 });
 
 test("pipeAgentStream emits ONLY message when the stream rejects with a plain Error (byte-identical back-compat, #109)", async () => {

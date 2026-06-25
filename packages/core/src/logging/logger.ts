@@ -1,47 +1,83 @@
 /**
- * Structured logger factory built on pino's `multistream`.
+ * Structured logger factory built on LogTape.
  *
- * Every log line goes to `process.stdout`. When a `discordTransport` writable
- * stream is provided (e.g. {@link DiscordTransport}), `error` and `fatal` lines
- * are *additionally* forwarded to it (fire-and-forget, never blocks the request
- * path).
+ * Every log line goes to the console. When a `discordSink` is provided (e.g.
+ * {@link getDiscordSink}), `error`+ lines are *additionally* forwarded to it
+ * (the sink self-filters and fires non-blocking, never blocking the request
+ * path). When a `posthogSink` is provided (e.g.
+ * {@link getPostHogLogsSink}), `info`+ lines are *additionally* shipped to
+ * PostHog Logs over OTel (redacted at the egress sink, off when unset).
  *
- * Why `multistream` and not worker-thread `pino.transport()`: worker transports
- * add Bun-compat risk and complicate `fetch` injection, and our transport is
- * already non-blocking. See {@link DiscordTransport} for the full rationale.
- *
- * `process.stdout` (not `pino.destination(1)`) keeps this dependency-free and
- * works identically under Node and Bun; sonic-boom destinations would add Bun
- * surface area we don't need.
+ * LogTape is configured exactly once per process via `configureSync`
+ * (guarded by the module-level `configured` flag). Library code MUST NOT call
+ * `configureSync`; only the app (the server) drives it through `createLogger`.
  */
-import type { Writable } from "node:stream";
-import pino, { type Level, type Logger, type StreamEntry } from "pino";
+import {
+	configureSync,
+	getConsoleSink,
+	getLogger,
+	type Logger,
+	type LogLevel,
+	type Sink,
+} from "@logtape/logtape";
 
-export type { Logger } from "pino";
+export type { Logger } from "@logtape/logtape";
 
 export interface CreateLoggerOptions {
-	/** Logger name embedded in every line. Default `"pixies"`. */
+	/** Logger category embedded in every line. Default `"pixies"`. */
 	name?: string;
-	/** Minimum level emitted to stdout. Default `"info"`. */
-	level?: Level;
-	/** Optional writable stream for `error`+ log lines (e.g. {@link DiscordTransport}). */
-	discordTransport?: Writable;
+	/** Minimum level emitted to the console. Default `"info"`. */
+	level?: LogLevel;
+	/** Optional sink for `error`+ log lines (e.g. {@link getDiscordSink}). */
+	discordSink?: Sink;
+	/** Optional sink for `info`+ log lines shipped off-instance (e.g. {@link getPostHogLogsSink}). */
+	posthogSink?: Sink;
 }
 
 /**
- * Silent no-op logger — safe default for tests / opt-out. Immutable and
- * stateless, so a module-level constant is fine.
+ * Silent logger — safe default for tests / opt-out. Obtained before any
+ * `configureSync` so it routes nowhere; the `["pixies", "silent"]` entry in
+ * {@link createLogger} keeps it silent even after configuration (no sinks,
+ * override parent sinks). Immutable and stateless, so a module-level constant
+ * is fine.
  */
-export const silentLogger: Logger = pino({ level: "silent" });
+export const silentLogger: Logger = getLogger(["pixies", "silent"]);
+
+let configured = false;
 
 export function createLogger(opts: CreateLoggerOptions = {}): Logger {
+	const root = opts.name ?? "pixies";
 	const level = opts.level ?? "info";
-	const streams: StreamEntry<Level>[] = [{ level, stream: process.stdout }];
-	if (opts.discordTransport) {
-		streams.push({
-			level: "error", // ONLY error & fatal reach Discord
-			stream: opts.discordTransport,
+	if (!configured) {
+		const sinks: Record<string, Sink> = { console: getConsoleSink() };
+		const rootSinks = ["console"];
+		if (opts.discordSink) {
+			sinks.discord = opts.discordSink;
+			rootSinks.push("discord");
+		}
+		if (opts.posthogSink) {
+			sinks.posthog = opts.posthogSink;
+			rootSinks.push("posthog");
+		}
+		configureSync({
+			sinks,
+			loggers: [
+				{
+					category: [root],
+					lowestLevel: level,
+					sinks: rootSinks,
+				},
+				// Forces silent: no own sinks, do not inherit parent sinks, and
+				// reject anything below fatal anyway.
+				{
+					category: ["pixies", "silent"],
+					lowestLevel: "fatal",
+					sinks: [],
+					parentSinks: "override",
+				},
+			],
 		});
+		configured = true;
 	}
-	return pino({ name: opts.name ?? "pixies", level }, pino.multistream(streams));
+	return getLogger([root]);
 }
