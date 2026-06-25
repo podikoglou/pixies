@@ -108,7 +108,7 @@ export type {
 	NominatimResult,
 	NominatimRateLimitCallbacks,
 } from "./clients/nominatim.ts";
-export { OverpassClient, formatElement, overpassElementToData } from "./clients/overpass.ts";
+export { OverpassClient, formatElement } from "./clients/overpass.ts";
 export type {
 	OverpassConfig,
 	OverpassElement,
