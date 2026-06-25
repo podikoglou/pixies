@@ -19,6 +19,10 @@ export function OptionalPostHogProvider({ children }: { children: ReactNode }) {
 			apiKey={POSTHOG_KEY}
 			options={{
 				api_host: POSTHOG_HOST,
+				// Autocapture stays off — the composer's query text is sensitive
+				// location data and must never be collected. Product events are sent
+				// explicitly at their user-action sites instead (see posthog-capture.ts
+				// and docs/posthog-privacy.md).
 				autocapture: false,
 				capture_exceptions: true,
 				disable_session_recording: true,
