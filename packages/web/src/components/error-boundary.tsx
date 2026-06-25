@@ -5,7 +5,7 @@ import type { PostHog } from "posthog-js";
 import { captureReactError } from "@/lib/posthog-capture";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { TriangleAlertIcon } from "@/components/icons/triangle-alert";
+import { TriangleAlertIcon } from "@/components/icons";
 
 interface ErrorBoundaryProps {
 	children: ReactNode;
