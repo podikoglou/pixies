@@ -118,10 +118,8 @@ export interface NominatimConfig {
 	cacheMaxEntries?: number;
 }
 
-const SERVER_BUSY_BODY_MARKERS = [
-	"The server is probably too busy to handle your request",
-	"<status>HTTP 503</status>",
-];
+/** Body substrings Nominatim emits when overloaded (HTTP status is the primary signal). */
+const BUSY_BODY_MARKERS = ["The server is probably too busy to handle your request"];
 
 /** Client for Nominatim search and reverse-geocoding. */
 export class NominatimClient {
@@ -432,7 +430,7 @@ async function fetchNominatimResponse(
 
 function isNominatimBusyResponse(status: number, body: string): boolean {
 	if (status === 429 || status === 503) return true;
-	return SERVER_BUSY_BODY_MARKERS.some((marker) => body.includes(marker));
+	return BUSY_BODY_MARKERS.some((marker) => body.includes(marker));
 }
 
 function toNominatimError(e: unknown): NominatimError {

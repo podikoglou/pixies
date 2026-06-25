@@ -124,10 +124,8 @@ export interface OverpassConfig {
 	logger?: Logger;
 }
 
-const SERVER_BUSY_BODY_MARKERS = [
-	"The server is probably too busy to handle your request",
-	"<status>HTTP 503</status>",
-];
+/** Body substrings Overpass emits when overloaded (HTTP status is the primary signal). */
+const BUSY_BODY_MARKERS = ["<status>HTTP 503</status>"];
 
 /** Client for Overpass QL queries. */
 export class OverpassClient {
@@ -343,7 +341,7 @@ async function fetchOverpassResponse(
 
 function isOverpassBusyResponse(status: number, body: string): boolean {
 	if (status === 429 || status === 503) return true;
-	return SERVER_BUSY_BODY_MARKERS.some((marker) => body.includes(marker));
+	return BUSY_BODY_MARKERS.some((marker) => body.includes(marker));
 }
 
 function toOverpassError(e: unknown): OverpassError {
