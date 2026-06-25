@@ -98,11 +98,7 @@ export type {
 	TranscriptMessage,
 } from "./transcript-schema.ts";
 
-export {
-	NominatimClient,
-	formatNominatimResult,
-	nominatimResultToData,
-} from "./clients/nominatim.ts";
+export { NominatimClient, formatNominatimResult } from "./clients/nominatim.ts";
 export type {
 	NominatimConfig,
 	NominatimResult,

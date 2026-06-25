@@ -8,7 +8,6 @@ import { silentLogger, type Logger } from "../logging/index.ts";
 import { ToolAbortedError } from "../errors.ts";
 import { isAbortError, mergeSignals } from "../utils/abort.ts";
 import type { ToolProgress } from "../tools/progress.ts";
-import type { GeocodeResultEntry } from "../tools/index.ts";
 
 /** Nominatim returned a busy / non-retryable condition (429 / 503 / markers). */
 export class NominatimBusyError extends TaggedError("NominatimBusy")<{
@@ -369,26 +368,6 @@ export function formatNominatimResult(r: NominatimResult): string {
 	if (category) segments.push(category);
 
 	return segments.join(" | ");
-}
-
-/**
- * Structured, lossless representation of a Nominatim result for UI consumers.
- * This is the content-side counterpart to {@link formatNominatimResult}: the
- * pipe string stays as the model-facing serialization, this object is the
- * wire contract for structured rendering (issue #15).
- */
-export function nominatimResultToData(r: NominatimResult): GeocodeResultEntry {
-	return {
-		placeId: r.place_id,
-		lat: Number(r.lat),
-		lon: Number(r.lon),
-		name: r.name || r.display_name?.split(",")[0] || "unknown",
-		...(r.display_name ? { displayName: r.display_name } : {}),
-		...(r.class ? { class: r.class } : {}),
-		...(r.type ? { type: r.type } : {}),
-		...(r.osm_type ? { osmType: r.osm_type } : {}),
-		...(r.osm_id !== undefined ? { osmId: r.osm_id } : {}),
-	};
 }
 
 interface FetchNominatimOptions {
