@@ -95,6 +95,10 @@ reorganising modules, or making code testable, use that one.
 
 ## Pull request process
 
+PRs use the [pull request template](.github/PULL_REQUEST_TEMPLATE.md). Agent-authored
+PRs should follow the `pr` skill for the body-style rules (what to include vs. what's
+already visible in the GitHub UI).
+
 - Run `bun run typecheck`, `bun run format`, and `bun run lint` before pushing (though lefthook should run that by itself)
 - Never commit secrets or keys (`.env` is gitignored)
 - Write well-documented code and keep comments up to date
