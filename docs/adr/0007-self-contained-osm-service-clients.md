@@ -37,6 +37,7 @@ Make each OSM service client self-contained under `packages/core/src/clients/`. 
 - Per-service errors make SSE `errorTag` / `details._tag` more specific while preserving friendly web copy for busy and generic OSM-reach failures.
 - Tools still convert service-busy errors into non-error tool results with the same model guidance.
 - Queue progress (`queued` / `running`), abort handling, cache behaviour, and server-owned client lifetime are preserved.
+- Tool result-entry converters (the `*ToData` mappings into `GeocodeResultEntry` / `OverpassResultEntry`) were relocated to the tools layer (#181), leaving the clients with only the model-facing pipe formatters (`formatNominatimResult` / `formatElement`). Clients now keep only downward dependencies, apart from the `ToolProgress` callback type still tracked by #163.
 
 **Negative:**
 
@@ -63,6 +64,8 @@ If the server becomes multi-process, ADR-0004's durability caveat still applies:
 - ADR-0004 — server-owned client lifetime; unchanged by this ADR.
 - Issue #161 — self-contained OSM services; dissolve `osm/`.
 - Issue #162 — per-service OSM error hierarchies.
+- Issue #181 — relocate tool result-entry converters out of the clients, completing this ADR's self-containment.
 - `packages/core/src/clients/nominatim.ts` — Nominatim queue, fetch, formatting, and errors.
 - `packages/core/src/clients/overpass.ts` — Overpass queue, fetch, formatting, and errors.
+- `packages/core/src/tools/geocode-entry.ts` — Nominatim→`GeocodeResultEntry` converter, owned by the tools layer (#181).
 - `packages/core/src/tools/busy-message.ts` — model-facing OSM busy guidance owned by tools.
