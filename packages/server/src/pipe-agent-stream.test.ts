@@ -60,7 +60,7 @@ function rejectingStream(err: unknown): ReadableStream<AgentEvent> {
 
 /**
  * A `ReadableStream<AgentEvent>` that enqueues `events` then NEVER closes, so
- * the test can cancel the SSE response mid-flight (issue #197). `end()` closes
+ * the test can cancel the SSE response mid-flight. `end()` closes
  * the underlying controller so the dangling consumer loop can settle for test
  * teardown — otherwise the never-ending stream would keep a promise pending.
  */
@@ -202,7 +202,7 @@ test("pipeAgentStream emits ONLY message when the stream rejects with a plain Er
 	expect(posthog.captures[0]?.properties).toEqual({ $process_person_profile: false });
 });
 
-test("pipeAgentStream captures `agent stream disconnect` (had_output=true) when the client cancels mid-flight after a tool event (#197)", async () => {
+test("pipeAgentStream captures `agent stream disconnect` (had_output=true) when the client cancels mid-flight after a tool event", async () => {
 	const { logger } = mockLogger();
 	const posthog = spyPostHog();
 	const { store, abortSpy } = stubStoreWithSpy();
@@ -223,7 +223,7 @@ test("pipeAgentStream captures `agent stream disconnect` (had_output=true) when 
 		if (parseSseFrames(decoder.decode(value)).some((f) => f.event === "tool_execution_start"))
 			sawTool = true;
 	}
-	// Cancelling the response body is the #79 disconnect path → fires onClose.
+	// Cancelling the response body is the disconnect path → fires onClose.
 	await reader.cancel();
 	// Close the never-ending agent stream so the dangling consumer settles.
 	end();
@@ -241,7 +241,7 @@ test("pipeAgentStream captures `agent stream disconnect` (had_output=true) when 
 	expect(abortSpy).toHaveBeenCalledWith("conv-1");
 });
 
-test("pipeAgentStream captures `agent stream disconnect` with had_output=false when cancelled before any tool event (#197)", async () => {
+test("pipeAgentStream captures `agent stream disconnect` with had_output=false when cancelled before any tool event", async () => {
 	const { logger } = mockLogger();
 	const posthog = spyPostHog();
 	const { store, abortSpy } = stubStoreWithSpy();
@@ -264,7 +264,7 @@ test("pipeAgentStream captures `agent stream disconnect` with had_output=false w
 	expect(abortSpy).toHaveBeenCalledWith("conv-2");
 });
 
-test("pipeAgentStream does NOT capture disconnect when the stream completes normally (#197 lifecycle guard)", async () => {
+test("pipeAgentStream does NOT capture disconnect when the stream completes normally (lifecycle guard)", async () => {
 	const { logger } = mockLogger();
 	const posthog = spyPostHog();
 	const { store } = stubStoreWithSpy();
