@@ -1,9 +1,11 @@
 ---
 name: pr
-description: Write and open pull requests for the pixies project. Use when asked to open a PR, create a pull request, draft a PR, or write the PR body/description. Enforces the PR body-style rules (what to include and what to leave out).
+description: Write and open pull requests for the pixies project. Use when asked to open a PR, create a pull request, draft a PR, or write the PR body/description. Builds on the `writing` skill — load it first for format rules, banned voices, and the mandatory self-audit.
 ---
 
 # Open Pull Requests
+
+Load the **`writing`** skill first for the universal prose rules and self-audit. This file adds the PR-specific mechanics and body contract.
 
 ## How to open a PR
 
@@ -55,13 +57,17 @@ rationale, and scope boundaries — not a narration of the change.
 - **No commit lists or file-by-file change lists.** The diff shows this.
 - **No restating the linked issue.** Link it; add only what the implementation decided.
 
-### Style
+### PR-specific writing rules (on top of `writing`)
 
-- **One-line bullets.** No paragraph-bullets or walls of prose.
-- **Omit empty sections.** An empty heading is noise — drop it. Review notes in
-  particular should be deleted unless there's a real gotcha or a suggested review order.
-- **Ground it in the codebase** — reference files, line numbers, ADRs, existing conventions.
-- **Scannable, not dense.** A reviewer should parse it in under a minute.
+- **Decisions are bold-thesis + optional one line.** Each decision leads with a bold
+  clause stating the choice; any detail is a single line under it, never a paragraph-bullet.
+- **Reference freely — PRs are ephemeral.** Files, line numbers, issue #s, and ADRs age
+  with the PR, so cite them (this is the PR calibration of `writing`'s lifespan rule).
+- **Omit empty sections.** An empty heading is noise — drop it. Review notes in particular
+  should be deleted unless there's a real gotcha or a suggested review order.
+- **Scannable in under a minute.** A reviewer parses it without scrolling-and-reading.
+
+Then run `writing`'s self-audit before posting.
 
 ## Splitting
 
