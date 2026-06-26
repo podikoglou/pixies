@@ -68,3 +68,14 @@ export function parseToolResult(toolName: string, details: unknown): ToolResult 
 	if (!mod) return { kind: "empty" };
 	return mod.parse(details) ?? { kind: "empty" };
 }
+
+/**
+ * True when a tool result's `details` marks an OSM-busy soft-failure
+ * (`{ busy: true, ... }`). Busy is a SUCCESS (`isError: false`) but a transient
+ * server issue, not a genuine zero-feature outcome — both the chat UI and the
+ * empty-rate analytics exclude it, so the predicate lives next to
+ * `parseToolResult` (the single interpreter of tool-result `details`).
+ */
+export function isBusyResult(details: unknown): boolean {
+	return (details as Record<string, unknown> | null | undefined)?.busy === true;
+}
