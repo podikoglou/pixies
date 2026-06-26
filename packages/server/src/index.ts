@@ -9,7 +9,7 @@ import {
 	type StreamPromptError,
 } from "@pixies/core";
 import { createDb } from "@pixies/core/db";
-import { createLogger, type Logger } from "@pixies/core/logging";
+import { createLogger, dispose, type Logger } from "@pixies/core/logging";
 import { getDiscordSink } from "@pixies/core/logging/discord-sink";
 import { getPostHogLogsSink } from "@pixies/core/logging/posthog-logs-sink";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
@@ -20,7 +20,12 @@ import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { ConversationStore } from "./conversations.ts";
 import { translateAgentEvent } from "./events.ts";
 import { SseWriter } from "./sse.ts";
-import { IpRateLimiter, checkRateLimit } from "./rate-limit.ts";
+import { IpRateLimiter, checkRateLimit, getClientIp } from "./rate-limit.ts";
+import {
+	captureAnalytics,
+	createPostHogAnalyticsClient,
+	type PostHogAnalyticsClient,
+} from "./posthog.ts";
 
 const WEB_DIST = process.env.PIXIES_WEB_DIST ?? path.resolve(import.meta.dir, "../../web/dist");
 const MIGRATIONS_FOLDER =
@@ -45,12 +50,14 @@ function registerGlobalHandlers(logger: Logger): void {
 
 let gracefulShutdownRegistered = false;
 
-function registerGracefulShutdown(handlers: Array<() => void>): void {
+function registerGracefulShutdown(handlers: Array<() => void | Promise<void>>): void {
 	if (gracefulShutdownRegistered) return;
 	gracefulShutdownRegistered = true;
+	// Await every hook (including the analytics + LogTape flushes) before
+	// exiting, so in-flight events/records drain on SIGTERM/SIGINT. Any
+	// rejecting hook is absorbed by allSettled — no hook can block the exit.
 	const cleanup = () => {
-		for (const handler of handlers) handler();
-		process.exit(0);
+		void Promise.allSettled(handlers.map((h) => h())).finally(() => process.exit(0));
 	};
 	process.on("SIGTERM", cleanup);
 	process.on("SIGINT", cleanup);
@@ -64,6 +71,8 @@ export interface ServerInstance {
 export interface StartServerOptions extends Partial<Pick<ResolvedPixiesConfig, "host" | "port">> {
 	config?: ResolvedPixiesConfig;
 	logger?: Logger;
+	/** Injection seam for tests; defaults to a real client when `config.posthogApiKey` is set. */
+	posthog?: PostHogAnalyticsClient;
 	onReady?: (url: string) => void;
 }
 
@@ -102,6 +111,7 @@ export function pipeAgentStream(
 	result: { stream: ReadableStream<AgentEvent> },
 	abortId: string,
 	logger: Logger,
+	posthog?: PostHogAnalyticsClient,
 	onOpen?: (writer: SseWriter) => void,
 ): Response {
 	const writer = new SseWriter(() => store.abort(abortId));
@@ -117,10 +127,15 @@ export function pipeAgentStream(
 		} catch (err) {
 			const loggedErr = err instanceof Error ? err : new Error(String(err));
 			logger.error("agent stream error", { conversationId: abortId, err: loggedErr });
-			// Forward structured error metadata when the agent rejected with a
-			// TaggedError (issue #109). Non-tagged errors emit only `message`,
-			// which is byte-identical to the pre-#109 wire format.
 			const tag = isTaggedError(err) ? err._tag : undefined;
+			// Privacy: capture the error TAG ONLY — never err.message or the Error object.
+			// Overpass/Nominatim errors embed OSM HTTP bodies and the searched place name
+			// in .message. Subject to change if we later add a sanitised message.
+			captureAnalytics(posthog, {
+				distinctId: abortId,
+				name: "agent stream error",
+				properties: tag !== undefined ? { error_tag: tag } : {},
+			});
 			// `isTaggedError` narrows to the loose `AnyTaggedError` shape (which
 			// omits `toJSON` from its type), but every TaggedError instance
 			// carries a safe `toJSON()` serializer at runtime.
@@ -156,6 +171,48 @@ function rejectStream(err: StreamPromptError): Response {
 				},
 				{ status: 403 },
 			),
+	});
+}
+
+/**
+ * Capture a `rate limit exceeded` event against the client IP (computed once
+ * here, not re-read by the limiter). Distinct id is the IP, deliberately left
+ * unlinked to the browser's anonymous id.
+ */
+function captureRateLimitDenied(
+	posthog: PostHogAnalyticsClient | undefined,
+	req: Request,
+	server: Bun.Server<undefined>,
+	limiter: IpRateLimiter,
+	path: string,
+): void {
+	const ip = getClientIp(req, server, limiter.trustProxy, limiter.trustedProxyHops);
+	captureAnalytics(posthog, {
+		distinctId: ip ?? "unknown",
+		name: "rate limit exceeded",
+		properties: { path },
+	});
+}
+
+/**
+ * Capture a `conversation budget exceeded` event when the prompt was rejected
+ * for that reason; no-op for the other {@link StreamPromptError} variants.
+ * Exhaustive `matchError` forces a deliberate decision if a new variant lands.
+ */
+function captureBudgetExceeded(
+	posthog: PostHogAnalyticsClient | undefined,
+	id: string,
+	err: StreamPromptError,
+): void {
+	matchError(err, {
+		BudgetExceeded: (e) =>
+			captureAnalytics(posthog, {
+				distinctId: id,
+				name: "conversation budget exceeded",
+				properties: { tokens_used: e.used, token_budget: e.budget },
+			}),
+		ConversationNotFound: () => {},
+		PromptConflict: () => {},
 	});
 }
 
@@ -195,6 +252,7 @@ function logResolvedConfig(logger: Logger, config: ResolvedPixiesConfig): void {
 		conversationTokenBudget: config.conversationTokenBudget,
 		discordWebhookUrl: config.discordWebhookUrl ? "set" : "unset",
 		apiKey: config.apiKey ? "set" : "unset",
+		posthogApiKey: config.posthogApiKey ? "set" : "unset",
 		contactEmail: config.contactEmail ?? "unset",
 		overpassUrl: config.overpassUrl,
 		nominatimUrl: config.nominatimUrl,
@@ -234,6 +292,13 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 		: undefined;
 	const logger = opts.logger ?? createLogger({ discordSink: sink, posthogSink });
 	registerGlobalHandlers(logger);
+	// Off-switch: no `PIXIES_POSTHOG_API_KEY` → no client → no analytics network.
+	// Injectable via `opts.posthog` so tests can pass a spy.
+	const posthog =
+		opts.posthog ??
+		(config.posthogApiKey
+			? createPostHogAnalyticsClient({ apiKey: config.posthogApiKey, host: config.posthogHost })
+			: undefined);
 	logResolvedConfig(logger, config);
 	const store = new ConversationStore(config, db, createAgent, logger);
 	const rateLimiter = new IpRateLimiter({
@@ -256,14 +321,25 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 			"/conversations": {
 				POST: withRequestLogging(logger, async (req, server) => {
 					const denied = checkRateLimit(req, server, rateLimiter);
-					if (denied) return denied;
+					if (denied) {
+						captureRateLimitDenied(posthog, req, server, rateLimiter, "/conversations");
+						return denied;
+					}
 					const parsed = await readMessage(req);
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
 					const id = store.create();
 					server.timeout(req, 0);
 					const result = await store.streamPrompt(id, parsed.message);
-					if (Result.isError(result)) return rejectStream(result.error);
-					return pipeAgentStream(store, result.value, id, logger, (w) =>
+					if (Result.isError(result)) {
+						captureBudgetExceeded(posthog, id, result.error);
+						return rejectStream(result.error);
+					}
+					captureAnalytics(posthog, {
+						distinctId: id,
+						name: "conversation started",
+						properties: { message_length: parsed.message.length },
+					});
+					return pipeAgentStream(store, result.value, id, logger, posthog, (w) =>
 						w.write("conversation_created", { id }),
 					);
 				}),
@@ -271,14 +347,31 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 			"/conversations/:id/messages": {
 				POST: withRequestLogging(logger, async (req, server) => {
 					const denied = checkRateLimit(req, server, rateLimiter);
-					if (denied) return denied;
+					if (denied) {
+						captureRateLimitDenied(
+							posthog,
+							req,
+							server,
+							rateLimiter,
+							"/conversations/:id/messages",
+						);
+						return denied;
+					}
 					const id = req.params.id;
 					const parsed = await readMessage(req);
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
 					server.timeout(req, 0);
 					const result = await store.streamPrompt(id, parsed.message);
-					if (Result.isError(result)) return rejectStream(result.error);
-					return pipeAgentStream(store, result.value, id, logger);
+					if (Result.isError(result)) {
+						captureBudgetExceeded(posthog, id, result.error);
+						return rejectStream(result.error);
+					}
+					captureAnalytics(posthog, {
+						distinctId: id,
+						name: "message sent",
+						properties: { message_length: parsed.message.length },
+					});
+					return pipeAgentStream(store, result.value, id, logger, posthog);
 				}),
 			},
 			"/conversations/:id": {
@@ -295,6 +388,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 				DELETE: withRequestLogging(logger, (req) => {
 					const id = req.params.id;
 					const ok = store.delete(id);
+					if (ok) captureAnalytics(posthog, { distinctId: id, name: "conversation deleted" });
 					return ok
 						? new Response(null, { status: 204 })
 						: Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
@@ -316,7 +410,15 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 	logger.info("pixies server listening", { url });
 	opts.onReady?.(url);
 
-	registerGracefulShutdown([() => store.stop(), () => rateLimiter.stop(), () => server.stop(true)]);
+	registerGracefulShutdown([
+		() => store.stop(),
+		() => rateLimiter.stop(),
+		() => server.stop(true),
+		// Drain the PostHog event queue before exit (best-effort, awaited).
+		() => (posthog ? posthog.shutdown() : undefined),
+		// Best-effort flush of the LogTape/OTel log sink (#195); swallow errors.
+		() => dispose().catch(() => {}),
+	]);
 
 	return {
 		server,

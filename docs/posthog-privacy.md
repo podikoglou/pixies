@@ -50,6 +50,27 @@ When enabled, `info`+ server log records are shipped to PostHog Logs over OTLP/H
 
 Records DO carry: the message string, category, level, timestamp, and other structured properties (counts, durations, service names, conversation ids, error tags). They never carry the query text or place names — those live only in the `url`/`query` fields, which are redacted.
 
+## Server analytics (PostHog events)
+
+Distinct from the PostHog **Logs** path above: this covers product **events** (not log records) captured by the server via `packages/server/src/posthog.ts`. Off by default; enabled by the same `PIXIES_POSTHOG_API_KEY` server secret (no key → no client → no captures and no network). `PIXIES_POSTHOG_HOST` selects the Cloud region (default `https://eu.i.posthog.com`). Both are parsed through the TypeBox config schema; the server never reads `process.env` directly.
+
+Every captured event sets `$process_person_profile: false`. Pixies is anonymous (no auth), so PostHog must never materialise a Person profile per conversation/IP — without this flag, every conversation or client IP would create an orphan Person.
+
+Events carry only coarse metadata — counts, ids, tags — never message, query, or place text:
+
+| Event | Fires when | distinctId | Properties |
+|---|---|---|---|
+| `conversation started` | `POST /conversations` succeeds | conversation UUID | `message_length` (char count of the first message — never content) |
+| `message sent` | `POST /conversations/:id/messages` succeeds | conversation UUID | `message_length` (char count — never content) |
+| `conversation deleted` | `DELETE /conversations/:id` succeeds | conversation UUID | — |
+| `rate limit exceeded` | a POST is denied by the IP limiter | client IP | `path` (route template, e.g. `/conversations`) |
+| `conversation budget exceeded` | a prompt is rejected with `BudgetExceeded` | conversation UUID | `tokens_used`, `token_budget` (token counts) |
+| `agent stream error` | the SSE agent stream throws mid-flight | conversation UUID | `error_tag` (the `_tag` discriminant only — see below) |
+
+For `agent stream error`, **only the error `_tag` is captured — never `err.message`, the `Error` object, or a stack trace.** Overpass/Nominatim errors embed OSM HTTP response bodies and the searched place name in `.message`, so shipping the message would leak location data. The capture site carries an inline comment noting this is a privacy choice, subject to change if a sanitised message is ever introduced.
+
+distinctIds are deliberately **not** correlated with the browser's anonymous PostHog id: conversation events key on the conversation UUID, rate-limit events key on the client IP. No `X-POSTHOG-*` headers or `posthog.identify()` calls thread the two together.
+
 ## Changing this
 
-Any change that enables a capture surface or adds a `capture` call must update this document, and must never capture query strings — they may contain sensitive location data. Any new server log field that could carry location data must be added to the PostHog sink's `redactKeys` (`packages/core/src/logging/posthog-logs-sink.ts`).
+Any change that enables a capture surface or adds a `capture` call must update this document, and must never capture query strings — they may contain sensitive location data. Any new server log field that could carry location data must be added to the PostHog sink's `redactKeys` (`packages/core/src/logging/posthog-logs-sink.ts`). Any new server capture event must carry only coarse metadata (counts, ids, tags) and must never include message, query, or place text.
