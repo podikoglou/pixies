@@ -70,7 +70,7 @@ Caddy listens on ports 80 and 443 and proxies to `pixies:3000` over the internal
 
 ## Persistence
 
-Two named volumes persist data across restarts:
+Three named volumes persist data across restarts:
 - `pixies-data` — SQLite database at `/app/data/pixies.db`
 - `caddy-data` — Let's Encrypt certificates and ACME state
 - `caddy-config` — Caddy configuration
