@@ -3,7 +3,7 @@ import { test, expect } from "bun:test";
 import type { LogRecord } from "@logtape/logtape";
 import { redactRecord, DEFAULT_REDACT_KEYS, getPostHogLogsSink } from "./posthog-logs-sink.ts";
 
-/** Build a real LogTape LogRecord for tests (mirrors discord-sink.test.ts). */
+/** Build a real LogTape LogRecord for tests. */
 function record(
 	level: LogRecord["level"],
 	message: string,

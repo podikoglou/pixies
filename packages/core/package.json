@@ -17,10 +17,6 @@
       "types": "./src/logging/index.ts",
       "default": "./src/logging/index.ts"
     },
-    "./logging/discord-sink": {
-      "types": "./src/logging/discord-sink.ts",
-      "default": "./src/logging/discord-sink.ts"
-    },
     "./logging/posthog-logs-sink": {
       "types": "./src/logging/posthog-logs-sink.ts",
       "default": "./src/logging/posthog-logs-sink.ts"
