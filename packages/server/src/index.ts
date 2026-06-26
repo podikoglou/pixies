@@ -120,14 +120,48 @@ export function pipeAgentStream(
 	posthog?: PostHogAnalyticsClient,
 	onOpen?: (writer: SseWriter) => void,
 ): Response {
-	const writer = new SseWriter(() => store.abort(abortId));
+	const startTime = Date.now();
+	let streamEnded = false;
+	// First user-facing output timestamp. Assistant text SSE events are
+	// deliberately suppressed on the wire (see translateAgentEvent), so the
+	// earliest sign of life is the first `tool_execution_start` frame — that's
+	// what we treat as the "first token" for `had_first_token` (the name is
+	// kept to match the issue vocabulary).
+	let firstOutputAt: number | undefined;
+	// This `onClose` is the ONLY server-side path from "client went away" to
+	// `store.abort` (eviction/sweep/delete call `store.abort` directly, not
+	// through here). So the disconnect capture MUST live in this lambda. The
+	// `streamEnded` guard avoids logging a disconnect for a stream that already
+	// wrote its terminal `done`/`error` frame. The server can't tell a user
+	// Stop from a passive disconnect (both cancel the stream), so this fires
+	// for both; the client `user_stop` event is the active-rejection subset on
+	// a deliberately-unlinked distinctId.
+	const writer = new SseWriter(() => {
+		if (!streamEnded) {
+			captureAnalytics(posthog, {
+				distinctId: abortId,
+				name: "agent stream disconnect",
+				properties: {
+					elapsed_ms: Date.now() - startTime,
+					had_first_token: firstOutputAt !== undefined,
+				},
+			});
+		}
+		store.abort(abortId);
+	});
 	if (onOpen) onOpen(writer);
 
-	const startTime = Date.now();
 	void (async () => {
 		try {
 			for await (const event of result.stream) {
-				for (const sse of translateAgentEvent(event)) writer.write(sse.event, sse.data);
+				for (const sse of translateAgentEvent(event)) {
+					// Text is suppressed on the wire, so the first tool-execution
+					// event is the first user-facing output.
+					if (firstOutputAt === undefined && sse.event === "tool_execution_start") {
+						firstOutputAt = Date.now();
+					}
+					writer.write(sse.event, sse.data);
+				}
 			}
 			writer.write("done", { durationMs: Date.now() - startTime });
 		} catch (err) {
@@ -154,6 +188,7 @@ export function pipeAgentStream(
 				...(details !== undefined ? { details } : {}),
 			});
 		} finally {
+			streamEnded = true;
 			writer.close();
 		}
 	})();
