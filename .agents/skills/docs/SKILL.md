@@ -1,6 +1,6 @@
 ---
 name: docs
-description: Write or edit technical documentation under docs/ (and README, AGENTS.md prose). Keeps docs evergreen, current-state, and scannable. Builds on the `writing` skill — load it first for the universal rules and the mandatory self-audit.
+description: Write or edit technical documentation under docs/ (and README, AGENTS.md prose). Use when creating, revising, or reviewing evergreen docs — reference, conventions, or guides.
 ---
 
 # Write / edit docs
