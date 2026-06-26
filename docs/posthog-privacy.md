@@ -54,17 +54,7 @@ Records DO carry: the message string, category, level, timestamp, and other stru
 
 ## Alerting
 
-Configured in the PostHog dashboard, not in the app. PostHog thresholds and deduplicates, and covers both the server log stream (PostHog Logs) and client exceptions (Error Tracking). Requires the corresponding data path to be enabled: `PIXIES_POSTHOG_API_KEY` for server-log alerts, `VITE_POSTHOG_KEY` for Error Tracking and spike alerts. With neither set, nothing is alertable.
-
-Destinations are configured per project: Discord, Slack, Microsoft Teams, HTTP webhook, and account email. A Discord webhook URL can be used as a generic webhook destination.
-
-Three alert mechanisms:
-
-- **Log alert** — a threshold rule on the server log stream scoped to `error`/`fatal`-level records ("more than *N* matching logs in *M* minutes"; 5–60 min windows; N-of-M evaluation). Notifies via Slack or webhook.
-- **Error Tracking** — fires on issue created or reopened (client exceptions). Notifies via Discord, Slack, Teams, or webhook.
-- **Spike detection** — fires on a spike in exception volume. Same destinations as Error Tracking.
-
-Privacy: alerting sends no additional data. Alerts fire only on records already ingested by PostHog — server logs redacted at the egress sink (`url`/`query` scrubbed) and exception stack traces carrying code paths, never query or DOM text. Query text and place names never reach PostHog, so cannot appear in an alert.
+Configured in the PostHog dashboard, not in the app. Fires only on records already ingested — server logs (above) and client exceptions (Error Tracking). It sends no additional data; notifications are derived from what's already collected, so alerting adds no privacy surface.
 
 ## Server analytics (PostHog events)
 
