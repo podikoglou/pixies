@@ -1,5 +1,5 @@
 import type { PostHog } from "posthog-js";
-import { parseToolResult } from "@pixies/core";
+import { parseToolResult, isBusyResult } from "@pixies/core";
 
 /**
  * Forward a caught React render error to PostHog Error Tracking.
@@ -28,7 +28,7 @@ export function captureReactError(
  * observed via the `map_opened`/`marker_count` event, and its
  * `details.data.markers` is empty for `queryRef` maps so it would misclassify.
  */
-export const DATA_FETCH_TOOLS = ["query_osm", "geocode", "reverse_geocode"] as const;
+const DATA_FETCH_TOOLS = ["query_osm", "geocode", "reverse_geocode"] as const;
 
 /**
  * Count the features a successful data-fetch tool call returned, or return
@@ -43,10 +43,9 @@ export const DATA_FETCH_TOOLS = ["query_osm", "geocode", "reverse_geocode"] as c
  *
  * Returns `undefined` (don't fire) when:
  * - `toolName` is not a data-fetch tool (e.g. `display_map`, unknown tools); and
- * - `details.busy === true` — the OSM-busy soft-failure is a SUCCESS
+ * - `isBusyResult(details)` — the OSM-busy soft-failure is a SUCCESS
  *   (`isError: false`) that signals a transient server issue, not a genuine
- *   zero-feature outcome, and would pollute the empty-rate (mirrors the busy
- *   detection in `chat-reducer.ts`).
+ *   zero-feature outcome, and would pollute the empty-rate.
  *
  * Count is derived from the canonical `parseToolResult` parser (reused from
  * `@pixies/core` so it can never drift from the tool's own `details` shape).
@@ -56,7 +55,7 @@ export const DATA_FETCH_TOOLS = ["query_osm", "geocode", "reverse_geocode"] as c
  */
 export function toolResultCount(toolName: string, details: unknown): number | undefined {
 	if (!(DATA_FETCH_TOOLS as readonly string[]).includes(toolName)) return undefined;
-	if ((details as Record<string, unknown> | undefined)?.busy === true) return undefined;
+	if (isBusyResult(details)) return undefined;
 
 	const parsed = parseToolResult(toolName, details);
 	switch (parsed.kind) {
