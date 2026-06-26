@@ -58,7 +58,7 @@ test("captureEvent no-ops when PostHog is disabled (client undefined)", () => {
 	).not.toThrow();
 	expect(() => captureEvent(undefined, "map_opened", { marker_count: 3 })).not.toThrow();
 	expect(() => captureEvent(undefined, "tool_error", { tool_name: "query_osm" })).not.toThrow();
-	expect(() => captureEvent(undefined, "user_stop", { had_first_token: true })).not.toThrow();
+	expect(() => captureEvent(undefined, "user_stop", { had_output: true })).not.toThrow();
 });
 
 test("captureEvent emits message_sent with the new-conversation flag", () => {
@@ -89,14 +89,14 @@ test("captureEvent emits tool_error with the tool name only", () => {
 	expect(captured).toEqual([{ event: "tool_error", props: { tool_name: "query_osm" } }]);
 });
 
-test("captureEvent emits user_stop with the had_first_token flag", () => {
+test("captureEvent emits user_stop with the had_output flag", () => {
 	const { client, captured } = recordingClient();
 
-	captureEvent(client, "user_stop", { had_first_token: true });
-	captureEvent(client, "user_stop", { had_first_token: false });
+	captureEvent(client, "user_stop", { had_output: true });
+	captureEvent(client, "user_stop", { had_output: false });
 
 	expect(captured).toEqual([
-		{ event: "user_stop", props: { had_first_token: true } },
-		{ event: "user_stop", props: { had_first_token: false } },
+		{ event: "user_stop", props: { had_output: true } },
+		{ event: "user_stop", props: { had_output: false } },
 	]);
 });
