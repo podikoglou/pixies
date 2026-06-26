@@ -1,4 +1,8 @@
-# Docker
+# Running Pixies with Docker
+
+Requires Docker with Compose v2. The `docker-compose.yml` brings up two services — **pixies** and a **Caddy** reverse proxy — with one command. Caddy fronts pixies on ports 80/443, terminates TLS, and proxies to `pixies:3000` over the internal network. The pixies container publishes no host ports, so it is only reachable through Caddy.
+
+The same compose file serves dev and production. The only difference is `DOMAIN`: `localhost` makes Caddy use its internal CA (self-signed), while a real domain makes it provision a Let's Encrypt certificate. Everything else is driven by `.env`.
 
 ## Quick start (development)
 
@@ -8,7 +12,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Open `http://localhost:3000`.
+With `DOMAIN` unset (defaults to `localhost`), the app is served by Caddy at `http://localhost` (port 80) and `https://localhost` (self-signed — browsers will warn).
 
 ## Production deployment (with Caddy + TLS)
 
@@ -26,8 +30,7 @@ automatically provisions Let's Encrypt certificates for your domain.
    docker compose up -d
    ```
 
-Caddy listens on ports 80 and 443 and proxies to `pixies:3000`. No ports need
-to be exposed directly for the pixies service in production.
+Caddy listens on ports 80 and 443 and proxies to `pixies:3000` over the internal network. The pixies service exposes no host ports in any environment; it is reached only via Caddy.
 
 
 
