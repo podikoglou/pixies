@@ -20,7 +20,7 @@ interface ChatViewProps {
 }
 
 export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
-	const { state, sendMessage, abort, reset } = useChatContext();
+	const { state, sendMessage, abort, reset, hadOutputRef } = useChatContext();
 	const navigate = useNavigate();
 	const analytics = useAnalytics();
 	const [text, setText] = useState("");
@@ -107,8 +107,10 @@ export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 					// answer", so it is intentionally not captured here. `had_output`
 					// mirrors the server definition: assistant text is suppressed on the
 					// wire, so any rendered tool-call activity counts as the first output.
+					// Computed per-stream (reset on send, set on first tool_execution_start)
+					// so each Stop reflects only the current stream, not prior turns.
 					analytics.capture("user_stop", {
-						had_output: state.items.some((it) => it.kind === "tool-call"),
+						had_output: hadOutputRef.current,
 					});
 					abort();
 				}}
