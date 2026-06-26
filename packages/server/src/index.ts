@@ -120,14 +120,50 @@ export function pipeAgentStream(
 	posthog?: PostHogAnalyticsClient,
 	onOpen?: (writer: SseWriter) => void,
 ): Response {
-	const writer = new SseWriter(() => store.abort(abortId));
+	const startTime = Date.now();
+	// Stream lifecycle: `running` → `completed` (wrote `done`) or `aborted`
+	// (client went away). Modelled as one state, not separate booleans, so the
+	// impossible "completed && aborted" can't be represented.
+	let state: "running" | "completed" | "aborted" = "running";
+	// First user-facing output timestamp. Assistant text SSE events are
+	// deliberately suppressed on the wire (see translateAgentEvent), so the
+	// earliest sign of life is the first `tool_execution_start` frame — that's
+	// what `had_output` reports.
+	let firstOutputAt: number | undefined;
+	// This `onClose` is the ONLY server-side path from "client went away" to
+	// `store.abort` (eviction/sweep/delete call `store.abort` directly, not
+	// through here). So the disconnect capture MUST live in this lambda. It only
+	// fires while `running` (a cancel after completion is a late close, not a
+	// disconnect). The server can't tell a user Stop from a passive disconnect
+	// (both cancel the stream), so this fires for both; the client `user_stop`
+	// event is the active-rejection subset on a deliberately-unlinked distinctId.
+	const writer = new SseWriter(() => {
+		if (state === "running") {
+			state = "aborted";
+			captureAnalytics(posthog, {
+				distinctId: abortId,
+				name: "agent stream disconnect",
+				properties: {
+					elapsed_ms: Date.now() - startTime,
+					had_output: firstOutputAt !== undefined,
+				},
+			});
+		}
+		store.abort(abortId);
+	});
 	if (onOpen) onOpen(writer);
 
-	const startTime = Date.now();
 	void (async () => {
 		try {
 			for await (const event of result.stream) {
-				for (const sse of translateAgentEvent(event)) writer.write(sse.event, sse.data);
+				for (const sse of translateAgentEvent(event)) {
+					// Text is suppressed on the wire, so the first tool-execution
+					// event is the first user-facing output.
+					if (firstOutputAt === undefined && sse.event === "tool_execution_start") {
+						firstOutputAt = Date.now();
+					}
+					writer.write(sse.event, sse.data);
+				}
 			}
 			writer.write("done", { durationMs: Date.now() - startTime });
 		} catch (err) {
@@ -154,6 +190,7 @@ export function pipeAgentStream(
 				...(details !== undefined ? { details } : {}),
 			});
 		} finally {
+			if (state === "running") state = "completed";
 			writer.close();
 		}
 	})();

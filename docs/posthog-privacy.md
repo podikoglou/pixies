@@ -32,6 +32,7 @@ A small set of explicit events are fired at specific user-action sites (`package
 | `message_sent` | a query is sent | `is_new_conversation` (bool) — opening vs follow-up message |
 | `map_opened` | a map result renders with markers | `marker_count` (int) — number of pins shown |
 | `tool_error` | a tool call fails | `tool_name` (string) — the internal tool id, e.g. `query_osm` |
+| `user_stop` | the user clicks Stop mid-stream | `had_output` (bool — whether any tool activity had rendered before the stop) |
 
 None carry the query text, place names, coordinates, or error messages — only booleans, counts, and our own tool identifiers. They answer coarse product questions (engagement, success rate, where users get stuck) without touching the potentially sensitive location data in the prompt.
 
@@ -66,8 +67,11 @@ Events carry only coarse metadata — counts, ids, tags — never message, query
 | `rate limit exceeded` | a POST is denied by the IP limiter | client IP | `path` (route template, e.g. `/conversations`) |
 | `conversation budget exceeded` | a prompt is rejected with `BudgetExceeded` | conversation UUID | `tokens_used`, `token_budget` (token counts) |
 | `agent stream error` | the SSE agent stream throws mid-flight | conversation UUID | `error_tag` (the `_tag` discriminant only — see below) |
+| `agent stream disconnect` | the SSE stream is cancelled before it writes `done`/`error` (client went away — Stop click or tab close/network drop) | conversation UUID | `elapsed_ms` (ms since stream start), `had_output` (bool — whether a tool-execution event was emitted) |
 
 For `agent stream error`, **only the error `_tag` is captured — never `err.message`, the `Error` object, or a stack trace.** Overpass/Nominatim errors embed OSM HTTP response bodies and the searched place name in `.message`, so shipping the message would leak location data. The capture site carries an inline comment noting this is a privacy choice, subject to change if a sanitised message is ever introduced.
+
+`agent stream disconnect` is the survivor-bias correction for latency work: latency measured only on streams that reach `done` ignores the ones users gave up on, so this event records the streams that never complete. The server cannot distinguish a user Stop from a passive disconnect (both cancel the stream), so it fires for both — the client `user_stop` event is the active-rejection subset, on a deliberately-unlinked distinctId (see above). Assistant text is suppressed on the wire, so `had_output` reflects the first tool-execution event rather than a text token.
 
 distinctIds are deliberately **not** correlated with the browser's anonymous PostHog id: conversation events key on the conversation UUID, rate-limit events key on the client IP. No `X-POSTHOG-*` headers or `posthog.identify()` calls thread the two together.
 

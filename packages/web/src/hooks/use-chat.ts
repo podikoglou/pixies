@@ -96,6 +96,7 @@ export function useChat() {
 	stateRef.current = state;
 	const abortRef = useRef<AbortController | null>(null);
 	const startTimeRef = useRef<number>(0);
+	const hadOutputRef = useRef(false);
 
 	const sendMessage = useCallback(
 		async (
@@ -109,6 +110,7 @@ export function useChat() {
 			const controller = new AbortController();
 			abortRef.current = controller;
 			startTimeRef.current = Date.now();
+			hadOutputRef.current = false;
 			dispatch({ type: "SEND_MESSAGE", text: message });
 
 			const conversationId = stateRef.current.conversationId;
@@ -122,9 +124,10 @@ export function useChat() {
 			const toolNames = new Map<string, string>();
 			try {
 				for await (const evt of stream) {
-					if (evt.event === "tool_execution_start")
+					if (evt.event === "tool_execution_start") {
+						hadOutputRef.current = true;
 						toolNames.set(evt.data.toolCallId, evt.data.toolName);
-					else if (evt.event === "tool_execution_end" && evt.data.isError) {
+					} else if (evt.event === "tool_execution_end" && evt.data.isError) {
 						const toolName = toolNames.get(evt.data.toolCallId);
 						if (toolName) opts?.onToolError?.(toolName);
 					}
@@ -159,5 +162,5 @@ export function useChat() {
 		dispatch({ type: "LOAD_TRANSCRIPT", conversationId, items });
 	}, []);
 
-	return { state, sendMessage, abort, reset, loadTranscript };
+	return { state, sendMessage, abort, reset, loadTranscript, hadOutputRef };
 }
