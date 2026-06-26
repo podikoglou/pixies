@@ -103,8 +103,11 @@ Three named volumes persist data across restarts:
 - `caddy-data` — Let's Encrypt certificates and ACME state
 - `caddy-config` — Caddy configuration
 
-## Rebuild after code changes
+## Common commands
 
 ```sh
-docker compose up -d --build
+docker compose up -d            # start (builds on first run)
+docker compose up -d --build    # rebuild after code changes
+docker compose logs -f pixies   # follow app logs
+docker compose down             # stop (keeps volumes)
 ```
