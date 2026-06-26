@@ -130,6 +130,12 @@ export function pipeAgentStream(
 	// earliest sign of life is the first `tool_execution_start` frame — that's
 	// what `had_output` reports.
 	let firstOutputAt: number | undefined;
+	// TTFT: ms from stream start to the LLM's first user-facing TEXT token. The
+	// raw agent event is seen in the loop BEFORE translation, so this is
+	// measurable even though assistant text is suppressed on the wire. `thinking_*`
+	// variants are excluded (internal reasoning), but their elapsed time is still
+	// included since TTFT is measured from `startTime`.
+	let firstTokenMs: number | undefined;
 	// This `onClose` is the ONLY server-side path from "client went away" to
 	// `store.abort` (eviction/sweep/delete call `store.abort` directly, not
 	// through here). So the disconnect capture MUST live in this lambda. It only
@@ -156,6 +162,22 @@ export function pipeAgentStream(
 	void (async () => {
 		try {
 			for await (const event of result.stream) {
+				// Measure TTFT on the RAW event, before wire suppression drops
+				// assistant text. Fires mid-stream so even streams that are LATER
+				// aborted still contribute a TTFT measurement — measuring only at
+				// `done` would re-create the survivor-bias this is about.
+				if (
+					firstTokenMs === undefined &&
+					event.type === "message_update" &&
+					event.assistantMessageEvent.type === "text_delta"
+				) {
+					firstTokenMs = Date.now() - startTime;
+					captureAnalytics(posthog, {
+						distinctId: abortId,
+						name: "agent stream first token",
+						properties: { ttft_ms: firstTokenMs },
+					});
+				}
 				for (const sse of translateAgentEvent(event)) {
 					// Text is suppressed on the wire, so the first tool-execution
 					// event is the first user-facing output.
@@ -165,7 +187,25 @@ export function pipeAgentStream(
 					writer.write(sse.event, sse.data);
 				}
 			}
-			writer.write("done", { durationMs: Date.now() - startTime });
+			const durationMs = Date.now() - startTime;
+			// Byte-identical `done` frame (durationMs key/value).
+			writer.write("done", { durationMs });
+			// Only count genuinely-completed streams: a client abort cancels the
+			// response body, after which `writer.write` is a silent no-op
+			// (`SseWriter.controller` is undefined, so `controller?.enqueue` does
+			// nothing and does NOT throw), so execution still reaches here — the
+			// `state === "running"` guard excludes aborted streams (state was set
+			// to "aborted" in the onClose lambda).
+			if (state === "running") {
+				captureAnalytics(posthog, {
+					distinctId: abortId,
+					name: "agent stream done",
+					properties: {
+						duration_ms: durationMs,
+						...(firstTokenMs !== undefined ? { ttft_ms: firstTokenMs } : {}),
+					},
+				});
+			}
 		} catch (err) {
 			const loggedErr = err instanceof Error ? err : new Error(String(err));
 			logger.error("agent stream error", { conversationId: abortId, err: loggedErr });
