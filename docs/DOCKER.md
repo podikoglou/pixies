@@ -86,7 +86,6 @@ Read from `.env` (copy `.env.example`).
 
 | Variable                     | Default                    | Description                                                                                                                             |
 | ---------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `PIXIES_DISCORD_WEBHOOK_URL` | —                          | Discord webhook URL for error/fatal log alerts (optional)                                                                               |
 | `PIXIES_POSTHOG_API_KEY`     | —                          | PostHog server token — ships server logs to PostHog Logs via OTel when set (off when unset; server secret, never expose to the browser) |
 | `PIXIES_POSTHOG_HOST`        | `https://eu.i.posthog.com` | PostHog Cloud host for server-log shipping                                                                                              |
 | `VITE_POSTHOG_KEY`           | —                          | PostHog **public** project token for the web SPA — enables browser telemetry when set (off by default)                                  |
