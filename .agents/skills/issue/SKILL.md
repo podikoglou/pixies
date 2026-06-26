@@ -1,6 +1,6 @@
 ---
 name: issue
-description: Create GitHub issues for the pixies project. Use when asked to file an issue, create a bug report, or open a feature request. Builds on the `writing` skill — load it first for format rules, banned voices, and the mandatory self-audit.
+description: Create GitHub issues for the pixies project. Use when asked to file an issue, create a bug report, or open a feature request.
 ---
 
 # Create Issues
@@ -9,7 +9,7 @@ Load the **`writing`** skill first for the universal prose rules and self-audit.
 
 ## How to create an issue
 
-Always check for duplicates first:
+Before creating, search for an existing issue covering the same concern — if one exists, comment on it rather than open a duplicate:
 
 ```sh
 gh issue list --search "keyword"
