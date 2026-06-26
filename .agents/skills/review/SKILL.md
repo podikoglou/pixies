@@ -9,7 +9,7 @@ description: Review PRs, branches, or commits. Checks out the target locally, re
 
 Parse the input. PR number/URL → `gh pr checkout`. Branch name → diff against `main` and checkout. Commit hash → show that commit. No input → uncommitted changes.
 
-**Always check out the target.** For PRs, read `gh pr view` first for intent. If a handoff artifact exists at `/tmp/pixies-handoff-<issue>.md`, read it — the planning subagent already did analysis.
+**Always check out the target.** For PRs, read `gh pr view` first for intent, and read the linked issue (and any PRD it references) for planning context — it carries the decisions and saves re-discovering them.
 
 Read every changed file **in full** — diffs are insufficient.
 

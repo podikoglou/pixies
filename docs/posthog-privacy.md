@@ -32,6 +32,7 @@ A small set of explicit events are fired at specific user-action sites (`package
 | `message_sent` | a query is sent | `is_new_conversation` (bool) — opening vs follow-up message |
 | `map_opened` | a map result renders with markers | `marker_count` (int) — number of pins shown |
 | `tool_error` | a tool call fails | `tool_name` (string) — the internal tool id, e.g. `query_osm` |
+| `user_stop` | the user clicks Stop mid-stream | `had_output` (bool — whether any tool activity had rendered before the stop) |
 | `tool_empty` | a data-fetch tool call succeeds (`query_osm`, `geocode`, `reverse_geocode`) | `tool_name` (string), `result_count` (int — feature count returned; `0` is the empty / zero-result outcome) |
 
 None carry the query text, place names, coordinates, or error messages — only booleans, counts, and our own tool identifiers. They answer coarse product questions (engagement, success rate, where users get stuck) without touching the potentially sensitive location data in the prompt.
@@ -67,8 +68,15 @@ Events carry only coarse metadata — counts, ids, tags — never message, query
 | `rate limit exceeded` | a POST is denied by the IP limiter | client IP | `path` (route template, e.g. `/conversations`) |
 | `conversation budget exceeded` | a prompt is rejected with `BudgetExceeded` | conversation UUID | `tokens_used`, `token_budget` (token counts) |
 | `agent stream error` | the SSE agent stream throws mid-flight | conversation UUID | `error_tag` (the `_tag` discriminant only — see below) |
+| `agent stream disconnect` | the SSE stream is cancelled before it writes `done`/`error` (client went away — Stop click or tab close/network drop) | conversation UUID | `elapsed_ms` (ms since stream start), `had_output` (bool — whether a tool-execution event was emitted) |
+| `agent stream first token` | the agent emits its first user-facing text token (mid-stream) | conversation UUID | `ttft_ms` (int — ms from stream start to first text token) |
+| `agent stream done` | the agent stream completes normally (terminal `done` frame, not aborted) | conversation UUID | `duration_ms` (int — ms from stream start to `done`), `ttft_ms` (int, optional — present iff a first token was emitted) |
 
 For `agent stream error`, **only the error `_tag` is captured — never `err.message`, the `Error` object, or a stack trace.** Overpass/Nominatim errors embed OSM HTTP response bodies and the searched place name in `.message`, so shipping the message would leak location data. The capture site carries an inline comment noting this is a privacy choice, subject to change if a sanitised message is ever introduced.
+
+`agent stream disconnect` is the survivor-bias correction for latency work: latency measured only on streams that reach `done` ignores the ones users gave up on, so this event records the streams that never complete. The server cannot distinguish a user Stop from a passive disconnect (both cancel the stream), so it fires for both — the client `user_stop` event is the active-rejection subset, on a deliberately-unlinked distinctId (see above). Assistant text is suppressed on the wire, so `had_output` reflects the first tool-execution event rather than a text token.
+
+`agent stream first token` and `agent stream done` capture raw integer millisecond durations (not coarse buckets) so PostHog can compute native p50/p90/p99 and drive latency SLO/regression math — buckets would destroy percentiles. Durations are within the existing "coarse metadata" rule (pure numbers, no location/query/message content). `first token` fires **mid-stream** (at the first `text_delta`, read on the raw agent event before the wire suppression drops assistant text), so even streams that are later aborted still contribute a TTFT measurement — capturing TTFT only at `done` would re-create the survivor-bias this is about. `done` only fires when the stream's lifecycle state is still `running` (an abort transitions it to `aborted` in the `SseWriter` onClose lambda, so aborted streams are never miscounted as fast completions); its `ttft_ms` reuses the `first token` value rather than recomputing it.
 
 distinctIds are deliberately **not** correlated with the browser's anonymous PostHog id: conversation events key on the conversation UUID, rate-limit events key on the client IP. No `X-POSTHOG-*` headers or `posthog.identify()` calls thread the two together.
 

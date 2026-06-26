@@ -75,6 +75,7 @@ export type EventProps = {
 	message_sent: { is_new_conversation: boolean };
 	map_opened: { marker_count: number };
 	tool_error: { tool_name: string };
+	user_stop: { had_output: boolean };
 	tool_empty: { tool_name: string; result_count: number };
 };
 
