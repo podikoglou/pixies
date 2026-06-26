@@ -36,37 +36,65 @@ Caddy listens on ports 80 and 443 and proxies to `pixies:3000` over the internal
 
 ## Environment variables
 
+Read from `.env` (copy `.env.example`).
+
+### Required
+
+| Variable | Description |
+|---|---|
+| `PIXIES_MODEL` | AI model in `provider/model-id` format (e.g. `openai/gpt-4o`) |
+| `PIXIES_API_KEY` | API key for the AI provider |
+
+### Deployment (Caddy / TLS)
+
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `PIXIES_MODEL` | yes | — | AI model in `provider/model-id` format (e.g. `openai/gpt-4o`) |
-| `PIXIES_API_KEY` | yes | — | API key for the AI provider |
-| `DOMAIN` | yes (prod) | `localhost` | Domain for TLS (passed to Caddy) |
+| `DOMAIN` | yes (prod) | `localhost` | Domain for TLS — `localhost` → Caddy internal CA, real domain → Let's Encrypt |
 | `CADDY_EMAIL` | yes (prod) | — | Email for Let's Encrypt certificate notices |
-| `PIXIES_HOST` | no | `127.0.0.1` | Listen hostname (set to `0.0.0.0` inside Docker) |
-| `PIXIES_PORT` | no | `3000` | Listen port |
-| `PIXIES_DB_FILE` | no | `pixies.db` | SQLite database path (set to `/app/data/pixies.db` in compose to persist via volume) |
-| `PIXIES_CACHE_SIZE` | no | `50` | Max in-memory conversation cache |
-| `PIXIES_DISCORD_WEBHOOK_URL` | no | — | Discord webhook URL for error/fatal log alerts (optional) |
-| `PIXIES_THINKING_LEVEL` | no | `off` | AI thinking level: `off`, `low`, `medium`, `high` |
-| `PIXIES_HTTP_RATE_LIMIT` | no | `30` | Max POST requests per IP per window (`0` disables) |
-| `PIXIES_HTTP_RATE_LIMIT_WINDOW_MS` | no | `60000` | Per-IP HTTP rate-limit window length (ms) |
-| `PIXIES_CONTACT_EMAIL` | no | — | Contact email sent in OSM API requests |
-| `PIXIES_OVERPASS_URL` | no | `https://overpass-api.de/api/interpreter` | Custom Overpass API endpoint |
-| `PIXIES_OVERPASS_CONCURRENCY` | no | `2` | Max concurrent in-flight Overpass requests |
-| `PIXIES_OVERPASS_INTERVAL_CAP` | no | `2` | Max Overpass requests started per interval window |
-| `PIXIES_OVERPASS_INTERVAL_MS` | no | `1000` | Overpass interval window length (ms) |
-| `PIXIES_NOMINATIM_URL` | no | `https://nominatim.openstreetmap.org` | Custom Nominatim endpoint |
-| `PIXIES_NOMINATIM_CONCURRENCY` | no | `1` | Max concurrent in-flight Nominatim requests |
-| `PIXIES_NOMINATIM_INTERVAL_CAP` | no | `1` | Max Nominatim requests started per interval window |
-| `PIXIES_NOMINATIM_INTERVAL_MS` | no | `1100` | Nominatim interval window length (ms) |
-| `PIXIES_NOMINATIM_CACHE_TTL_MS` | no | `86400000` | TTL for cached Nominatim responses (ms; `0` disables) |
-| `PIXIES_NOMINATIM_CACHE_MAX_ENTRIES` | no | `1000` | Max cached Nominatim responses (LRU eviction; `0` disables) |
-| `PIXIES_USER_AGENT` | no | `Pixies/1.0 (https://github.com/podikoglou/pixies)` | User-Agent header for OSM requests |
-| `PIXIES_CONVERSATION_TOKEN_BUDGET` | no | `0` | Max tokens (input + output) per conversation across all turns (`0` = unlimited) |
-| `PIXIES_TRUST_PROXY` | no | `false` | Honor `X-Forwarded-For` for client IP — set `true` behind Caddy/Nginx |
-| `PIXIES_TRUSTED_PROXY_HOPS` | no | `1` | Number of rightmost trusted XFF hops for IP spoofing prevention |
-| `PIXIES_WEB_DIST` | no | `../../web/dist` (relative to server) | Path to static web files (resolved at startup) |
-| `PIXIES_MIGRATIONS_FOLDER` | no | `../../../drizzle` (relative to server) | Path to Drizzle SQLite migration files |
+
+### Server
+
+| Variable | Default | Description |
+|---|---|---|
+| `PIXIES_HOST` | `0.0.0.0` in the image | Listen hostname (set by the Dockerfile and `.env.example`) |
+| `PIXIES_PORT` | `3000` | Listen port |
+| `PIXIES_DB_FILE` | `pixies.db` | SQLite path — compose sets `/app/data/pixies.db` to persist via volume |
+| `PIXIES_CACHE_SIZE` | `50` | Max in-memory conversation cache |
+| `PIXIES_THINKING_LEVEL` | `off` | AI thinking level: `off`, `low`, `medium`, `high` |
+| `PIXIES_HTTP_RATE_LIMIT` | `30` | Max POST requests per IP per window (`0` disables) |
+| `PIXIES_HTTP_RATE_LIMIT_WINDOW_MS` | `60000` | Per-IP HTTP rate-limit window length (ms) |
+| `PIXIES_TRUST_PROXY` | `false` | Honor `X-Forwarded-For` for client IP — set `true` behind Caddy |
+| `PIXIES_TRUSTED_PROXY_HOPS` | `1` | Rightmost trusted XFF hops for IP-spoofing prevention |
+| `PIXIES_CONVERSATION_TOKEN_BUDGET` | `0` | Max tokens (input + output) per conversation across all turns (`0` = unlimited) |
+
+### OSM clients (rate limiting & caching)
+
+| Variable | Default | Description |
+|---|---|---|
+| `PIXIES_CONTACT_EMAIL` | — | Contact email sent in OSM API requests |
+| `PIXIES_OVERPASS_URL` | `https://overpass-api.de/api/interpreter` | Custom Overpass API endpoint |
+| `PIXIES_OVERPASS_CONCURRENCY` | `2` | Max concurrent in-flight Overpass requests |
+| `PIXIES_OVERPASS_INTERVAL_CAP` | `2` | Max Overpass requests started per interval window |
+| `PIXIES_OVERPASS_INTERVAL_MS` | `1000` | Overpass interval window length (ms) |
+| `PIXIES_NOMINATIM_URL` | `https://nominatim.openstreetmap.org` | Custom Nominatim endpoint |
+| `PIXIES_NOMINATIM_CONCURRENCY` | `1` | Max concurrent in-flight Nominatim requests |
+| `PIXIES_NOMINATIM_INTERVAL_CAP` | `1` | Max Nominatim requests started per interval window |
+| `PIXIES_NOMINATIM_INTERVAL_MS` | `1100` | Nominatim interval window length (ms) |
+| `PIXIES_NOMINATIM_CACHE_TTL_MS` | `86400000` | TTL for cached Nominatim responses (ms; `0` disables) |
+| `PIXIES_NOMINATIM_CACHE_MAX_ENTRIES` | `1000` | Max cached Nominatim responses (LRU eviction; `0` disables) |
+| `PIXIES_USER_AGENT` | `Pixies/1.0 (https://github.com/podikoglou/pixies)` | User-Agent header for OSM requests |
+
+### Telemetry & alerts
+
+| Variable | Default | Description |
+|---|---|---|
+| `PIXIES_DISCORD_WEBHOOK_URL` | — | Discord webhook URL for error/fatal log alerts (optional) |
+| `PIXIES_POSTHOG_API_KEY` | — | PostHog server token — ships server logs to PostHog Logs via OTel when set (off when unset; server secret, never expose to the browser) |
+| `PIXIES_POSTHOG_HOST` | `https://eu.i.posthog.com` | PostHog Cloud host for server-log shipping |
+| `VITE_POSTHOG_KEY` | — | PostHog **public** project token for the web SPA — enables browser telemetry when set (off by default) |
+| `VITE_POSTHOG_HOST` | `https://app.posthog.com` | PostHog Cloud host for the browser client |
+
+> `PIXIES_WEB_DIST` and `PIXIES_MIGRATIONS_FOLDER` are baked into the image at build time (web assets and Drizzle migrations are copied during the build) and are not set via `.env`; override them only if you customize the build.
 
 ## Persistence
 
