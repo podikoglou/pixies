@@ -118,7 +118,7 @@ test("searches through multiple items to find the match", () => {
 	expect(result).toHaveLength(3);
 });
 
-// --- Positional fallback (issue #60: queryRef mismatch) ---
+// --- Positional fallback (queryRef mismatch) ---
 
 test("fallback — wrong queryRef resolves to nearest preceding query_osm (currentIndex given)", () => {
 	const items: TimelineItem[] = [
