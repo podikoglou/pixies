@@ -1,6 +1,6 @@
 ---
 name: writing
-description: Universal prose-quality base for writing or editing any technical prose artifact — docs, README, AGENTS.md, PR bodies, issue bodies, ADRs. Enforces scannable, current-state, no-marketing-voice prose via a mandatory self-audit. The pr, issue, and docs skills build on this; load it whenever writing or revising prose.
+description: Prose-quality reference for technical writing — README, AGENTS.md, ADRs, docs, commit messages. Load directly for prose with no dedicated skill; the pr, issue, and docs skills load it themselves. Carries the format rules, banned-voice table, lifespan calibration, and mandatory self-audit.
 ---
 
 # Writing base
@@ -67,15 +67,14 @@ This is the step that separates rules-on-paper from rules-enforced. After drafti
 
 **Positive models** — `docs/CONVENTIONS.md` (dense, table-for-enumeration, short rules) and `docs/api/sse.md` (reference doc done right: tables for media types / event payloads / per-tool detail shapes, a lifecycle diagram, terse prose). When in doubt, write like these.
 
-**Negative → fixed:**
+**Negative → fixed** (each is a recurring shape, not a one-off):
 
-- **Changelog voice.** After a refactor, a heading was rewritten to `## Alerting (Discord transport removed)`. The removal is git history and ADR-0009's job, not the doc's. Fix: `## Alerting` — the doc shows current state.
+- **Changelog voice in a heading.** A section heading reads `## Alerting (Discord transport removed)`. The parenthetical is git history and belongs in an ADR, not the doc. Fix: `## Alerting` — the doc shows current state only.
 
-- **Paragraph-bullets (PR).** A Decisions section where each bullet ran 4–5 lines and buried the choice. Fix:
-  > - **Full removal, not fallback.** Two parallel alerting paths would double-fire and drift.
-  > - **1:1 replacement is a log alert**, not an Error Tracking alert — the old transport fired on log lines.
-  Bold thesis first; detail either cut or one line.
+- **Paragraph-bullets in a PR's Decisions section.** Each bullet runs 4–5 lines and buries the choice. Fix — bold thesis first, detail one line or cut:
+  > - **Full removal, not fallback.** Two parallel paths would double-fire and drift.
+  > - **1:1 replacement is a log alert**, not an Error Tracking alert — the old path fired on log lines.
 
-- **Marketing voice** (illustrative, on the PostHog doc's topic). Before: a paragraph listing PostHog's autocapture / session-recording / feature-flag capabilities. After: deleted — the doc states what *Pixies* collects and how to disable it, not PostHog's feature list.
+- **Marketing voice on a vendor doc.** A paragraph listing a vendor's autocapture / session-recording / feature-flag capabilities. Fix: delete — state what *this project* collects and how to disable it, not the vendor's feature list.
 
-- **Stale pointers in evergreen docs.** `docs/posthog-privacy.md` names `packages/core/src/logging/posthog-logs-sink.ts`. Borderline-OK: an operator adding a redaction key must locate that file, so the path earns its place. Naming a function name or a line number in the same doc would not — those rot on the next refactor. Calibrate, don't ban.
+- **Stale pointers in an evergreen doc.** Naming a file path is OK when a reader must locate it (a config-key location, a sink they must edit); naming a function or a line number in the same doc is not — those rot on the next refactor. Calibrate, don't ban.
