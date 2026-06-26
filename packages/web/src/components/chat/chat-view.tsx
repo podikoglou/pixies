@@ -102,7 +102,16 @@ export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 				onChange={setText}
 				onSubmit={handleSubmit}
 				isStreaming={state.isStreaming}
-				onAbort={abort}
+				onAbort={() => {
+					// `reset()` also aborts but means "start over", not "reject this
+					// answer", so it is intentionally not captured here. `had_first_token`
+					// mirrors the server definition: assistant text is suppressed on the
+					// wire, so any rendered tool-call activity counts as the first output.
+					analytics.capture("user_stop", {
+						had_first_token: state.items.some((it) => it.kind === "tool-call"),
+					});
+					abort();
+				}}
 			/>
 		</div>
 	);
