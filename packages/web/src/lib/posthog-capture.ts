@@ -22,9 +22,6 @@ export function captureReactError(
 	client.captureException(error, { componentStack });
 }
 
-/** Feature-count bucket for the `tool_empty` event. `"0"` is the empty outcome. */
-export type ResultCountBucket = "0" | "1–5" | "6+";
-
 /**
  * Data-fetch tools whose empty / zero-result outcome is a product signal.
  * `display_map` is excluded: it is a UI tool whose emptiness is already
@@ -34,14 +31,15 @@ export type ResultCountBucket = "0" | "1–5" | "6+";
 export const DATA_FETCH_TOOLS = ["query_osm", "geocode", "reverse_geocode"] as const;
 
 /**
- * Compute the `result_count_bucket` for a successful data-fetch tool call, or
+ * Count the features a successful data-fetch tool call returned, or return
  * `undefined` when no `tool_empty` event should fire.
  *
  * Mirrors the existing `tool_error` shape but for the success path: a places
  * app's defining failure is the *silent* empty success (200 OK, zero features).
- * The empty-RATE is the headline metric (`count(bucket="0") / count(tool_empty)`),
- * so this fires on EVERY success and buckets the feature count rather than only
- * firing on empty (which would leave no denominator).
+ * The empty-RATE is the headline metric (`count(result_count=0) / count(tool_empty)`),
+ * so this fires on EVERY success and carries the raw count rather than only
+ * firing on empty (which would leave no denominator). A raw int lets PostHog
+ * compute native percentiles/histograms — same precedent as `marker_count`.
  *
  * Returns `undefined` (don't fire) when:
  * - `toolName` is not a data-fetch tool (e.g. `display_map`, unknown tools); and
@@ -53,33 +51,24 @@ export const DATA_FETCH_TOOLS = ["query_osm", "geocode", "reverse_geocode"] as c
  * Count is derived from the canonical `parseToolResult` parser (reused from
  * `@pixies/core` so it can never drift from the tool's own `details` shape).
  *
- * Carries only the tool id and a count bucket — never query text, place names,
+ * Carries only the tool id and a count — never query text, place names,
  * or coordinates (see docs/posthog-privacy.md).
  */
-export function toolResultCountBucket(
-	toolName: string,
-	details: unknown,
-): ResultCountBucket | undefined {
+export function toolResultCount(toolName: string, details: unknown): number | undefined {
 	if (!(DATA_FETCH_TOOLS as readonly string[]).includes(toolName)) return undefined;
 	if ((details as Record<string, unknown> | undefined)?.busy === true) return undefined;
 
 	const parsed = parseToolResult(toolName, details);
-	let count: number;
 	switch (parsed.kind) {
 		case "query_osm":
 		case "geocode":
-			count = parsed.entries.length;
-			break;
+			return parsed.entries.length;
 		case "reverse_geocode":
-			count = 1;
-			break;
+			return 1;
 		default:
 			// `empty` (parse failure / no result) and any other kind → 0.
-			count = 0;
+			return 0;
 	}
-	if (count === 0) return "0";
-	if (count <= 5) return "1–5";
-	return "6+";
 }
 
 /** Event → props mapping for `captureEvent`. */
@@ -87,7 +76,7 @@ export type EventProps = {
 	message_sent: { is_new_conversation: boolean };
 	map_opened: { marker_count: number };
 	tool_error: { tool_name: string };
-	tool_empty: { tool_name: string; result_count_bucket: ResultCountBucket };
+	tool_empty: { tool_name: string; result_count: number };
 };
 
 /**
