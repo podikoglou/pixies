@@ -127,8 +127,7 @@ export function useChat() {
 					if (evt.event === "tool_execution_start") {
 						hadOutputRef.current = true;
 						toolNames.set(evt.data.toolCallId, evt.data.toolName);
-					}
-					else if (evt.event === "tool_execution_end" && evt.data.isError) {
+					} else if (evt.event === "tool_execution_end" && evt.data.isError) {
 						const toolName = toolNames.get(evt.data.toolCallId);
 						if (toolName) opts?.onToolError?.(toolName);
 					}
