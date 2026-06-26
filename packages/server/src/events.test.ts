@@ -4,11 +4,11 @@ import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { translateAgentEvent } from "./events.ts";
 
 /**
- * Regression guard for #47 / #79: `tool_execution_update` must only forward
+ * Regression guard: `tool_execution_update` must only forward
  * payloads whose `details` validate as `ToolProgress` (`{type:"queued"}` |
  * `{type:"running"}`). Anything else — undefined, empty, or an unrelated
  * shape — is dropped at the agent→SSE boundary so internal tool shapes
- * never leak onto the wire (#47).
+ * never leak onto the wire.
  *
  * The other branches of `translateAgentEvent` are either trivial `return []`
  * (message events and the default arm) or straight field pass-through
@@ -42,12 +42,12 @@ test("tool_execution_update forwards a validated `{type:running}` progress", () 
 	]);
 });
 
-test("tool_execution_update drops updates when `details` is missing (#47 guard)", () => {
+test("tool_execution_update drops updates when `details` is missing (guard)", () => {
 	expect(translateAgentEvent(updateEvent(undefined))).toEqual([]);
 	expect(translateAgentEvent(updateEvent({}))).toEqual([]);
 });
 
-test("tool_execution_update drops updates with malformed `details` (#47 guard)", () => {
+test("tool_execution_update drops updates with malformed `details` (guard)", () => {
 	expect(translateAgentEvent(updateEvent({ details: undefined }))).toEqual([]);
 	expect(translateAgentEvent(updateEvent({ details: {} }))).toEqual([]);
 	expect(translateAgentEvent(updateEvent({ details: { type: "bogus" } }))).toEqual([]);

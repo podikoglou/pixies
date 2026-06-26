@@ -8,7 +8,7 @@ import { pipeAgentStream } from "./index.ts";
 import type { PostHogAnalyticsClient } from "./posthog.ts";
 
 /**
- * End-to-end coverage for the `pipeAgentStream` catch block (issue #109).
+ * End-to-end coverage for the `pipeAgentStream` catch block.
  *
  * Every other error-flow layer (TaggedError messages, ErrorData schema,
  * matchError routing) already has tests; this file asserts the actual SSE
@@ -16,7 +16,7 @@ import type { PostHogAnalyticsClient } from "./posthog.ts";
  *
  *  - TaggedError → `error` event with `{message, errorTag, details}`
  *  - plain Error → `error` event with `{message}` only (byte-identical to
- *    the pre-#109 wire format — the back-compat invariant).
+ *    the prior wire format — the back-compat invariant).
  *
  * The stream is driven directly (not through `ConversationStore.streamPrompt`)
  * so the test isolates the SSE-emission layer. `pipeAgentStream` only touches
@@ -149,7 +149,7 @@ function spyPostHog(): PostHogAnalyticsClient & { captures: Captured[] } {
 	};
 }
 
-test("pipeAgentStream emits errorTag + details when the stream rejects with a TaggedError (#109)", async () => {
+test("pipeAgentStream emits errorTag + details when the stream rejects with a TaggedError", async () => {
 	const { logger, errorSpy } = mockLogger();
 	const posthog = spyPostHog();
 	const err = new OverpassBusyError({ status: 429 });
@@ -192,7 +192,7 @@ test("pipeAgentStream emits errorTag + details when the stream rejects with a Ta
 	});
 });
 
-test("pipeAgentStream emits ONLY message when the stream rejects with a plain Error (byte-identical back-compat, #109)", async () => {
+test("pipeAgentStream emits ONLY message when the stream rejects with a plain Error (byte-identical back-compat)", async () => {
 	const { logger } = mockLogger();
 	const posthog = spyPostHog();
 	const response = pipeAgentStream(

@@ -5,7 +5,7 @@ import { silentLogger } from "@pixies/core/logging";
 import { startServer, type ServerInstance } from "./index.ts";
 
 /**
- * Regression for #97: `startServer` used to call
+ * Regression: `startServer` used to call
  * `migrate({ migrationsFolder: "./drizzle" })`, which is cwd-relative. The
  * `drizzle/` folder lives at the repo root, so booting the server from any
  * cwd other than the repo root (e.g. `bun test` from `packages/server`)
@@ -14,8 +14,7 @@ import { startServer, type ServerInstance } from "./index.ts";
  *
  * This test boots the real `startServer` from this package's directory and
  * hits `/health` — proving migrations ran. It does not exercise the
- * LLM-touching POST endpoints (those need an agent-factory injection seam,
- * tracked separately in #91 / #79).
+ * LLM-touching POST endpoints (those need an agent-factory injection seam).
  */
 const config: ResolvedPixiesConfig = {
 	model: "anthropic/claude-3-5-sonnet",
@@ -54,7 +53,7 @@ const instance: ServerInstance = startServer({
 
 afterAll(() => instance.stop());
 
-test("startServer boots and serves /health regardless of cwd (#97)", async () => {
+test("startServer boots and serves /health regardless of cwd", async () => {
 	const base = `http://localhost:${instance.server.port}`;
 	const res = await fetch(`${base}/health`);
 	expect(res.status).toBe(200);

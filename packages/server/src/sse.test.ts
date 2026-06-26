@@ -3,7 +3,7 @@ import { expect, mock, test } from "bun:test";
 import { SseWriter } from "./sse.ts";
 
 /**
- * Regression guard for #79: `SseWriter`'s underlying `ReadableStream.cancel`
+ * Regression guard: `SseWriter`'s underlying `ReadableStream.cancel`
  * is the only path from "client closed the tab" to `store.abort(id)`. If it
  * stops firing `onClose`, in-flight prompts run to completion and waste LLM
  * tokens.
@@ -12,7 +12,7 @@ import { SseWriter } from "./sse.ts";
  * `pipe-agent-stream.test.ts`; this file isolates the disconnect callback.
  */
 
-test("SseWriter fires `onClose` when the client cancels the response body (#79 abort path)", async () => {
+test("SseWriter fires `onClose` when the client cancels the response body (abort path)", async () => {
 	const onClose = mock(() => {});
 	const writer = new SseWriter(onClose);
 
