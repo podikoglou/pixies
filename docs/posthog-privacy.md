@@ -32,7 +32,7 @@ A small set of explicit events are fired at specific user-action sites (`package
 | `message_sent` | a query is sent | `is_new_conversation` (bool) — opening vs follow-up message |
 | `map_opened` | a map result renders with markers | `marker_count` (int) — number of pins shown |
 | `tool_error` | a tool call fails | `tool_name` (string) — the internal tool id, e.g. `query_osm` |
-| `tool_empty` | a data-fetch tool call succeeds (`query_osm`, `geocode`, `reverse_geocode`) | `tool_name` (string), `result_count_bucket` (`"0"` / `"1–5"` / `"6+"` — feature-count bucket; `"0"` is the empty / zero-result outcome) |
+| `tool_empty` | a data-fetch tool call succeeds (`query_osm`, `geocode`, `reverse_geocode`) | `tool_name` (string), `result_count` (int — feature count returned; `0` is the empty / zero-result outcome) |
 
 None carry the query text, place names, coordinates, or error messages — only booleans, counts, and our own tool identifiers. They answer coarse product questions (engagement, success rate, where users get stuck) without touching the potentially sensitive location data in the prompt.
 
