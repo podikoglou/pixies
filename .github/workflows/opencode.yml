@@ -8,6 +8,7 @@ on:
 
 jobs:
   opencode:
+  runs-on: self-hosted
     if: |
       contains(github.event.comment.body, ' /oc') ||
       startsWith(github.event.comment.body, '/oc') ||

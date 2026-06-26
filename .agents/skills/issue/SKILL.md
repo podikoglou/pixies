@@ -5,9 +5,11 @@ description: Create GitHub issues for the pixies project. Use when asked to file
 
 # Create Issues
 
+Load the **`writing`** skill first for the universal prose rules and self-audit. This file adds the issue-specific mechanics and body contract.
+
 ## How to create an issue
 
-Always check for duplicates first:
+Before creating, search for an existing issue covering the same concern — if one exists, comment on it rather than open a duplicate:
 
 ```sh
 gh issue list --search "keyword"
@@ -49,8 +51,14 @@ Applies on top of whichever template you picked.
 
 - **The problem and why-it-matters are the core.** Any approach or solution sketch is high-level shape with trade-offs noted, not a directive or step-by-step guide.
 - **Leave decisions open.** If something is unresolved (library A vs B, approach X vs Y), name it as a decision to make, not a foregone conclusion.
-- **One-line bullets.** No paragraph-bullets or dense prose.
-- **Ground it in the codebase** — reference files, line numbers, or existing conventions, so it reads as written against the real code, not generic.
+
+### Issue-specific writing rules (on top of `writing`)
+
+- **Reference freely — issues are ephemeral.** Files, line numbers, and existing conventions
+  cite the real code the issue is filed against (this is the issue calibration of `writing`'s
+  lifespan rule).
+
+Then run `writing`'s self-audit before posting.
 
 ## Splitting
 
