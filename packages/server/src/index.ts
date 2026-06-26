@@ -121,29 +121,31 @@ export function pipeAgentStream(
 	onOpen?: (writer: SseWriter) => void,
 ): Response {
 	const startTime = Date.now();
-	let streamEnded = false;
+	// Stream lifecycle: `running` → `completed` (wrote `done`) or `aborted`
+	// (client went away). Modelled as one state, not separate booleans, so the
+	// impossible "completed && aborted" can't be represented.
+	let state: "running" | "completed" | "aborted" = "running";
 	// First user-facing output timestamp. Assistant text SSE events are
 	// deliberately suppressed on the wire (see translateAgentEvent), so the
 	// earliest sign of life is the first `tool_execution_start` frame — that's
-	// what we treat as the "first token" for `had_first_token` (the name is
-	// kept to match the issue vocabulary).
+	// what `had_output` reports.
 	let firstOutputAt: number | undefined;
 	// This `onClose` is the ONLY server-side path from "client went away" to
 	// `store.abort` (eviction/sweep/delete call `store.abort` directly, not
-	// through here). So the disconnect capture MUST live in this lambda. The
-	// `streamEnded` guard avoids logging a disconnect for a stream that already
-	// wrote its terminal `done`/`error` frame. The server can't tell a user
-	// Stop from a passive disconnect (both cancel the stream), so this fires
-	// for both; the client `user_stop` event is the active-rejection subset on
-	// a deliberately-unlinked distinctId.
+	// through here). So the disconnect capture MUST live in this lambda. It only
+	// fires while `running` (a cancel after completion is a late close, not a
+	// disconnect). The server can't tell a user Stop from a passive disconnect
+	// (both cancel the stream), so this fires for both; the client `user_stop`
+	// event is the active-rejection subset on a deliberately-unlinked distinctId.
 	const writer = new SseWriter(() => {
-		if (!streamEnded) {
+		if (state === "running") {
+			state = "aborted";
 			captureAnalytics(posthog, {
 				distinctId: abortId,
 				name: "agent stream disconnect",
 				properties: {
 					elapsed_ms: Date.now() - startTime,
-					had_first_token: firstOutputAt !== undefined,
+					had_output: firstOutputAt !== undefined,
 				},
 			});
 		}
@@ -188,7 +190,7 @@ export function pipeAgentStream(
 				...(details !== undefined ? { details } : {}),
 			});
 		} finally {
-			streamEnded = true;
+			if (state === "running") state = "completed";
 			writer.close();
 		}
 	})();

@@ -202,7 +202,7 @@ test("pipeAgentStream emits ONLY message when the stream rejects with a plain Er
 	expect(posthog.captures[0]?.properties).toEqual({ $process_person_profile: false });
 });
 
-test("pipeAgentStream captures `agent stream disconnect` (had_first_token=true) when the client cancels mid-flight after a tool event (#197)", async () => {
+test("pipeAgentStream captures `agent stream disconnect` (had_output=true) when the client cancels mid-flight after a tool event (#197)", async () => {
 	const { logger } = mockLogger();
 	const posthog = spyPostHog();
 	const { store, abortSpy } = stubStoreWithSpy();
@@ -213,7 +213,7 @@ test("pipeAgentStream captures `agent stream disconnect` (had_first_token=true) 
 
 	// Read the tool_execution_start frame off the wire — this self-synchronises:
 	// the read resolves only after the loop set `firstOutputAt` and wrote the
-	// frame, so `had_first_token` is deterministically true at cancel time.
+	// frame, so `had_output` is deterministically true at cancel time.
 	const reader = response.body!.getReader();
 	const decoder = new TextDecoder();
 	let sawTool = false;
@@ -237,11 +237,11 @@ test("pipeAgentStream captures `agent stream disconnect` (had_first_token=true) 
 	const props = posthog.captures[0]?.properties as Record<string, unknown>;
 	expect(props.$process_person_profile).toBe(false);
 	expect(typeof props.elapsed_ms).toBe("number");
-	expect(props.had_first_token).toBe(true);
+	expect(props.had_output).toBe(true);
 	expect(abortSpy).toHaveBeenCalledWith("conv-1");
 });
 
-test("pipeAgentStream captures `agent stream disconnect` with had_first_token=false when cancelled before any tool event (#197)", async () => {
+test("pipeAgentStream captures `agent stream disconnect` with had_output=false when cancelled before any tool event (#197)", async () => {
 	const { logger } = mockLogger();
 	const posthog = spyPostHog();
 	const { store, abortSpy } = stubStoreWithSpy();
@@ -259,19 +259,19 @@ test("pipeAgentStream captures `agent stream disconnect` with had_first_token=fa
 		event: "agent stream disconnect",
 	});
 	const props = posthog.captures[0]?.properties as Record<string, unknown>;
-	expect(props.had_first_token).toBe(false);
+	expect(props.had_output).toBe(false);
 	expect(typeof props.elapsed_ms).toBe("number");
 	expect(abortSpy).toHaveBeenCalledWith("conv-2");
 });
 
-test("pipeAgentStream does NOT capture disconnect when the stream completes normally (#197 streamEnded guard)", async () => {
+test("pipeAgentStream does NOT capture disconnect when the stream completes normally (#197 lifecycle guard)", async () => {
 	const { logger } = mockLogger();
 	const posthog = spyPostHog();
 	const { store } = stubStoreWithSpy();
 	const response = pipeAgentStream(store, { stream: closingStream() }, "conv-3", logger, posthog);
 
 	// Drain the full body: the loop writes `done`, then the finally block sets
-	// `streamEnded = true` and closes — no client cancel, so no disconnect event.
+	// `state = "completed"` and closes — no client cancel, so no disconnect event.
 	await response.text();
 
 	expect(posthog.captures).toHaveLength(0);
