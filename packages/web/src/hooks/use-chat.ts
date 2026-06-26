@@ -5,6 +5,7 @@ import type { PixiesErrorTag, SSEEvent } from "@pixies/core";
 import { isAbortError, isToolProgress, PixiesErrorTagSchema } from "@pixies/core";
 import { createConversationStream, sendMessageStream } from "../api/conversations.ts";
 import { errorToToastCopy } from "../lib/error-copy.ts";
+import { toolResultCountBucket, type ResultCountBucket } from "../lib/posthog-capture.ts";
 import {
 	chatReducer,
 	initialChatState,
@@ -103,6 +104,10 @@ export function useChat() {
 			opts?: {
 				onConversationCreated?: (id: string) => void;
 				onToolError?: (toolName: string) => void;
+				onToolEmpty?: (props: {
+					tool_name: string;
+					result_count_bucket: ResultCountBucket;
+				}) => void;
 			},
 		) => {
 			if (!message.trim()) return;
@@ -124,9 +129,20 @@ export function useChat() {
 				for await (const evt of stream) {
 					if (evt.event === "tool_execution_start")
 						toolNames.set(evt.data.toolCallId, evt.data.toolName);
-					else if (evt.event === "tool_execution_end" && evt.data.isError) {
+					else if (evt.event === "tool_execution_end") {
 						const toolName = toolNames.get(evt.data.toolCallId);
-						if (toolName) opts?.onToolError?.(toolName);
+						if (toolName) {
+							if (evt.data.isError) {
+								opts?.onToolError?.(toolName);
+							} else {
+								// Success path: bucket the feature count for the empty-rate
+								// signal (undefined → not a data-fetch tool or a busy soft-failure,
+								// in which case no `tool_empty` fires).
+								const bucket = toolResultCountBucket(toolName, evt.data.result.details);
+								if (bucket !== undefined)
+									opts?.onToolEmpty?.({ tool_name: toolName, result_count_bucket: bucket });
+							}
+						}
 					}
 					dispatchSseEvent(evt, dispatch, opts?.onConversationCreated, startTimeRef.current);
 				}
