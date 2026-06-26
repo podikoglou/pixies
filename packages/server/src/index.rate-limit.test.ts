@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import { IpRateLimiter, checkRateLimit } from "./rate-limit.ts";
+import { IpRateLimiter, checkRateLimit, getClientIp } from "./rate-limit.ts";
 
 /**
  * HTTP-level integration test for the per-IP rate limit.
@@ -28,7 +28,8 @@ test("POST /conversations and /conversations/:id/messages return 429 once the pe
 				req.method === "POST" &&
 				(url.pathname === "/conversations" || url.pathname.startsWith("/conversations/"));
 			if (isCostPost) {
-				const denied = checkRateLimit(req, srv, limiter);
+				const ip = getClientIp(req, srv, limiter.trustProxy, limiter.trustedProxyHops);
+				const denied = checkRateLimit(ip, limiter);
 				if (denied) return denied;
 				return new Response("ok", { status: 200 });
 			}

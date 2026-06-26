@@ -175,18 +175,15 @@ function rejectStream(err: StreamPromptError): Response {
 }
 
 /**
- * Capture a `rate limit exceeded` event against the client IP (computed once
- * here, not re-read by the limiter). Distinct id is the IP, deliberately left
- * unlinked to the browser's anonymous id.
+ * Capture a `rate limit exceeded` event against the client IP resolved once at
+ * the handler boundary. Distinct id is the IP, deliberately left unlinked to
+ * the browser's anonymous id.
  */
 function captureRateLimitDenied(
 	posthog: PostHogAnalyticsClient | undefined,
-	req: Request,
-	server: Bun.Server<undefined>,
-	limiter: IpRateLimiter,
+	ip: string | null,
 	path: string,
 ): void {
-	const ip = getClientIp(req, server, limiter.trustProxy, limiter.trustedProxyHops);
 	captureAnalytics(posthog, {
 		distinctId: ip ?? "unknown",
 		name: "rate limit exceeded",
@@ -320,9 +317,10 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 			),
 			"/conversations": {
 				POST: withRequestLogging(logger, async (req, server) => {
-					const denied = checkRateLimit(req, server, rateLimiter);
+					const ip = getClientIp(req, server, rateLimiter.trustProxy, rateLimiter.trustedProxyHops);
+					const denied = checkRateLimit(ip, rateLimiter);
 					if (denied) {
-						captureRateLimitDenied(posthog, req, server, rateLimiter, "/conversations");
+						captureRateLimitDenied(posthog, ip, "/conversations");
 						return denied;
 					}
 					const parsed = await readMessage(req);
@@ -346,15 +344,10 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 			},
 			"/conversations/:id/messages": {
 				POST: withRequestLogging(logger, async (req, server) => {
-					const denied = checkRateLimit(req, server, rateLimiter);
+					const ip = getClientIp(req, server, rateLimiter.trustProxy, rateLimiter.trustedProxyHops);
+					const denied = checkRateLimit(ip, rateLimiter);
 					if (denied) {
-						captureRateLimitDenied(
-							posthog,
-							req,
-							server,
-							rateLimiter,
-							"/conversations/:id/messages",
-						);
+						captureRateLimitDenied(posthog, ip, "/conversations/:id/messages");
 						return denied;
 					}
 					const id = req.params.id;

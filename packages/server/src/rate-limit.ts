@@ -168,18 +168,16 @@ export function rateLimitResponse(retryAfterMs: number): Response {
 }
 
 /**
- * Check a request against the limiter.
+ * Check a pre-resolved client IP against the limiter.
  *
- * Returns a `429` `Response` when the IP is over the limit, or `null` when the
- * request is allowed (including the unknown-IP case, which is allowed with a
- * warning rather than blocking legitimate requests).
+ * The IP is decoded once at the HTTP handler boundary (via `getClientIp`) and
+ * threaded in, so the handler and the analytics capture path share one
+ * resolution instead of re-parsing `X-Forwarded-For`. Returns a `429`
+ * `Response` when the IP is over the limit, or `null` when the request is
+ * allowed (including the unknown-IP case, which is allowed with a warning
+ * rather than blocking legitimate requests).
  */
-export function checkRateLimit(
-	req: Request,
-	server: { requestIP: (req: Request) => { address: string } | null },
-	limiter: IpRateLimiter,
-): Response | null {
-	const ip = getClientIp(req, server, limiter.trustProxy, limiter.trustedProxyHops);
+export function checkRateLimit(ip: string | null, limiter: IpRateLimiter): Response | null {
 	if (!ip) {
 		limiter.logger.warning("could not determine client IP; allowing request", {
 			event: "rate_limit_no_ip",

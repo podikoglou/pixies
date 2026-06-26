@@ -150,28 +150,24 @@ test("rateLimitResponse: 429 with integer Retry-After (seconds, min 1)", async (
 // ---- checkRateLimit ---------------------------------------------------------
 
 test("checkRateLimit: returns null when under the limit", () => {
-	const server = fakeServer("1.2.3.4");
-	const req = new Request("https://x.example/", { method: "POST" });
 	const limiter = makeLimiter({
 		maxRequests: 5,
 		windowMs: 1000,
 		trustProxy: false,
 		trustedProxyHops: 1,
 	});
-	expect(checkRateLimit(req, server, limiter)).toBeNull();
+	expect(checkRateLimit("1.2.3.4", limiter)).toBeNull();
 });
 
 test("checkRateLimit: returns 429 once over the limit", () => {
-	const server = fakeServer("1.2.3.4");
-	const req = new Request("https://x.example/", { method: "POST" });
 	const limiter = makeLimiter({
 		maxRequests: 1,
 		windowMs: 1000,
 		trustProxy: false,
 		trustedProxyHops: 1,
 	});
-	expect(checkRateLimit(req, server, limiter)).toBeNull(); // 1st allowed
-	const denied = checkRateLimit(req, server, limiter);
+	expect(checkRateLimit("1.2.3.4", limiter)).toBeNull(); // 1st allowed
+	const denied = checkRateLimit("1.2.3.4", limiter);
 	expect(denied).toBeInstanceOf(Response);
 	expect(denied!.status).toBe(429);
 });
