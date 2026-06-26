@@ -1,6 +1,6 @@
 ---
 name: pr
-description: Write and open pull requests for the pixies project. Use when asked to open a PR, create a pull request, draft a PR, or write the PR body/description. Builds on the `writing` skill — load it first for format rules, banned voices, and the mandatory self-audit.
+description: Write and open pull requests for the pixies project. Use when asked to open a PR, create a pull request, draft a PR, or write the PR body/description.
 ---
 
 # Open Pull Requests
@@ -16,7 +16,7 @@ gh pr create --base main --title "<title>" --body-file <path>   # add --draft to
 The template lives at `.github/PULL_REQUEST_TEMPLATE.md`. Fill it in, then pass the
 file with `--body-file` (GitHub applies the template automatically only in the web UI).
 
-Always check for an existing open PR on the same branch first:
+Before creating, check for an existing PR on the branch — if one exists, add to it rather than open a duplicate:
 
 ```sh
 gh pr list --head <branch>
