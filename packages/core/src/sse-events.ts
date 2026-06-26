@@ -47,7 +47,7 @@ export type ClientAssistantMessage = Static<typeof AssistantMessageSchema>;
  * sending it to clients over SSE.
  *
  * Schema-driven via {@link AssistantMessageSchema} so it stays in sync with the
- * wire contract (issue #47). `Value.Clean` mutates its input, so we clone first
+ * wire contract. `Value.Clean` mutates its input, so we clone first
  * — the incoming object is the agent's own internal reference (also persisted to
  * SQLite) and must not be corrupted.
  */
@@ -76,7 +76,7 @@ export const ToolExecutionUpdateData = Type.Object({
  * structured, tool-specific payload; for the OSM tools it now carries a `data`
  * subfield with the lossless structured result (see `ToolResultData` in
  * `tools/index.ts`) that adapters render directly instead of reverse-parsing
- * the pipe string (issue #15). `details` remains `Unknown` here so the schema
+ * the pipe string. `details` remains `Unknown` here so the schema
  * stays a permissive wire contract; per-tool shapes live with the tools.
  */
 export const ToolResultSchema = Type.Object({
@@ -98,7 +98,7 @@ export const DoneData = Type.Object({
  * `"error"` event payload.
  *
  * `message` is always present (the wire contract since launch). `errorTag` and
- * `details` are **additive** (issue #109): when the server catches a
+ * `details` are **additive**: when the server catches a
  * `TaggedError` it forwards its `_tag` (e.g. `"OverpassBusy"`, `"BudgetExceeded"`)
  * and a `toJSON()` snapshot of its props so clients can render tag-specific
  * copy. Old clients ignore the unknown fields; new clients fall back to

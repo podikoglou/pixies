@@ -153,7 +153,7 @@ test("formatDiscordPayload uses a placeholder when message is empty", () => {
 	expect(payload.embeds[0]!.description).toBe("(no message)");
 });
 
-test("formatDiscordPayload never exceeds Discord's 25-field limit (regression for #95)", () => {
+test("formatDiscordPayload never exceeds Discord's 25-field limit", () => {
 	// 25 non-reserved context keys + an err.stack would previously yield 26
 	// fields and Discord would reject the embed with a silent 400.
 	const properties: Record<string, unknown> = {

@@ -58,7 +58,7 @@ export const geocodeModule = defineTool<
 		});
 		if (Result.isOk(result)) return result.value;
 		// OSM-busy → non-error result (do not retry); everything else re-throws
-		// so the agent marks the tool call `isError: true` (issue #109).
+		// so the agent marks the tool call `isError: true`.
 		return matchErrorPartial(
 			result.error,
 			{

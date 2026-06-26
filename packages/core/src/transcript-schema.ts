@@ -84,7 +84,7 @@ export function isConversationTranscript(value: unknown): value is ConversationT
  * string, an object without a `role`, a non-array) so a corrupted row degrades
  * to an empty conversation instead of mis-typing the in-memory agent state.
  *
- * See issue #106 / ADR-0002 (TypeBox for storage contracts).
+ * See ADR-0002 (TypeBox for storage contracts).
  */
 export const PersistedAgentMessageSchema = Type.Object(
 	{
@@ -109,7 +109,7 @@ export function isPersistedTranscript(value: unknown): value is AgentMessage[] {
  * before returning a transcript to clients over the GET /conversations/:id route.
  *
  * Schema-driven via {@link TranscriptMessageSchema} so it stays in sync with the
- * wire contract (issue #47). Covers AssistantMessage metadata
+ * wire contract. Covers AssistantMessage metadata
  * (api/provider/model/usage/etc.) and the `timestamp` field present on every
  * pi-ai message. `Value.Clean` mutates its input, so we clone first — the
  * incoming object may be the agent's own internal reference (also persisted to

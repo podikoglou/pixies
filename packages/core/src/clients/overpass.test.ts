@@ -241,7 +241,7 @@ test("query returns parsed OverpassResponse on success", async () => {
 	if (Result.isOk(r)) expect(r.value.elements).toHaveLength(1);
 });
 
-// ---- invalid-shape error contract (pinned for #104 Value.Parse refactor) -----
+// ---- invalid-shape error contract (Value.Parse refactor) -----
 
 test("query() returns Err(OverpassParseError) on invalid shape and tags the cause", async () => {
 	const fetchMock = mock(

@@ -1,4 +1,4 @@
-// --- better-result primitives + TaggedError hierarchy (issue #109) ---
+// --- better-result primitives + TaggedError hierarchy ---
 export { Result, TaggedError, matchError, matchErrorPartial, isTaggedError } from "better-result";
 export type { SerializedResult } from "better-result";
 export {

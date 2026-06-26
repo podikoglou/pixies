@@ -7,9 +7,9 @@ import type { ResolvedPixiesConfig } from "./config-schema.ts";
 /**
  * Env-backed config propagation and validation.
  *
- * Originally added in PR #98 for the 6 OSM rate-limit knobs (full pipeline:
+ * Originally added for the 6 OSM rate-limit knobs (full pipeline:
  * `PIXIES_*` env vars → `readConfigFromEnv` → `createOsmClients` → per-client
- * p-queue limiter). Extended in #101/#103/#105 to cover the full numeric field
+ * p-queue limiter). Extended to cover the full numeric field
  * set, URL/email format validation, and the empty-as-unset rule (D3) that
  * prevents `PIXIES_HTTP_RATE_LIMIT=` from silently disabling rate limiting.
  * Defaults equal the public-instance policy.
@@ -24,7 +24,7 @@ const OSM_RATE_ENV_KEYS = [
 	"PIXIES_OVERPASS_INTERVAL_MS",
 ] as const;
 
-/** Non-OSM numeric env keys covered by #105. */
+/** Non-OSM numeric env keys. */
 const NUMERIC_ENV_KEYS = [
 	"PIXIES_PORT",
 	"PIXIES_CACHE_SIZE",
@@ -32,20 +32,20 @@ const NUMERIC_ENV_KEYS = [
 	"PIXIES_HTTP_RATE_LIMIT_WINDOW_MS",
 ] as const;
 
-/** Nominatim response-cache env keys (#127). */
+/** Nominatim response-cache env keys. */
 const NOMINATIM_CACHE_ENV_KEYS = [
 	"PIXIES_NOMINATIM_CACHE_TTL_MS",
 	"PIXIES_NOMINATIM_CACHE_MAX_ENTRIES",
 ] as const;
 
-/** URL/email env keys covered by #103 part 2. */
+/** URL/email env keys. */
 const URL_EMAIL_ENV_KEYS = [
 	"PIXIES_OVERPASS_URL",
 	"PIXIES_NOMINATIM_URL",
 	"PIXIES_CONTACT_EMAIL",
 ] as const;
 
-/** User-Agent env key (string default, covered by #108). */
+/** User-Agent env key (string default). */
 const USER_AGENT_ENV_KEYS = ["PIXIES_USER_AGENT"] as const;
 
 /** PostHog server-log shipping keys (optional host URL + token). */
@@ -111,7 +111,7 @@ test("readConfigFromEnv applies the default-instance policy when OSM rate env va
 	expect(config.overpassIntervalMs).toBe(1000);
 });
 
-test("readConfigFromEnv applies the descriptive default User-Agent when PIXIES_USER_AGENT is unset [#108]", () => {
+test("readConfigFromEnv applies the descriptive default User-Agent when PIXIES_USER_AGENT is unset", () => {
 	setEnv();
 	delete process.env.PIXIES_USER_AGENT;
 	const config = readConfigFromEnv();
@@ -238,7 +238,7 @@ test("a higher PIXIES_OVERPASS_CONCURRENCY allows more parallel queries through 
 	await Promise.all([p1, p2, p3, p4]);
 });
 
-// ---- #101 + #105: invalid numeric values rejected at config time -------------
+// ---- invalid numeric values rejected at config time -------------
 
 type NumericFieldSpec = {
 	envKey: string;
@@ -304,29 +304,29 @@ const NUMERIC_FIELD_SPECS: readonly NumericFieldSpec[] = [
 ];
 
 for (const spec of NUMERIC_FIELD_SPECS) {
-	test(`${spec.envKey}="foo" is rejected at config time (NaN never reaches p-queue / Bun.serve) [#101/#105]`, () => {
+	test(`${spec.envKey}="foo" is rejected at config time (NaN never reaches p-queue / Bun.serve)`, () => {
 		setEnv({ [spec.envKey]: "foo" });
 		expect(() => readConfigFromEnv()).toThrow();
 	});
 
-	test(`${spec.envKey}="3.5" is rejected at config time (must be an integer) [#101/#105]`, () => {
+	test(`${spec.envKey}="3.5" is rejected at config time (must be an integer)`, () => {
 		setEnv({ [spec.envKey]: "3.5" });
 		expect(() => readConfigFromEnv()).toThrow();
 	});
 
-	test(`${spec.envKey}="${spec.min - 1}" is rejected at config time (below min ${spec.min}) [#101/#105]`, () => {
+	test(`${spec.envKey}="${spec.min - 1}" is rejected at config time (below min ${spec.min})`, () => {
 		setEnv({ [spec.envKey]: String(spec.min - 1) });
 		expect(() => readConfigFromEnv()).toThrow();
 	});
 
 	if (spec.min >= 1) {
-		test(`${spec.envKey}="0" is rejected at config time (below min ${spec.min}; would crash p-queue) [#101]`, () => {
+		test(`${spec.envKey}="0" is rejected at config time (below min ${spec.min}; would crash p-queue)`, () => {
 			setEnv({ [spec.envKey]: "0" });
 			expect(() => readConfigFromEnv()).toThrow();
 		});
 	} else {
 		// min === 0: "0" is a deliberate sentinel (cacheSize disable, httpRateLimit disable).
-		test(`${spec.envKey}="0" resolves to 0 (min 0 honors the documented disable sentinel) [#105]`, () => {
+		test(`${spec.envKey}="0" resolves to 0 (min 0 honors the documented disable sentinel)`, () => {
 			setEnv({ [spec.envKey]: "0" });
 			expect(readConfigFromEnv()[spec.field]).toBe(0);
 		});
@@ -335,62 +335,62 @@ for (const spec of NUMERIC_FIELD_SPECS) {
 	// D3: empty string is treated as unset → schema default applies (NOT 0/NaN).
 	// For httpRateLimit this is the security-critical assertion that an empty
 	// value does NOT silently disable rate limiting.
-	test(`${spec.envKey}="" resolves to default ${spec.defaultValue} (empty-as-unset, D3) [#101/#105]`, () => {
+	test(`${spec.envKey}="" resolves to default ${spec.defaultValue} (empty-as-unset, D3)`, () => {
 		setEnv({ [spec.envKey]: "" });
 		expect(readConfigFromEnv()[spec.field]).toBe(spec.defaultValue);
 	});
 }
 
-test('PIXIES_PORT="70000" is rejected at config time (above max 65535) [#105]', () => {
+test('PIXIES_PORT="70000" is rejected at config time (above max 65535)', () => {
 	setEnv({ PIXIES_PORT: "70000" });
 	expect(() => readConfigFromEnv()).toThrow();
 });
 
-test('PIXIES_HTTP_RATE_LIMIT="" does NOT silently disable rate limiting (resolves to default 30) [D3 security, #105]', () => {
+test('PIXIES_HTTP_RATE_LIMIT="" does NOT silently disable rate limiting (resolves to default 30) [D3 security]', () => {
 	setEnv({ PIXIES_HTTP_RATE_LIMIT: "" });
 	expect(readConfigFromEnv().httpRateLimit).toBe(30);
 });
 
-test('PIXIES_HTTP_RATE_LIMIT="0" explicitly disables rate limiting (sentinel honored) [#105]', () => {
+test('PIXIES_HTTP_RATE_LIMIT="0" explicitly disables rate limiting (sentinel honored)', () => {
 	setEnv({ PIXIES_HTTP_RATE_LIMIT: "0" });
 	expect(readConfigFromEnv().httpRateLimit).toBe(0);
 });
 
-// ---- #103 part 2: URL/email format validation at config time -----------------
+// ---- URL/email format validation at config time -----------------
 
-test('PIXIES_OVERPASS_URL="not-a-url" is rejected at config time [#103]', () => {
+test('PIXIES_OVERPASS_URL="not-a-url" is rejected at config time', () => {
 	setEnv({ PIXIES_OVERPASS_URL: "not-a-url" });
 	expect(() => readConfigFromEnv()).toThrow();
 });
 
-test('PIXIES_NOMINATIM_URL="not-a-url" is rejected at config time [#103]', () => {
+test('PIXIES_NOMINATIM_URL="not-a-url" is rejected at config time', () => {
 	setEnv({ PIXIES_NOMINATIM_URL: "not-a-url" });
 	expect(() => readConfigFromEnv()).toThrow();
 });
 
-test('PIXIES_CONTACT_EMAIL="not-an-email" is rejected at config time [#103]', () => {
+test('PIXIES_CONTACT_EMAIL="not-an-email" is rejected at config time', () => {
 	setEnv({ PIXIES_CONTACT_EMAIL: "not-an-email" });
 	expect(() => readConfigFromEnv()).toThrow();
 });
 
-test('PIXIES_OVERPASS_URL="" resolves to the default URL (empty-as-unset, D3) [#103]', () => {
+test('PIXIES_OVERPASS_URL="" resolves to the default URL (empty-as-unset, D3)', () => {
 	setEnv({ PIXIES_OVERPASS_URL: "" });
 	expect(readConfigFromEnv().overpassUrl).toBe("https://overpass-api.de/api/interpreter");
 });
 
-test('PIXIES_CONTACT_EMAIL="" resolves to undefined (empty-as-unset, D3) [#103]', () => {
+test('PIXIES_CONTACT_EMAIL="" resolves to undefined (empty-as-unset, D3)', () => {
 	setEnv({ PIXIES_CONTACT_EMAIL: "" });
 	expect(readConfigFromEnv().contactEmail).toBeUndefined();
 });
 
 // ---- PostHog server-log shipping (host URL validated; key is the off-switch) -
 
-test('PIXIES_POSTHOG_HOST="not-a-url" is rejected at config time [#103]', () => {
+test('PIXIES_POSTHOG_HOST="not-a-url" is rejected at config time', () => {
 	setEnv({ PIXIES_POSTHOG_HOST: "not-a-url" });
 	expect(() => readConfigFromEnv()).toThrow();
 });
 
-test('PIXIES_POSTHOG_HOST="" resolves to the default host (empty-as-unset, D3) [#103]', () => {
+test('PIXIES_POSTHOG_HOST="" resolves to the default host (empty-as-unset, D3)', () => {
 	setEnv({ PIXIES_POSTHOG_HOST: "" });
 	expect(readConfigFromEnv().posthogHost).toBe("https://eu.i.posthog.com");
 });
@@ -405,14 +405,14 @@ test("PIXIES_POSTHOG_API_KEY set reads the token", () => {
 	expect(readConfigFromEnv().posthogApiKey).toBe("phc-test-token");
 });
 
-// ---- #106 Gap 2: provider prefix validated against pi-ai's registry ---------
+// ---- provider prefix validated against pi-ai's registry ---------
 
-test('PIXIES_MODEL="notaprovider/some-model" is rejected at config time (unknown provider) [#106]', () => {
+test('PIXIES_MODEL="notaprovider/some-model" is rejected at config time (unknown provider)', () => {
 	setEnv({ PIXIES_MODEL: "notaprovider/some-model" });
 	expect(() => readConfigFromEnv()).toThrow();
 });
 
-test("readConfigFromEnv surfaces the unknown-provider message with the valid-provider list [#106]", () => {
+test("readConfigFromEnv surfaces the unknown-provider message with the valid-provider list", () => {
 	setEnv({ PIXIES_MODEL: "notaprovider/some-model" });
 	let caught: unknown;
 	try {
