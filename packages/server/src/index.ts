@@ -56,7 +56,13 @@ function registerGracefulShutdown(handlers: Array<() => void | Promise<void>>): 
 	// Await every hook (including the analytics + LogTape flushes) before
 	// exiting, so in-flight events/records drain on SIGTERM/SIGINT. Any
 	// rejecting hook is absorbed by allSettled — no hook can block the exit.
+	// `cleaningUp` guards a second signal arriving mid-flush: without it,
+	// SIGTERM then SIGINT would re-enter and run every hook twice (double
+	// PostHog flush, double server.stop).
+	let cleaningUp = false;
 	const cleanup = () => {
+		if (cleaningUp) return;
+		cleaningUp = true;
 		void Promise.allSettled(handlers.map((h) => h())).finally(() => process.exit(0));
 	};
 	process.on("SIGTERM", cleanup);
