@@ -14,7 +14,7 @@ The original decision below holds **for the domains it covered: tool parameter s
 
 The "Zod instead of TypeBox (rejected)" alternative below is therefore retained for historical accuracy but is **superseded for the config domain** by this revision. The rejection still holds for tool params and SSE events — those domains have no input/output split and (for tool params) are constrained by the upstream `AgentTool` contract.
 
-> **Note (added 2026-06-17):** `PixiesConfig` (the `z.input` type) is no longer exported. Zod's input/output capability remains the reason for the library choice, but the input type was dead surface area — no consumer ever read it. It will be re-exported when a config-file loader with truly optional fields lands (#103). `ResolvedPixiesConfig` (`z.output`) is the only config type exported today.
+> **Note (added 2026-06-17):** `PixiesConfig` (the `z.input` type) is no longer exported. Zod's input/output capability remains the reason for the library choice, but the input type was dead surface area — no consumer ever read it. It will be re-exported when a config-file loader with truly optional fields lands. `ResolvedPixiesConfig` (`z.output`) is the only config type exported today.
 
 ## Context
 

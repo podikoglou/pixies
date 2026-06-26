@@ -12,7 +12,7 @@ This made `zod` a **second** validation library in `@pixies/core`, kept solely f
 2. **TypeBox gained directional static types.** TypeBox 1.x ships `StaticDecode<T>` (input direction) and `Static<T>` ≡ `StaticEncode<T>` ≡ `StaticParse<T>` (output direction), closing the "single `Static<T>`" gap ADR-0002 cited.
 3. **The config domain now follows the same `Value.*` patterns** the rest of core uses for transcript/SSE/OSM schemas, so Zod is the only outlier.
 
-This is the third swing at the config-library question (after #14 → #20 → ADR-0002's Revision → this), so the ADR must record *why it sticks this time*.
+This is the third swing at the config-library question (after ADR-0002's Revision → this), so the ADR must record *why it sticks this time*.
 
 ## Decision
 
@@ -53,28 +53,28 @@ The config schema in `packages/core/src/config-schema.ts` is rewritten in TypeBo
 
 - `Value.Default` must be called **explicitly** before `Value.Parse` — Zod applied defaults inside `.parse()`. This is documented in `readConfigFromEnv`.
 - `Value.Default` **mutates its input in place**. Mitigated here because `readConfigFromEnv` builds a fresh object literal per call; the behavior is documented at the call site.
-- TypeBox's thrown error type is `ParseError` (from `typebox/value`) with the structured message at `err.cause.errors[0].message` — **not** Zod's `ZodError` with `.issues[0].message`. The one test that asserted the shape (`agent.test.ts`, #106) is updated accordingly.
+- TypeBox's thrown error type is `ParseError` (from `typebox/value`) with the structured message at `err.cause.errors[0].message` — **not** Zod's `ZodError` with `.issues[0].message`. The one test that asserted the shape (`agent.test.ts`) is updated accordingly.
 
 ## Durability
 
 This decision holds for as long as:
 
 - `typebox` remains a direct dependency of `@pixies/core` (it already is, for tool params and SSE — ADR-0002).
-- The config **input** type stays unexported. If a config-file loader with truly optional-from-file fields lands (the deferred #103 case), the defaults/optionality modeling deserves a fresh look — but `Value.Default` + `Type.Optional` already cover optional fields, so the library choice is unlikely to need revisiting.
-- Provider-prefix validation at boot remains desired (so a typo'd `PIXIES_MODEL=antrophic/...` fails fast with the valid-provider list that #106's test asserts).
+- The config **input** type stays unexported. If a config-file loader with truly optional-from-file fields lands (the deferred config-file case), the defaults/optionality modeling deserves a fresh look — but `Value.Default` + `Type.Optional` already cover optional fields, so the library choice is unlikely to need revisiting.
+- Provider-prefix validation at boot remains desired (so a typo'd `PIXIES_MODEL=antrophic/...` fails fast with the valid-provider list).
 
 ## Alternatives considered
 
 - **Keep Zod for config.** Rejected — maintains a second validation library for a single schema whose input/output split was dead surface area.
-- **Use `Value.Convert` for numeric coercion.** Rejected — it silently truncates `"3.5"` → `3`, violating the integer-rejection guarantee from #101/#105. Explicit `Number()` preserves `3.5` so `Type.Integer` rejects it, matching `z.coerce.number().int()`.
+- **Use `Value.Convert` for numeric coercion.** Rejected — it silently truncates `"3.5"` → `3`, violating the integer-rejection guarantee. Explicit `Number()` preserves `3.5` so `Type.Integer` rejects it, matching `z.coerce.number().int()`.
 - **Wrap defaulted fields in `Type.Optional(...)`.** Rejected — it would make resolved knobs `T | undefined` on the output type, breaking every consumer (`createAgent`, `createOsmClients`, server tests) that treats them as required. Defaults do **not** imply optionality in TypeBox's output type.
-- **Drop the schema-level provider check; rely only on `resolveModel`'s guard.** Rejected — loses the boot-time dynamic error message ("Valid providers: …") that #106's test asserts. Both are kept as defense-in-depth, exactly as before.
+- **Drop the schema-level provider check; rely only on `resolveModel`'s guard.** Rejected — loses the boot-time dynamic error message ("Valid providers: …"). Both are kept as defense-in-depth, exactly as before.
 
 ## References
 
 - Supersedes the **config portion** of ADR-0002 (`0002-typebox-schemas-in-core.md`); ADR-0002 remains Accepted for tool params + SSE.
-- #168 — drop Zod, move config schema to TypeBox.
-- #106 — provider-prefix validation (the boot-time error message this preserves).
-- #101 / #103 / #105 — config cleanup: numeric coercion, URL/email formats, empty-as-unset (D3).
+- Drop Zod, move config schema to TypeBox.
+- Provider-prefix validation (the boot-time error message this preserves).
+- Config cleanup: numeric coercion, URL/email formats, empty-as-unset (D3).
 - `packages/core/src/config-schema.ts` — `PixiesConfigSchema`, `ResolvedPixiesConfig`.
 - `packages/core/src/agent.ts:readConfigFromEnv` — `Value.Default` + `Value.Parse` pipeline, `num()` helper.
