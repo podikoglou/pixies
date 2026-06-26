@@ -52,21 +52,19 @@ When enabled, `info`+ server log records are shipped to PostHog Logs over OTLP/H
 
 Records DO carry: the message string, category, level, timestamp, and other structured properties (counts, durations, service names, conversation ids, error tags). They never carry the query text or place names — those live only in the `url`/`query` fields, which are redacted.
 
-## Alerting (replaces the Discord transport)
+## Alerting
 
-Previously a fire-and-forget Discord webhook sink forwarded **every** server `error`/`fatal` log line (`PIXIES_DISCORD_WEBHOOK_URL`, removed in #174). Noisy, unfiltered, and server-only. Alerting now lives in PostHog, which thresholds and dedupes and covers both server logs and client error tracking.
+Configured in the PostHog dashboard, not in the app. PostHog thresholds and deduplicates, and covers both the server log stream (PostHog Logs) and client exceptions (Error Tracking). Requires the corresponding data path to be enabled: `PIXIES_POSTHOG_API_KEY` for server-log alerts, `VITE_POSTHOG_KEY` for Error Tracking and spike alerts. With neither set, nothing is alertable.
 
-**Prerequisite:** server logs must reach PostHog Logs (`PIXIES_POSTHOG_API_KEY`, above) and client exceptions must reach Error Tracking (`VITE_POSTHOG_KEY`, #172). With neither, there is nothing to alert on.
+Destinations are configured per project: Discord, Slack, Microsoft Teams, HTTP webhook, and account email. A Discord webhook URL can be used as a generic webhook destination.
 
-**Destinations** are configured once in PostHog (project settings → alert destinations): Discord, Slack, Microsoft Teams, and HTTP webhook are supported, plus the account email. A Discord webhook URL can be used directly as a generic webhook destination.
+Three alert mechanisms:
 
-**Alerts to enable** (each maps to one of the issue's three signal types):
+- **Log alert** — a threshold rule on the server log stream scoped to `error`/`fatal`-level records ("more than *N* matching logs in *M* minutes"; 5–60 min windows; N-of-M evaluation). Notifies via Slack or webhook.
+- **Error Tracking** — fires on issue created or reopened (client exceptions). Notifies via Discord, Slack, Teams, or webhook.
+- **Spike detection** — fires on a spike in exception volume. Same destinations as Error Tracking.
 
-- **Rate thresholds / log volume (the direct replacement).** A PostHog **log alert** on the server log stream scoped to `error`/`fatal`-level records — "more than *N* matching logs in *M* minutes" (5–60 min windows). Uses an N-of-M evaluation so a single blip doesn't fire. This replaces what the old transport did, but thresholded instead of one-POST-per-error. Log alerts notify via Slack or webhook (use the Discord webhook URL as the webhook destination).
-- **New error types.** An **Error Tracking** alert on *issue created/reopened* (client exceptions) → Discord/Slack/Teams/webhook. Each new grouping is a new error type.
-- **Error spikes.** **Spike detection** on exception volume → Discord/Slack/Teams/webhook.
-
-**Privacy:** alerting sends no additional data. It only fires on records already in PostHog — server logs redacted at the egress sink (`url`/`query` scrubbed) and exception stack traces that carry code paths, never query/DOM text. Because query text and place names never reach PostHog, they can never appear in an alert.
+Privacy: alerting sends no additional data. Alerts fire only on records already ingested by PostHog — server logs redacted at the egress sink (`url`/`query` scrubbed) and exception stack traces carrying code paths, never query or DOM text. Query text and place names never reach PostHog, so cannot appear in an alert.
 
 ## Server analytics (PostHog events)
 
