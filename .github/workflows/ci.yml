@@ -31,7 +31,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       # Gates run sequentially; the first failure fails the job (and the PR
-      # check). See #66.
+      # check).
       - name: Format check
         run: bun run format:check
 
