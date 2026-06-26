@@ -1,5 +1,5 @@
 import type { ConversationTranscript } from "../api/conversations.ts";
-import { parseToolResult, type ToolProgress, type ToolResult } from "@pixies/core";
+import { parseToolResult, isBusyResult, type ToolProgress, type ToolResult } from "@pixies/core";
 
 export type TimelineItem =
 	| { kind: "user-message"; text: string; responseTimeMs?: number }
@@ -113,11 +113,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 					const parsed = parseToolResult(it.toolName, action.details);
 					return {
 						...it,
-						status: action.isError
-							? "error"
-							: (action.details as Record<string, unknown>)?.["busy"]
-								? "warning"
-								: "done",
+						status: action.isError ? "error" : isBusyResult(action.details) ? "warning" : "done",
 						queued: false,
 						resultText: action.resultText,
 						result: parsed,
@@ -173,11 +169,7 @@ export function transcriptToItems(transcript: ConversationTranscript): TimelineI
 					toolCallId: msg.toolCallId,
 					toolName: msg.toolName,
 					args: undefined,
-					status: msg.isError
-						? "error"
-						: (msg.details as Record<string, unknown>)?.["busy"]
-							? "warning"
-							: "done",
+					status: msg.isError ? "error" : isBusyResult(msg.details) ? "warning" : "done",
 					queued: false,
 					resultText: joinContentText(msg.content, "\n") || null,
 					result: parsed,

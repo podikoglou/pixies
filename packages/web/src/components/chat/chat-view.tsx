@@ -40,6 +40,7 @@ export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 		sendMessage(trimmed, {
 			onConversationCreated,
 			onToolError: (toolName) => analytics.capture("tool_error", { tool_name: toolName }),
+			onToolEmpty: (props) => analytics.capture("tool_empty", props),
 		});
 		setText("");
 	};

@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
 import type { PostHog } from "posthog-js";
-import { captureReactError, captureEvent } from "./posthog-capture.ts";
+import { captureReactError, captureEvent, toolResultCount } from "./posthog-capture.ts";
 
 interface Recorded {
 	error: unknown;
@@ -58,6 +58,9 @@ test("captureEvent no-ops when PostHog is disabled (client undefined)", () => {
 	).not.toThrow();
 	expect(() => captureEvent(undefined, "map_opened", { marker_count: 3 })).not.toThrow();
 	expect(() => captureEvent(undefined, "tool_error", { tool_name: "query_osm" })).not.toThrow();
+	expect(() =>
+		captureEvent(undefined, "tool_empty", { tool_name: "query_osm", result_count: 0 }),
+	).not.toThrow();
 	expect(() => captureEvent(undefined, "user_stop", { had_output: true })).not.toThrow();
 });
 
@@ -89,6 +92,16 @@ test("captureEvent emits tool_error with the tool name only", () => {
 	expect(captured).toEqual([{ event: "tool_error", props: { tool_name: "query_osm" } }]);
 });
 
+test("captureEvent emits tool_empty with the tool name and feature count", () => {
+	const { client, captured } = recordingClient();
+
+	captureEvent(client, "tool_empty", { tool_name: "query_osm", result_count: 0 });
+
+	expect(captured).toEqual([
+		{ event: "tool_empty", props: { tool_name: "query_osm", result_count: 0 } },
+	]);
+});
+
 test("captureEvent emits user_stop with the had_output flag", () => {
 	const { client, captured } = recordingClient();
 
@@ -99,4 +112,40 @@ test("captureEvent emits user_stop with the had_output flag", () => {
 		{ event: "user_stop", props: { had_output: true } },
 		{ event: "user_stop", props: { had_output: false } },
 	]);
+});
+
+// ---- toolResultCount --------------------------------------------------------
+// `details` stubs mirror the real tool `details` shapes: query_osm/geocode use
+// `{ data: entries }`; reverse_geocode uses `{ data: entry }` (or undefined on
+// no result); busy soft-failures use `{ busy: true, data: [] }` (geocode) /
+// `{ busy: true }` (query_osm). See parse-result.test.ts.
+
+const osmEntry = { type: "node" as const, id: 1, lat: 1, lon: 2, name: "A" };
+
+test("toolResultCount query_osm — empty data is 0", () => {
+	expect(toolResultCount("query_osm", { data: [] })).toBe(0);
+});
+
+test("toolResultCount query_osm — raw entry count (not bucketed)", () => {
+	expect(toolResultCount("query_osm", { data: Array.from({ length: 6 }, () => osmEntry) })).toBe(6);
+});
+
+test("toolResultCount reverse_geocode — success is 1", () => {
+	expect(
+		toolResultCount("reverse_geocode", { data: { placeId: 9, lat: 1, lon: 2, name: "X" } }),
+	).toBe(1);
+});
+
+test("toolResultCount reverse_geocode — no result (undefined details) is 0", () => {
+	expect(toolResultCount("reverse_geocode", undefined)).toBe(0);
+});
+
+test("toolResultCount — busy soft-failure does not fire", () => {
+	expect(toolResultCount("geocode", { busy: true, data: [] })).toBeUndefined();
+	expect(toolResultCount("query_osm", { busy: true })).toBeUndefined();
+});
+
+test("toolResultCount — non-data-fetch and unknown tools do not fire", () => {
+	expect(toolResultCount("display_map", { data: { markers: [] } })).toBeUndefined();
+	expect(toolResultCount("some_other_tool", { data: [osmEntry] })).toBeUndefined();
 });
