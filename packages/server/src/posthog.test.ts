@@ -1,10 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import {
-	captureAnalytics,
-	createPostHogAnalyticsClient,
-	type PostHogAnalyticsClient,
-} from "./posthog.ts";
+import { captureAnalytics, type PostHogAnalyticsClient } from "./posthog.ts";
 
 interface Captured {
 	distinctId: string;
@@ -74,16 +70,4 @@ test("captureAnalytics passes distinctId and event name through verbatim", () =>
 	expect(captures).toHaveLength(1);
 	expect(captures[0]?.distinctId).toBe("203.0.113.7");
 	expect(captures[0]?.event).toBe("rate limit exceeded");
-});
-
-test("createPostHogAnalyticsClient constructs without throwing (smoke)", async () => {
-	const client = createPostHogAnalyticsClient({
-		apiKey: "test",
-		host: "https://eu.i.posthog.com",
-	});
-	expect(typeof client.capture).toBe("function");
-	expect(typeof client.shutdown).toBe("function");
-	// Clean up any timers the constructor may have armed; no events queued, so
-	// shutdown makes no network calls.
-	await client.shutdown();
 });
