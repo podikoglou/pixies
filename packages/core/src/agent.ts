@@ -54,12 +54,12 @@ function resolveModel(modelRef: string): Model<Api> {
 
 /**
  * Read an env var, treating undefined/empty/whitespace as "unset" (returns
- * undefined). This lets the schema apply documented defaults instead of
- * coercing `""` to `0`/`NaN`, which is critical for fields like
- * `httpRateLimit` where `PIXIES_HTTP_RATE_LIMIT=` must NOT silently disable
- * rate limiting.
+ * undefined) so the schema applies its documented default. The empty-as-unset
+ * rule matters most for numeric fields: without it, `PIXIES_HTTP_RATE_LIMIT=`
+ * would coerce `""` to `0` and silently disable rate limiting. Shared with
+ * `@pixies/server`'s `ServerConfigSchema` reader so both config surfaces agree.
  */
-function env(name: string): string | undefined {
+export function env(name: string): string | undefined {
 	const v = process.env[name];
 	return v && v.trim().length > 0 ? v : undefined;
 }
