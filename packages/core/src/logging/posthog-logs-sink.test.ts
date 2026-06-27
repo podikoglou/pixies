@@ -1,7 +1,15 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
 import type { LogRecord } from "@logtape/logtape";
+import { TaggedError } from "better-result";
 import { redactRecord, DEFAULT_REDACT_KEYS, getPostHogLogsSink } from "./posthog-logs-sink.ts";
+
+/** A TaggedError shaped like the OSM clients' `*HttpError`: a `body` prop and a `message` that embeds it. */
+const OverpassHttpError = TaggedError("OverpassHttp")<{
+	status?: number;
+	body?: string;
+	message: string;
+}>();
 
 /** Build a real LogTape LogRecord for tests. */
 function record(
@@ -100,4 +108,59 @@ test("getPostHogLogsSink constructs without throwing (import compat)", () => {
 		token: "test",
 	});
 	expect(typeof sink).toBe("function");
+});
+
+// ---- 7. err: TaggedError keeps only the _tag, drops message/body ------------
+
+test("redactRecord keeps only the _tag of a TaggedError under err — never message/body", () => {
+	// The headline leak: OSM *HttpError carries the raw response body both as
+	// an enumerable `body` prop and embedded in `.message`. @logtape/otel
+	// serializes both, so an unscrubbed `err` ships third-party, place-bearing
+	// content to PostHog Logs. Only the `_tag` discriminator may survive.
+	const err = new OverpassHttpError({
+		status: 500,
+		body: "raw osm response body",
+		message: "Overpass: 500: raw osm response body",
+	});
+	const r = record("error", "agent stream error", { conversationId: "abc", err });
+
+	const out = redactRecord(r, DEFAULT_REDACT_KEYS);
+
+	expect(out.properties.err).toEqual({ _tag: "OverpassHttp" });
+	expect(out.properties.conversationId).toBe("abc");
+});
+
+// ---- 8. err: plain Error (no _tag) is fully redacted ------------------------
+
+test("redactRecord redacts a plain Error under err", () => {
+	const r = record("fatal", "unhandled rejection", { err: new Error("boom: secret") });
+
+	const out = redactRecord(r, DEFAULT_REDACT_KEYS);
+
+	expect(out.properties.err).toBe("[redacted]");
+});
+
+// ---- 9. err: non-Error values are redacted too ------------------------------
+
+test("redactRecord redacts a non-Error value under err", () => {
+	const r = record("error", "persist failed", { conversationId: "x", err: "stringy secret" });
+
+	const out = redactRecord(r, DEFAULT_REDACT_KEYS);
+
+	expect(out.properties.err).toBe("[redacted]");
+	expect(out.properties.conversationId).toBe("x");
+});
+
+// ---- 10. err: the input record is not mutated -------------------------------
+
+test("redactRecord does not mutate the err value on the input record", () => {
+	const err = new OverpassHttpError({ body: "raw osm response body", message: "Overpass: body" });
+	const r = record("error", "agent stream error", { err });
+
+	redactRecord(r, DEFAULT_REDACT_KEYS);
+
+	// The console sink must still see the full object.
+	expect((r.properties.err as InstanceType<typeof OverpassHttpError>).body).toBe(
+		"raw osm response body",
+	);
 });
