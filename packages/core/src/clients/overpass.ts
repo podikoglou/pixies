@@ -101,34 +101,83 @@ export const OverpassResponseSchema = Type.Object({
 /** Parsed Overpass JSON response. */
 export type OverpassResponse = Static<typeof OverpassResponseSchema>;
 
-/** Runtime configuration for {@link OverpassClient}. */
-export interface OverpassConfig {
-	baseUrl: string;
-	userAgent: string;
+/**
+ * TypeBox schema for {@link OverpassClient} configuration. Single source of
+ * truth for the client's config knobs: type, bounds, defaults, and
+ * descriptions live here, next to the client that owns them. The constructor
+ * applies defaults and validates bounds via `Value.Default` + `Value.Parse`,
+ * so direct construction (tests, adapters, scripts) fails fast at the boundary
+ * instead of misbehaving inside `p-queue` on the first request.
+ *
+ * The defaulted knobs are wrapped in `Type.Optional` so callers may omit them;
+ * `Value.Default` fills them at construction time. `fetch` and `logger` are
+ * dependency-injection overrides, not config values, so they live on the
+ * derived {@link OverpassConfig} type rather than this schema.
+ */
+export const OverpassConfigSchema = Type.Object({
+	baseUrl: Type.String({
+		format: "url",
+		description: "Overpass interpreter URL (e.g. https://overpass-api.de/api/interpreter).",
+	}),
+	userAgent: Type.String({ description: "User-Agent header for Overpass requests." }),
+	concurrency: Type.Optional(
+		Type.Integer({
+			minimum: 1,
+			default: 2,
+			description:
+				"Max concurrent in-flight requests. Defaults to 2 (the default public overpass-api.de per-IP policy, reported by /api/status). Configurable for self-hosted mirrors.",
+		}),
+	),
+	intervalCap: Type.Optional(
+		Type.Integer({
+			minimum: 1,
+			default: 2,
+			description: "Max requests started per intervalMs window. Defaults to 2.",
+		}),
+	),
+	intervalMs: Type.Optional(
+		Type.Integer({
+			minimum: 1,
+			default: 1000,
+			description:
+				"Interval window length in ms. Defaults to 1000. Configurable for self-hosted mirrors and tests.",
+		}),
+	),
+	timeoutMs: Type.Optional(
+		Type.Integer({
+			minimum: 1,
+			default: 60_000,
+			description:
+				"Timeout for each Overpass HTTP request in ms. Defaults to 60_000 to preserve prior behavior; Overpass legitimately takes 10–60s on a healthy instance, so a too-tight value kills healthy slow queries. Configurable (PIXIES_OVERPASS_TIMEOUT_MS) so the default can be revised from per-query latency measurement once the boundary between healthy-slow and hung is known.",
+		}),
+	),
+});
+
+/**
+ * Runtime configuration for {@link OverpassClient}. The config knobs come from
+ * {@link OverpassConfigSchema}; `fetch` and `logger` are appended here as
+ * dependency-injection overrides (not validated by the schema).
+ */
+export type OverpassConfig = Static<typeof OverpassConfigSchema> & {
+	/** Injectable fetch; defaults to globalThis.fetch. */
 	fetch?: typeof globalThis.fetch;
-	/**
-	 * Max concurrent in-flight requests. Defaults to 2 (the default public
-	 * `overpass-api.de` per-IP policy, reported by `/api/status`). Configurable
-	 * for self-hosted mirrors.
-	 */
-	concurrency?: number;
-	/** Max requests started per {@link intervalMs} window. Defaults to 2. */
-	intervalCap?: number;
-	/**
-	 * Interval window length in ms. Defaults to 1000. Configurable for
-	 * self-hosted mirrors and tests.
-	 */
-	intervalMs?: number;
 	/** Structured logger; defaults to silent. */
 	logger?: Logger;
-	/**
-	 * Timeout for each Overpass HTTP request in ms. Defaults to 60_000 to
-	 * preserve prior behavior; Overpass legitimately takes 10–60 s on a healthy
-	 * instance, so a too-tight value kills healthy slow queries. Configurable
-	 * (PIXIES_OVERPASS_TIMEOUT_MS) so the default can be revised from per-query
-	 * latency measurement once the boundary between healthy-slow and hung is known.
-	 */
-	timeoutMs?: number;
+};
+
+/**
+ * {@link OverpassConfig} with every defaulted knob filled by `Value.Default`.
+ * The schema's `Type.Optional` wrappers only model the *input* (callers may
+ * omit knobs); after defaulting they are always present, so the constructor
+ * narrows to this shape.
+ */
+interface ResolvedOverpassConfig {
+	baseUrl: string;
+	userAgent: string;
+	concurrency: number;
+	intervalCap: number;
+	intervalMs: number;
+	timeoutMs: number;
 }
 
 /** Body substrings Overpass emits when overloaded (HTTP status is the primary signal). */
@@ -164,16 +213,25 @@ export class OverpassClient {
 	private readonly timeoutMs: number;
 
 	constructor(config: OverpassConfig) {
-		this.baseUrl = config.baseUrl;
-		this.userAgent = config.userAgent;
+		// `Value.Default` fills the documented defaults for omitted knobs; `Value.Parse`
+		// then enforces the bounds (and URL format) so a bad direct construction
+		// (e.g. concurrency: 0) throws here, not inside p-queue. The Optional wrappers
+		// model the *input*; after defaulting the knobs are present, so the result
+		// narrows to ResolvedOverpassConfig.
+		const cfg = Value.Parse(
+			OverpassConfigSchema,
+			Value.Default(OverpassConfigSchema, config),
+		) as ResolvedOverpassConfig;
+		this.baseUrl = cfg.baseUrl;
+		this.userAgent = cfg.userAgent;
 		this.fetchFn = config.fetch ?? globalThis.fetch;
 		this.logger = config.logger ?? silentLogger;
-		this.concurrency = config.concurrency ?? 2;
-		this.timeoutMs = config.timeoutMs ?? 60_000;
+		this.concurrency = cfg.concurrency;
+		this.timeoutMs = cfg.timeoutMs;
 		this.queue = new PQueue({
 			concurrency: this.concurrency,
-			intervalCap: config.intervalCap ?? 2,
-			interval: config.intervalMs ?? 1000,
+			intervalCap: cfg.intervalCap,
+			interval: cfg.intervalMs,
 		});
 	}
 
