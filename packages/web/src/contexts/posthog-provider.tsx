@@ -1,11 +1,6 @@
 import { type ReactNode } from "react";
 import { PostHogProvider } from "@posthog/react";
-
-// Public project token — NOT the secret server API key. See docs/posthog-privacy.md.
-const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY;
-const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST;
-
-const isEnabled = typeof POSTHOG_KEY === "string" && POSTHOG_KEY.length > 0;
+import { posthogConfig } from "../posthog-config";
 
 /**
  * Wraps the app in PostHogProvider when the operator has opted in via env, and
@@ -13,12 +8,12 @@ const isEnabled = typeof POSTHOG_KEY === "string" && POSTHOG_KEY.length > 0;
  * anonymous (no `identify` calls); see docs/posthog-privacy.md.
  */
 export function OptionalPostHogProvider({ children }: { children: ReactNode }) {
-	if (!isEnabled) return <>{children}</>;
+	if (!posthogConfig.enabled) return <>{children}</>;
 	return (
 		<PostHogProvider
-			apiKey={POSTHOG_KEY}
+			apiKey={posthogConfig.key}
 			options={{
-				api_host: POSTHOG_HOST,
+				api_host: posthogConfig.host,
 				// Autocapture stays off — the composer's query text is sensitive
 				// location data and must never be collected. Product events are sent
 				// explicitly at their user-action sites instead (see posthog-capture.ts
