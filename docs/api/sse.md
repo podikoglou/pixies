@@ -5,7 +5,7 @@
 
 ## Overview
 
-The Pixies SSE API exposes a stateful, multi-tenant conversation interface to the Pixies OSM agent. Each conversation is an isolated server-side `Agent` instance. Clients create a conversation, send messages, and receive streamed tool execution progress.
+The Pixies SSE API exposes a stateful, multi-tenant conversation interface to the Pixies OSM agent. Each conversation is server-side and isolated from every other. Clients create a conversation, send messages, and receive streamed tool execution progress.
 
 The API is optimized for streaming chat UIs (web, mobile). It is **not** a stateless completion API — clients must track conversation IDs.
 
@@ -43,7 +43,7 @@ data: <json-string>
 
 ## Heartbeats
 
-The server emits an SSE comment line `: ping\n\n` every 15 seconds during long-running streams (e.g. while an Overpass query runs). Comment lines are not delivered to clients as events — they exist solely to keep the connection alive across proxies and browser idle timeouts.
+The server emits an SSE comment line `: ping\n\n` every 15 seconds during long-running streams. Comment lines are not delivered to clients as events — they exist solely to keep the connection alive across proxies and browser idle timeouts.
 
 ## Endpoints
 
@@ -138,7 +138,7 @@ Returns the transcript of a conversation. Each entry in `messages` has role `use
 DELETE /conversations/:id
 ```
 
-Evicts the conversation from server memory immediately. If a prompt is in-flight on this conversation, it is aborted first. The row is also deleted from the SQLite database.
+Permanently deletes the conversation. If a prompt is in-flight on this conversation, it is aborted first.
 
 **Response (204):** empty body.
 
@@ -220,12 +220,14 @@ The `details` shape is tool-specific:
 
 | Tool | `details` shape |
 |---|---|
-| `geocode` | `{ top?: string, data: GeocodeResultEntry[] }` — `top` is a short summary (e.g. `"Camden Town (51.539,-0.142)"`), `data` is the lossless structured result |
-| `reverse_geocode` | `{ name?: string, data: GeocodeResultEntry }` or `undefined` on error/no-result. `name` is a short place name |
-| `query_osm` | `{ count: number, data: OverpassResultEntry[] }` — `count` is element count returned, `data` is the lossless structured result |
-| `display_map` | `{ data: { markers: [...], queryRef?, elementIds?, bounds? } }` — map display parameters. `queryRef` references a prior `query_osm` tool call ID |
+| `geocode` | `{ data: GeocodeResultEntry[] }` — empty `data: []` when no results; `{ busy: true, data: [] }` when Nominatim reports a transient overload |
+| `reverse_geocode` | `{ data: GeocodeResultEntry }`, `{ busy: true }`, or `undefined` (no result) |
+| `query_osm` | `{ data: OverpassResultEntry[] }` — empty `data: []` when no results; `{ busy: true }` when Overpass reports a transient overload |
+| `display_map` | `{ data: { markers: [{lat,lon,label?}], queryRef?, elementIds?, bounds? } }` — `queryRef` references a prior `query_osm` tool call ID |
 
 Clients that want structured results should consume `details.data` directly instead of reverse-parsing the pipe-delimited `content[].text`.
+
+**Busy soft-failure.** When an OSM service reports a transient overload condition, the data-fetch tools (`geocode`, `reverse_geocode`, `query_osm`) return a normal result (`isError: false`) whose `details` carries `busy: true` and whose text is a model-facing "try again" message, rather than failing the tool. This is a success on the wire but a transient condition: clients may surface a "service busy" indicator, and the model is expected to retry or relax its query.
 
 ### `done`
 
@@ -247,7 +249,7 @@ Tool errors do **not** fire this event — they fire `tool_execution_end` with `
 
 ### Future events
 
-The following event types are defined in the SSE schema (`sse-events.ts`) but not yet wired up at the translation layer (`events.ts` returns `[]` for them). They are never emitted to clients:
+The following event types are defined in the schema but not yet emitted to clients. They are never sent:
 
 - `message_start` — planned for when the agent begins streaming a new assistant message
 - `text_delta` — planned for per-token streaming of assistant text
@@ -263,7 +265,7 @@ Client                                 Server
   | POST /conversations                  |
   | { message: "..." }                   |
   |------------------------------------->|
-  |                                      | create Agent, store in Map + SQLite
+  |                                      | create conversation
   |<- - - - - - - - - - - - - - - - - - | conversation_created { id }
   |<- - - - - - - - - - - - - - - - - - | tool_execution_start { ... }
   |<- - - - - - - - - - - - - - - - - - | tool_execution_update { details: { type: "queued" } }
@@ -284,25 +286,19 @@ Client                                 Server
 
 ## Abort semantics
 
-To abort an in-flight prompt, the client closes the SSE connection. The server detects the disconnect via the `ReadableStream` cancel callback and calls `agent.abort()`. The conversation remains in memory — the client can send a new message to continue.
+To abort an in-flight prompt, the client closes the SSE connection. The server detects the closed connection and aborts the in-flight work. The conversation is not deleted — the client can send a new message to continue.
 
 There is no abort endpoint. Closing the connection IS the abort.
 
 ## Concurrency
 
 - One in-flight prompt per conversation. Concurrent prompt attempts return **409**.
-- No cross-conversation serialization of agent work itself. OSM rate-limiting **is** serialized cross-conversation: the server owns a single `NominatimClient` and a single `OverpassClient` per process (constructed once in `ConversationStore` — see ADR-0004) and injects them into every `createAgent` call. Each self-contained service client owns one `p-queue` (ADR-0007), so the throttle is global to the server's source IP:
-  - **Nominatim** — `{concurrency:1, intervalCap:1, interval:1100ms, strict}` → at most 1 request per 1.1s. Defaults match the public `nominatim.openstreetmap.org` 1 req/s per-IP policy; self-hosted/custom instances are configurable via `PIXIES_NOMINATIM_*`.
-  - **Overpass** — `{concurrency:2, intervalCap:2, interval:1000ms}` → at most 2 concurrent slots. Defaults match the public `overpass-api.de` `/api/status` "Rate limit: 2"; self-hosted/custom instances are configurable via `PIXIES_OVERPASS_*`.
-- **HTTP layer:** the two LLM-cost POST endpoints (`POST /conversations`, `POST /conversations/:id/messages`) are rate-limited per IP in-process. Over the limit → **429** with an integer `Retry-After` (seconds). GET/DELETE are not rate-limited (no LLM cost). See `PIXIES_HTTP_RATE_LIMIT*` env vars above.
+- **OSM data sources are shared and rate-limited server-wide.** There is no per-conversation isolation from this throttle — under concurrent load your tool calls may queue (surfaced as `queued` → `running` progress) or return a transient `busy` result (see Busy soft-failure).
+- **HTTP layer:** the two LLM-cost POST endpoints (`POST /conversations`, `POST /conversations/:id/messages`) are rate-limited per IP in-process. Over the limit → **429** with an integer `Retry-After` (seconds). GET/DELETE are not rate-limited (no LLM cost). See `PIXIES_HTTP_RATE_LIMIT*` in [docs/DOCKER.md](../DOCKER.md).
 
-## Persistence
+## Durability
 
-Conversations are persisted to SQLite (Drizzle ORM). On server restart, conversations are rehydrated from the database on first access (cache miss). The transcript (user messages, tool results) is saved after each completed prompt. The in-memory LRU cache is bounded by `PIXIES_CACHE_SIZE` (default 1000).
-
-## Conversation TTL
-
-Conversations are evicted from the in-memory cache after **24 hours** of inactivity (no POST messages). A sweeper runs every 5 minutes. Evicted conversations remain in the SQLite database and are rehydrated on next access.
+Conversations persist across server restarts — `GET /conversations/:id` returns the transcript after a restart, and the conversation can still receive new messages. The transcript (user messages and tool results) is saved after each completed prompt; assistant text is not stored (see Get transcript).
 
 ## CORS
 
