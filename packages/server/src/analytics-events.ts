@@ -17,6 +17,14 @@ import { captureAnalytics, type PostHogAnalyticsClient } from "./posthog.ts";
  * Each entry's property shape is verified against its current call site in
  * `index.ts` / `stream-instrumentation.ts` — no keys invented, none renamed.
  */
+
+/**
+ * Assistant-message stop reason. Mirrors `@earendil-works/pi-ai`'s `StopReason`
+ * union inline (the server depends only on `pi-agent-core`, which doesn't
+ * re-export it), so an unknown value can never be reported as `stop_reason`.
+ */
+export type AgentStopReason = "stop" | "length" | "toolUse" | "error" | "aborted";
+
 export type ServerAnalyticsEvent = {
 	// Stream lifecycle events (captured by `StreamInstrumentation`).
 	"agent stream first token": { ttft_ms: number };
@@ -31,15 +39,19 @@ export type ServerAnalyticsEvent = {
 		tool_calls: number;
 		/** Tool ids only — NEVER args (args carry place names/coords). */
 		tool_names: string[];
-		/** `turn_end.message.stopReason` (`stop` | `length` | `toolUse` | `error` | `aborted`). */
-		stop_reason: string;
+		/** `turn_end.message.stopReason` — the agent-loop stop reason (union). */
+		stop_reason: AgentStopReason;
 		/** Per-turn latency: turn_start → turn_end (ms). */
 		duration_ms: number;
 		/** `turn_end.message.usage.input`. */
 		input_tokens: number;
 		/** `turn_end.message.usage.output`. */
 		output_tokens: number;
-		/** `usage.cacheRead` when the provider reports it (optional). */
+		/**
+		 * `usage.cacheRead` when the provider populates it as a number. Typed
+		 * optional because some providers omit it at runtime despite the
+		 * `Usage` type declaring it required.
+		 */
 		cache_read_tokens?: number;
 		/** Any tool result in the turn failed (`tool_execution_end.isError`). */
 		had_tool_error: boolean;
