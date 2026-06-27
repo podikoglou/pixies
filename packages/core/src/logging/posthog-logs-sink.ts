@@ -12,14 +12,23 @@
  *
  * ## Redaction at egress (defense-in-depth)
  * The console sink keeps every field verbatim; **only this egress path
- * scrubs** the `url` and `query` properties (default, see
- * {@link DEFAULT_REDACT_KEYS}). Today the only location-encoding fields are
- * Nominatim request URLs (`?q=<place name>`) logged at `debug`, which the
- * root logger's `info` threshold already drops before this sink is reached.
- * Redaction is still required as defense-in-depth: it protects against (a) an
- * operator raising the level to `debug`, and (b) future info+ fields that may
- * carry location data. Any new server log field that could carry location data
- * MUST be added to `redactKeys` (see docs/posthog-privacy.md).
+ * scrubs** body-bearing fields before OTLP serialization:
+ *
+ * - **Denylist keys** (`url`, `query`; default, see {@link DEFAULT_REDACT_KEYS})
+ *   → replaced with `"[redacted]"`. Today the only location-encoding fields are
+ *   Nominatim request URLs (`?q=<place name>`) logged at `debug`, which the
+ *   root logger's `info` threshold already drops before this sink is reached.
+ *   Redaction is still required as defense-in-depth: it protects against (a) an
+ *   operator raising the level to `debug`, and (b) future info+ fields that may
+ *   carry location data. Any new server log field that could carry location
+ *   data MUST be added to `redactKeys` (see docs/posthog-privacy.md).
+ * - **The `err` property** → sanitized to the error's `_tag` discriminator only
+ *   (for a `TaggedError`) or `"[redacted]"` otherwise (see {@link sanitizeErr}).
+ *   Unconditional — error/fatal sites log `{ err }`, and OSM `*HttpError`
+ *   embed the raw response body in `.message` and as an enumerable `body`
+ *   property, so an unscrubbed `err` would leak third-party, place-bearing
+ *   content. The `_tag` (e.g. `OverpassHttp`) is the same discriminator the
+ *   analytics path captures as `error_tag`. Local stdout retains full detail.
  *
  * ## Fire-and-forget / shutdown
  * Uses `@logtape/otel`'s shortcut exporter mode (`{ serviceName,
@@ -35,6 +44,7 @@
  */
 import type { LogRecord, Sink } from "@logtape/logtape";
 import { getOpenTelemetrySink } from "@logtape/otel";
+import { isTaggedError } from "better-result";
 
 /** Keys scrubbed from `record.properties` before egress to PostHog Cloud. */
 export const DEFAULT_REDACT_KEYS = ["url", "query"] as const;
@@ -42,8 +52,23 @@ export const DEFAULT_REDACT_KEYS = ["url", "query"] as const;
 const REDACTED = "[redacted]";
 
 /**
- * Return a copy of `record` with any property in `keys` replaced by
- * `"[redacted]"`.
+ * Sanitize a logged `err` value for PostHog egress.
+ *
+ * Overpass/Nominatim errors embed the raw OSM HTTP response body in their
+ * `.message` and (for `*HttpError`) as an enumerable `body` property, so an
+ * Error shipped to PostHog Logs leaks third-party, place-bearing content. Keep
+ * only the `_tag` discriminator when the value is a `TaggedError` — the same
+ * tag the analytics path captures as `error_tag` — and redact everything else.
+ * Local stdout retains the full object via the console sink.
+ */
+function sanitizeErr(value: unknown): unknown {
+	return isTaggedError(value) ? { _tag: value._tag } : REDACTED;
+}
+
+/**
+ * Return a copy of `record` scrubbed for PostHog egress: each property in
+ * `keys` becomes `"[redacted]"`, and an `err` property is reduced to its
+ * `_tag` discriminator (or `"[redacted]"`; see {@link sanitizeErr}).
  *
  * Pure: never mutates the input (the console sink must still see full detail).
  * Returns the **same** record reference when nothing matches — no allocation,
@@ -57,6 +82,12 @@ export function redactRecord(record: LogRecord, keys: readonly string[]): LogRec
 			redacted[key] = REDACTED;
 			matched = true;
 		}
+	}
+	// `err` is scrubbed unconditionally (privacy invariant), independent of the
+	// denylist: a logged Error always carries a message that may embed anything.
+	if ("err" in redacted) {
+		redacted.err = sanitizeErr(redacted.err);
+		matched = true;
 	}
 	return matched ? { ...record, properties: redacted } : record;
 }
@@ -74,10 +105,11 @@ export interface PostHogLogsSinkOptions {
 
 /**
  * Build a LogTape sink that forwards `info`+ records to PostHog Logs over
- * OTLP/HTTP, scrubbing `redactKeys` from each record's properties first. Off
- * when unset (the server only builds this when a PostHog key is configured).
- * Uses `@logtape/otel`'s shortcut exporter mode so core imports no
- * `@opentelemetry/*` packages directly.
+ * OTLP/HTTP, scrubbing `redactKeys` and sanitizing `err` from each record's
+ * properties first (see {@link redactRecord}). Off when unset (the server only
+ * builds this when a PostHog key is configured). Uses `@logtape/otel`'s
+ * shortcut exporter mode so core imports no `@opentelemetry/*` packages
+ * directly.
  */
 export function getPostHogLogsSink(opts: PostHogLogsSinkOptions): Sink {
 	const otelSink = getOpenTelemetrySink({

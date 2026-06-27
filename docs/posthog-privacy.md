@@ -48,9 +48,9 @@ Off by default; enabled by setting `PIXIES_POSTHOG_API_KEY` (the server secret �
 
 When enabled, `info`+ server log records are shipped to PostHog Logs over OTLP/HTTP (`<host>/i/v1/logs`). `debug`-level records are dropped at the logger threshold and never leave the instance.
 
-**Redaction at egress:** the `url` and `query` properties are replaced with `"[redacted]"` before egress, because Nominatim request URLs encode the `q=<place>` query parameter (sensitive location data). Local stdout retains full detail — redaction applies only on the off-instance egress path. This is defense-in-depth: today's location-bearing fields are `debug` (already dropped), but the redaction protects against an operator raising the level to `debug` and against future info+ fields.
+**Redaction at egress:** two fields are scrubbed before records leave the instance. The `url` and `query` properties become `"[redacted]"` — Nominatim request URLs encode the `q=<place>` query parameter. An `err` property is reduced to its error `_tag` discriminator only (or `"[redacted]"` when it has none): error/fatal sites log the full error object, and an OSM error's message can embed a raw response body or the searched place name. Local stdout retains full detail; scrubbing applies only on the off-instance egress path. The `url`/`query` scrub is defense-in-depth (today's location-bearing fields are `debug`, already dropped, but it guards against an operator raising the level and against future info+ fields); the `err` scrub is unconditional.
 
-Records DO carry: the message string, category, level, timestamp, and other structured properties (counts, durations, service names, conversation ids, error tags). They never carry the query text or place names — those live only in the `url`/`query` fields, which are redacted.
+Records DO carry: the message string, category, level, timestamp, and other structured properties (counts, durations, service names, conversation ids, error tags). They never carry the query text or place names — those live only in redacted fields (`url`/`query`) or inside a sanitized `err`.
 
 ## Alerting (replaces the Discord transport)
 
@@ -66,7 +66,7 @@ Previously a fire-and-forget Discord webhook sink forwarded **every** server `er
 - **New error types.** An **Error Tracking** alert on _issue created/reopened_ (client exceptions) → Discord/Slack/Teams/webhook. Each new grouping is a new error type.
 - **Error spikes.** **Spike detection** on exception volume → Discord/Slack/Teams/webhook.
 
-**Privacy:** alerting sends no additional data. It only fires on records already in PostHog — server logs redacted at the egress sink (`url`/`query` scrubbed) and exception stack traces that carry code paths, never query/DOM text. Because query text and place names never reach PostHog, they can never appear in an alert.
+**Privacy:** alerting sends no additional data. It only fires on records already in PostHog — server logs scrubbed at the egress sink (`url`/`query` redacted, `err` reduced to its `_tag`) and exception stack traces that carry code paths, never query/DOM text. Because query text and place names never reach PostHog, they can never appear in an alert.
 
 ## Server analytics (PostHog events)
 
