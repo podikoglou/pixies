@@ -1,5 +1,5 @@
 import type { ConversationTranscript } from "../api/conversations.ts";
-import { parseToolResult, isBusyResult, type ToolProgress, type ToolResult } from "@pixies/core";
+import { parseToolResult, isBusyResult, type ToolResult } from "@pixies/core";
 
 export type TimelineItem =
 	| { kind: "user-message"; text: string; responseTimeMs?: number }
@@ -10,7 +10,6 @@ export type TimelineItem =
 			toolName: string;
 			args: unknown;
 			status: "running" | "done" | "error" | "warning";
-			queued: boolean;
 			resultText: string | null;
 			result: ToolResult;
 			responseTimeMs?: number;
@@ -40,7 +39,6 @@ export type ChatAction =
 	| { type: "TEXT_DELTA"; delta: string }
 	| { type: "MESSAGE_END"; text: string; responseTimeMs?: number }
 	| { type: "TOOL_START"; toolCallId: string; toolName: string; args: unknown }
-	| { type: "TOOL_UPDATE"; toolCallId: string; progress: ToolProgress }
 	| {
 			type: "TOOL_END";
 			toolCallId: string;
@@ -90,20 +88,10 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 						toolName: action.toolName,
 						args: action.args,
 						status: "running",
-						queued: false,
 						resultText: null,
 						result: { kind: "empty" },
 					},
 				],
-			};
-		case "TOOL_UPDATE":
-			return {
-				...state,
-				items: state.items.map((it) =>
-					it.kind === "tool-call" && it.toolCallId === action.toolCallId
-						? { ...it, queued: action.progress.type === "queued" }
-						: it,
-				),
 			};
 		case "TOOL_END":
 			return {
@@ -114,7 +102,6 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 					return {
 						...it,
 						status: action.isError ? "error" : isBusyResult(action.details) ? "warning" : "done",
-						queued: false,
 						resultText: action.resultText,
 						result: parsed,
 					};
@@ -170,7 +157,6 @@ export function transcriptToItems(transcript: ConversationTranscript): TimelineI
 					toolName: msg.toolName,
 					args: undefined,
 					status: msg.isError ? "error" : isBusyResult(msg.details) ? "warning" : "done",
-					queued: false,
 					resultText: joinContentText(msg.content, "\n") || null,
 					result: parsed,
 				});

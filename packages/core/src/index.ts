@@ -48,7 +48,6 @@ export {
 	toClientAssistantMessage,
 	MessageEndData,
 	ToolExecutionStartData,
-	ToolExecutionUpdateData,
 	ToolResultSchema,
 	ToolExecutionEndData,
 	DoneData,
@@ -64,8 +63,6 @@ export type {
 } from "./sse-events.ts";
 export {
 	createTools,
-	ToolProgressSchema,
-	isToolProgress,
 	GeocodeResultEntrySchema,
 	OverpassResultEntrySchema,
 	GeocodeToolDetailsSchema,
@@ -82,7 +79,6 @@ export type {
 	QueryOsmToolDetails,
 	DisplayMapData,
 	DisplayMapToolDetails,
-	ToolProgress,
 	ToolResult,
 	GeocodeResultEntry,
 	OverpassResultEntry,
@@ -110,18 +106,9 @@ export type {
 } from "./transcript-schema.ts";
 
 export { NominatimClient, formatNominatimResult } from "./clients/nominatim.ts";
-export type {
-	NominatimConfig,
-	NominatimResult,
-	NominatimRateLimitCallbacks,
-} from "./clients/nominatim.ts";
+export type { NominatimConfig, NominatimResult } from "./clients/nominatim.ts";
 export { OverpassClient, formatElement } from "./clients/overpass.ts";
-export type {
-	OverpassConfig,
-	OverpassElement,
-	OverpassResponse,
-	OverpassRateLimitCallbacks,
-} from "./clients/overpass.ts";
+export type { OverpassConfig, OverpassElement, OverpassResponse } from "./clients/overpass.ts";
 export { NOMINATIM_BUSY_MESSAGE } from "./clients/nominatim.ts";
 export { OVERPASS_BUSY_MESSAGE } from "./clients/overpass.ts";
 export { isAbortError } from "./utils/abort.ts";

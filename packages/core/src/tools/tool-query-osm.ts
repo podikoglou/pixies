@@ -7,10 +7,9 @@ import {
 	type OverpassResultEntry,
 	type QueryOsmToolDetails,
 } from "./schemas.ts";
-import type { ToolProgress } from "./progress.ts";
 import { defineTool, parseSchema } from "./tool-module.ts";
 import { textResult, formatContentLines } from "./content.ts";
-import { throwIfAborted, forwardProgress, recoverBusyOrThrow } from "./control-flow.ts";
+import { throwIfAborted, recoverBusyOrThrow } from "./control-flow.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -23,7 +22,7 @@ export const queryOsmModule = defineTool<
 	{ kind: "query_osm"; entries: OverpassResultEntry[] },
 	{ overpass: OverpassClient },
 	typeof schema,
-	ToolProgress | QueryOsmToolDetails | { busy: true } | undefined
+	QueryOsmToolDetails | { busy: true } | undefined
 >({
 	name: "query_osm",
 	label: "Query OSM",
@@ -32,14 +31,10 @@ export const queryOsmModule = defineTool<
 	parameters: schema,
 	detailsSchema: QueryOsmToolDetailsSchema,
 	parse: parseSchema(QueryOsmToolDetailsSchema, (d) => ({ kind: "query_osm", entries: d.data })),
-	execute: async ({ overpass }, _toolCallId, params, signal, onUpdate) => {
+	execute: async ({ overpass }, _toolCallId, params, signal, _onUpdate) => {
 		throwIfAborted(signal);
 		const result = await Result.gen(async function* () {
-			const response = yield* Result.await(
-				overpass.query(params.query, signal, {
-					onProgress: forwardProgress(onUpdate),
-				}),
-			);
+			const response = yield* Result.await(overpass.query(params.query, signal));
 			const elements = response.elements ?? [];
 			if (elements.length === 0) {
 				return Result.ok({

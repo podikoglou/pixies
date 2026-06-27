@@ -16,9 +16,6 @@ const TOOL_MODULES = {
 
 type ToolName = keyof typeof TOOL_MODULES;
 
-export type { ToolProgress } from "./progress.ts";
-export { ToolProgressSchema, isToolProgress } from "./progress.ts";
-
 export {
 	GeocodeResultEntrySchema,
 	OverpassResultEntrySchema,

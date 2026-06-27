@@ -52,22 +52,6 @@ test("tool_execution_start does not fire callback and dispatches TOOL_START", ()
 	]);
 });
 
-test("tool_execution_update with progress does not fire callback and dispatches TOOL_UPDATE", () => {
-	const { dispatch, actions } = capture();
-	const evt: SSEEvent = {
-		event: "tool_execution_update",
-		data: { toolCallId: "tc-1", details: { type: "running" } },
-	};
-
-	dispatchSseEvent(evt, dispatch, () => {
-		throw new Error("should not fire");
-	});
-
-	expect(actions).toEqual([
-		{ type: "TOOL_UPDATE", toolCallId: "tc-1", progress: { type: "running" } },
-	]);
-});
-
 test("tool_execution_end does not fire callback and dispatches TOOL_END", () => {
 	const { dispatch, actions } = capture();
 	const evt: SSEEvent = {

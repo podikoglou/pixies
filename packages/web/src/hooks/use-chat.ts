@@ -2,7 +2,7 @@ import type { Dispatch } from "react";
 import { useCallback, useReducer, useRef } from "react";
 import { Value } from "typebox/value";
 import type { PixiesErrorTag, SSEEvent } from "@pixies/core";
-import { isAbortError, isToolProgress, PixiesErrorTagSchema } from "@pixies/core";
+import { isAbortError, PixiesErrorTagSchema } from "@pixies/core";
 import { createConversationStream, sendMessageStream } from "../api/conversations.ts";
 import { errorToToastCopy } from "../lib/error-copy.ts";
 import { toolResultCount } from "../lib/posthog-capture.ts";
@@ -50,15 +50,6 @@ export function dispatchSseEvent(
 				args: evt.data.args,
 			});
 			break;
-		case "tool_execution_update": {
-			if (isToolProgress(evt.data.details))
-				dispatch({
-					type: "TOOL_UPDATE",
-					toolCallId: evt.data.toolCallId,
-					progress: evt.data.details,
-				});
-			break;
-		}
 		case "tool_execution_end":
 			dispatch({
 				type: "TOOL_END",

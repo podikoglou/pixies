@@ -7,7 +7,6 @@ import { LRUCache } from "lru-cache";
 import { silentLogger, type Logger } from "../logging/index.ts";
 import { ToolAbortedError } from "../errors.ts";
 import { isAbortError, mergeSignals } from "../utils/abort.ts";
-import type { ToolProgress } from "../tools/progress.ts";
 
 /** Nominatim returned a busy / non-retryable condition; see {@link isNominatimBusyResponse} for the status/marker set. */
 export class NominatimBusyError extends TaggedError("NominatimBusy")<{
@@ -39,11 +38,6 @@ export type NominatimError =
 	| NominatimHttpError
 	| NominatimParseError
 	| ToolAbortedError;
-
-/** Progress callbacks emitted around Nominatim queue waits and execution. */
-export interface NominatimRateLimitCallbacks {
-	onProgress?: (progress: ToolProgress) => void;
-}
 
 /** TypeBox schema for a single Nominatim result. */
 export const NominatimResultSchema = Type.Object({
@@ -198,12 +192,7 @@ export class NominatimClient {
 		return url;
 	}
 
-	private withRateLimit<T>(
-		fn: () => Promise<T>,
-		signal?: AbortSignal,
-		callbacks: NominatimRateLimitCallbacks = {},
-	): Promise<T> {
-		if (this.queue.pending >= this.concurrency) callbacks.onProgress?.({ type: "queued" });
+	private withRateLimit<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
 		if (this.queue.size > 0) {
 			this.logger.debug("queue backpressure", {
 				service: "Nominatim",
@@ -222,7 +211,6 @@ export class NominatimClient {
 						queueSize: this.queue.size,
 						pending: this.queue.pending,
 					});
-					callbacks.onProgress?.({ type: "running" });
 					return fn();
 				},
 				{ signal },
@@ -236,29 +224,24 @@ export class NominatimClient {
 	private async fetchJson(
 		url: URL,
 		signal?: AbortSignal,
-		callbacks: NominatimRateLimitCallbacks = {},
 	): Promise<{ json: unknown; statusCode: number; contentType: string }> {
-		return this.withRateLimit(
-			async () => {
-				this.logger.debug("request", { service: "Nominatim", url: url.toString() });
-				const start = Date.now();
-				const res = await fetchNominatimResponse(url, this.fetchFn, {
-					headers: { "User-Agent": this.userAgent },
-					signal,
-					timeoutMs: this.timeoutMs,
-				});
-				this.logger.debug("response", {
-					service: "Nominatim",
-					statusCode: res.status,
-					durationMs: Date.now() - start,
-				});
-				const contentType = res.headers.get("content-type") ?? "";
-				const json = await res.json();
-				return { json, statusCode: res.status, contentType };
-			},
-			signal,
-			callbacks,
-		);
+		return this.withRateLimit(async () => {
+			this.logger.debug("request", { service: "Nominatim", url: url.toString() });
+			const start = Date.now();
+			const res = await fetchNominatimResponse(url, this.fetchFn, {
+				headers: { "User-Agent": this.userAgent },
+				signal,
+				timeoutMs: this.timeoutMs,
+			});
+			this.logger.debug("response", {
+				service: "Nominatim",
+				statusCode: res.status,
+				durationMs: Date.now() - start,
+			});
+			const contentType = res.headers.get("content-type") ?? "";
+			const json = await res.json();
+			return { json, statusCode: res.status, contentType };
+		}, signal);
 	}
 
 	/** Search Nominatim for a place name or address. */
@@ -266,7 +249,6 @@ export class NominatimClient {
 		query: string,
 		opts: SearchOptions = {},
 		signal?: AbortSignal,
-		callbacks: NominatimRateLimitCallbacks = {},
 	): Promise<Result<NominatimResult[], NominatimError>> {
 		const key = `search:${query.trim().toLowerCase()}:${opts.limit ?? ""}`;
 		const cached = this.cache?.get(key);
@@ -283,7 +265,7 @@ export class NominatimClient {
 		const cache = this.cache;
 		const logger = this.logger;
 		const fetchResult = await Result.tryPromise({
-			try: () => this.fetchJson(url, signal, callbacks),
+			try: () => this.fetchJson(url, signal),
 			catch: toNominatimError,
 		});
 		if (Result.isError(fetchResult)) return Result.err(fetchResult.error);
@@ -315,7 +297,6 @@ export class NominatimClient {
 		lon: number,
 		opts: ReverseOptions = {},
 		signal?: AbortSignal,
-		callbacks: NominatimRateLimitCallbacks = {},
 	): Promise<Result<NominatimResult | null, NominatimError>> {
 		const key = `reverse:${lat.toFixed(5)}:${lon.toFixed(5)}:${opts.zoom ?? ""}`;
 		const cached = this.cache?.get(key);
@@ -333,7 +314,7 @@ export class NominatimClient {
 		const cache = this.cache;
 		const logger = this.logger;
 		const fetchResult = await Result.tryPromise({
-			try: () => this.fetchJson(url, signal, callbacks),
+			try: () => this.fetchJson(url, signal),
 			catch: toNominatimError,
 		});
 		if (Result.isError(fetchResult)) return Result.err(fetchResult.error);

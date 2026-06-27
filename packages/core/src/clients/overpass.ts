@@ -6,7 +6,6 @@ import { Value } from "typebox/value";
 import { silentLogger, type Logger } from "../logging/index.ts";
 import { ToolAbortedError } from "../errors.ts";
 import { isAbortError, mergeSignals } from "../utils/abort.ts";
-import type { ToolProgress } from "../tools/progress.ts";
 
 /** Overpass returned a busy / non-retryable condition; see {@link isOverpassBusyResponse} for the status/marker set. */
 export class OverpassBusyError extends TaggedError("OverpassBusy")<{
@@ -49,11 +48,6 @@ export type OverpassError =
 	| OverpassParseError
 	| OverpassRemarkError
 	| ToolAbortedError;
-
-/** Progress callbacks emitted around Overpass queue waits and execution. */
-export interface OverpassRateLimitCallbacks {
-	onProgress?: (progress: ToolProgress) => void;
-}
 
 /** TypeBox schema for a single Overpass element. */
 export const OverpassElementSchema = Type.Object({
@@ -181,79 +175,69 @@ export class OverpassClient {
 	async query(
 		query: string,
 		parentSignal?: AbortSignal,
-		callbacks: OverpassRateLimitCallbacks = {},
 	): Promise<Result<OverpassResponse, OverpassError>> {
 		const logger = this.logger;
 		return Result.tryPromise({
 			try: () =>
-				this.withRateLimit(
-					async () => {
-						logger.debug("request", { service: "Overpass", queryLength: query.length });
-						const start = Date.now();
-						const res = await fetchOverpassResponse(this.baseUrl, this.fetchFn, {
-							method: "POST",
-							headers: {
-								"User-Agent": this.userAgent,
-								"Content-Type": "application/x-www-form-urlencoded",
-							},
-							body: `data=${encodeURIComponent(query)}`,
-							signal: parentSignal,
-							timeoutMs: this.timeoutMs,
-						});
-						logger.debug("response", {
+				this.withRateLimit(async () => {
+					logger.debug("request", { service: "Overpass", queryLength: query.length });
+					const start = Date.now();
+					const res = await fetchOverpassResponse(this.baseUrl, this.fetchFn, {
+						method: "POST",
+						headers: {
+							"User-Agent": this.userAgent,
+							"Content-Type": "application/x-www-form-urlencoded",
+						},
+						body: `data=${encodeURIComponent(query)}`,
+						signal: parentSignal,
+						timeoutMs: this.timeoutMs,
+					});
+					logger.debug("response", {
+						service: "Overpass",
+						statusCode: res.status,
+						durationMs: Date.now() - start,
+					});
+					const contentType = res.headers.get("content-type") ?? "";
+					if (!contentType.includes("application/json")) {
+						logger.warning("non-json content type", {
 							service: "Overpass",
 							statusCode: res.status,
-							durationMs: Date.now() - start,
+							contentType,
 						});
-						const contentType = res.headers.get("content-type") ?? "";
-						if (!contentType.includes("application/json")) {
-							logger.warning("non-json content type", {
-								service: "Overpass",
-								statusCode: res.status,
-								contentType,
-							});
-							throw new OverpassParseError({ message: "Only [out:json] is supported" });
-						}
-						const json = await res.json();
-						let parsed: OverpassResponse;
-						try {
-							parsed = Value.Parse(OverpassResponseSchema, json);
-						} catch (err) {
-							logger.warning("invalid response shape", {
-								service: "Overpass",
-								statusCode: res.status,
-								contentType,
-								cause: err,
-							});
-							throw new OverpassParseError({
-								message: "Overpass: invalid response shape",
-								cause: err,
-							});
-						}
-						if (parsed.remark) {
-							logger.warning("overpass remark", {
-								service: "Overpass",
-								statusCode: res.status,
-								contentType,
-								remark: parsed.remark,
-							});
-							throw new OverpassRemarkError({ remark: parsed.remark });
-						}
-						return parsed;
-					},
-					parentSignal,
-					callbacks,
-				),
+						throw new OverpassParseError({ message: "Only [out:json] is supported" });
+					}
+					const json = await res.json();
+					let parsed: OverpassResponse;
+					try {
+						parsed = Value.Parse(OverpassResponseSchema, json);
+					} catch (err) {
+						logger.warning("invalid response shape", {
+							service: "Overpass",
+							statusCode: res.status,
+							contentType,
+							cause: err,
+						});
+						throw new OverpassParseError({
+							message: "Overpass: invalid response shape",
+							cause: err,
+						});
+					}
+					if (parsed.remark) {
+						logger.warning("overpass remark", {
+							service: "Overpass",
+							statusCode: res.status,
+							contentType,
+							remark: parsed.remark,
+						});
+						throw new OverpassRemarkError({ remark: parsed.remark });
+					}
+					return parsed;
+				}, parentSignal),
 			catch: toOverpassError,
 		});
 	}
 
-	private withRateLimit<T>(
-		fn: () => Promise<T>,
-		signal?: AbortSignal,
-		callbacks: OverpassRateLimitCallbacks = {},
-	): Promise<T> {
-		if (this.queue.pending >= this.concurrency) callbacks.onProgress?.({ type: "queued" });
+	private withRateLimit<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
 		if (this.queue.size > 0) {
 			this.logger.debug("queue backpressure", {
 				service: "Overpass",
@@ -272,7 +256,6 @@ export class OverpassClient {
 						queueSize: this.queue.size,
 						pending: this.queue.pending,
 					});
-					callbacks.onProgress?.({ type: "running" });
 					return fn();
 				},
 				{ signal },

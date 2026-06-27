@@ -11,7 +11,6 @@ function osmItem(toolCallId: string, data: OverpassResultEntry[]): TimelineItem 
 		toolName: "query_osm",
 		args: {},
 		status: "done",
-		queued: false,
 		resultText: null,
 		result: { kind: "query_osm", entries: data },
 	};
@@ -59,7 +58,6 @@ test("queryRef not found and no query_osm to fall back on → null", () => {
 			toolName: "geocode",
 			args: {},
 			status: "done",
-			queued: false,
 			resultText: null,
 			result: { kind: "geocode", entries: [] },
 		},
@@ -77,7 +75,6 @@ test("referenced item has non-query_osm result → null", () => {
 			toolName: "geocode",
 			args: {},
 			status: "done",
-			queued: false,
 			resultText: null,
 			result: { kind: "geocode", entries: [] },
 		},
