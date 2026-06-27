@@ -1,9 +1,7 @@
-import { Result, matchErrorPartial } from "better-result";
+import { Result } from "better-result";
 import { Type } from "typebox";
 import type { NominatimClient } from "../clients/nominatim.ts";
-import { formatNominatimResult } from "../clients/nominatim.ts";
-import { ToolAbortedError } from "../errors.ts";
-import { NOMINATIM_BUSY_MESSAGE } from "../clients/nominatim.ts";
+import { formatNominatimResult, NOMINATIM_BUSY_MESSAGE } from "../clients/nominatim.ts";
 import { nominatimResultToData } from "./geocode-entry.ts";
 import {
 	GeocodeToolDetailsSchema,
@@ -13,6 +11,7 @@ import {
 import type { ToolProgress } from "./progress.ts";
 import { defineTool, parseSchema } from "./tool-module.ts";
 import { textResult, formatContentLines } from "./content.ts";
+import { throwIfAborted, forwardProgress, recoverBusyOrThrow } from "./control-flow.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -36,11 +35,11 @@ export const geocodeModule = defineTool<
 	detailsSchema: GeocodeToolDetailsSchema,
 	parse: parseSchema(GeocodeToolDetailsSchema, (d) => ({ kind: "geocode", entries: d.data })),
 	execute: async ({ nominatim }, _toolCallId, params, signal, onUpdate) => {
-		if (signal?.aborted) throw new ToolAbortedError({ message: "Operation aborted" });
+		throwIfAborted(signal);
 		const result = await Result.gen(async function* () {
 			const results = yield* Result.await(
 				nominatim.search(params.query, { limit: params.limit }, signal, {
-					onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
+					onProgress: forwardProgress(onUpdate),
 				}),
 			);
 			if (results.length === 0) {
@@ -56,20 +55,9 @@ export const geocodeModule = defineTool<
 				details: { data },
 			});
 		});
-		if (Result.isOk(result)) return result.value;
-		// Nominatim-busy → non-error result (do not retry); everything else
-		// re-throws so the agent marks the tool call `isError: true`.
-		return matchErrorPartial(
-			result.error,
-			{
-				NominatimBusy: () => ({
-					...textResult(NOMINATIM_BUSY_MESSAGE),
-					details: { busy: true, data: [] },
-				}),
-			},
-			(err) => {
-				throw err;
-			},
-		);
+		return recoverBusyOrThrow(result, "NominatimBusy", {
+			...textResult(NOMINATIM_BUSY_MESSAGE),
+			details: { busy: true, data: [] },
+		});
 	},
 });
