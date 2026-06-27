@@ -107,9 +107,11 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 			nominatimIntervalMs: num("PIXIES_NOMINATIM_INTERVAL_MS"),
 			nominatimCacheTtlMs: num("PIXIES_NOMINATIM_CACHE_TTL_MS"),
 			nominatimCacheMaxEntries: num("PIXIES_NOMINATIM_CACHE_MAX_ENTRIES"),
+			nominatimTimeoutMs: num("PIXIES_NOMINATIM_TIMEOUT_MS"),
 			overpassConcurrency: num("PIXIES_OVERPASS_CONCURRENCY"),
 			overpassIntervalCap: num("PIXIES_OVERPASS_INTERVAL_CAP"),
 			overpassIntervalMs: num("PIXIES_OVERPASS_INTERVAL_MS"),
+			overpassTimeoutMs: num("PIXIES_OVERPASS_TIMEOUT_MS"),
 			posthogHost: env("PIXIES_POSTHOG_HOST"),
 			posthogApiKey: env("PIXIES_POSTHOG_API_KEY"),
 			conversationTokenBudget: num("PIXIES_CONVERSATION_TOKEN_BUDGET"),
@@ -161,6 +163,7 @@ type NominatimConfigFields = Pick<
 	| "nominatimIntervalMs"
 	| "nominatimCacheTtlMs"
 	| "nominatimCacheMaxEntries"
+	| "nominatimTimeoutMs"
 >;
 
 /**
@@ -183,6 +186,7 @@ export function createNominatimClient(
 		intervalMs: config.nominatimIntervalMs,
 		cacheTtlMs: config.nominatimCacheTtlMs,
 		cacheMaxEntries: config.nominatimCacheMaxEntries,
+		timeoutMs: config.nominatimTimeoutMs,
 		logger: opts.logger ?? silentLogger,
 	});
 }
@@ -193,7 +197,12 @@ export function createNominatimClient(
  */
 type OverpassConfigFields = Pick<
 	ResolvedPixiesConfig,
-	"overpassUrl" | "userAgent" | "overpassConcurrency" | "overpassIntervalCap" | "overpassIntervalMs"
+	| "overpassUrl"
+	| "userAgent"
+	| "overpassConcurrency"
+	| "overpassIntervalCap"
+	| "overpassIntervalMs"
+	| "overpassTimeoutMs"
 >;
 
 /**
@@ -211,6 +220,7 @@ export function createOverpassClient(
 		concurrency: config.overpassConcurrency,
 		intervalCap: config.overpassIntervalCap,
 		intervalMs: config.overpassIntervalMs,
+		timeoutMs: config.overpassTimeoutMs,
 		logger: opts.logger ?? silentLogger,
 	});
 }

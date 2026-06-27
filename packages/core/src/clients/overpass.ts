@@ -121,6 +121,14 @@ export interface OverpassConfig {
 	intervalMs?: number;
 	/** Structured logger; defaults to silent. */
 	logger?: Logger;
+	/**
+	 * Timeout for each Overpass HTTP request in ms. Defaults to 60_000 to
+	 * preserve prior behavior; Overpass legitimately takes 10–60 s on a healthy
+	 * instance, so a too-tight value kills healthy slow queries. Configurable
+	 * (PIXIES_OVERPASS_TIMEOUT_MS) so the default can be revised from per-query
+	 * latency measurement once the boundary between healthy-slow and hung is known.
+	 */
+	timeoutMs?: number;
 }
 
 /** Body substrings Overpass emits when overloaded (HTTP status is the primary signal). */
@@ -149,6 +157,11 @@ export class OverpassClient {
 	private readonly queue: PQueue;
 	private readonly concurrency: number;
 	private readonly logger: Logger;
+	/**
+	 * Per-request timeout in ms. Backs the `timeoutMs` passed to
+	 * {@link fetchOverpassResponse}; defaults to 60_000 prior-behavior.
+	 */
+	private readonly timeoutMs: number;
 
 	constructor(config: OverpassConfig) {
 		this.baseUrl = config.baseUrl;
@@ -156,6 +169,7 @@ export class OverpassClient {
 		this.fetchFn = config.fetch ?? globalThis.fetch;
 		this.logger = config.logger ?? silentLogger;
 		this.concurrency = config.concurrency ?? 2;
+		this.timeoutMs = config.timeoutMs ?? 60_000;
 		this.queue = new PQueue({
 			concurrency: this.concurrency,
 			intervalCap: config.intervalCap ?? 2,
@@ -184,6 +198,7 @@ export class OverpassClient {
 							},
 							body: `data=${encodeURIComponent(query)}`,
 							signal: parentSignal,
+							timeoutMs: this.timeoutMs,
 						});
 						logger.debug("response", {
 							service: "Overpass",
@@ -301,7 +316,7 @@ interface FetchOverpassOptions {
 	headers: Record<string, string>;
 	body: string;
 	signal?: AbortSignal;
-	timeoutMs?: number;
+	timeoutMs: number;
 }
 
 async function fetchOverpassResponse(
@@ -309,7 +324,7 @@ async function fetchOverpassResponse(
 	fetchFn: typeof globalThis.fetch,
 	opts: FetchOverpassOptions,
 ): Promise<Response> {
-	const { signal, timeoutMs = 60_000, ...rest } = opts;
+	const { signal, timeoutMs, ...rest } = opts;
 	const merged = mergeSignals(signal, AbortSignal.timeout(timeoutMs));
 	try {
 		const res = await fetchFn(url, { ...rest, signal: merged });

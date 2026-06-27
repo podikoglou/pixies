@@ -115,6 +115,13 @@ export interface NominatimConfig {
 	 * {@link cacheTtlMs}) to enable caching. Defaults to 0 (disabled).
 	 */
 	cacheMaxEntries?: number;
+	/**
+	 * Timeout for each Nominatim HTTP request in ms. Defaults to 60_000 to
+	 * preserve prior behavior; Nominatim is fast and 1 req/s-capped, so this is
+	 * a latency-budget hole when it hangs — configurable (PIXIES_NOMINATIM_TIMEOUT_MS)
+	 * so the default can be tightened from per-query latency measurement.
+	 */
+	timeoutMs?: number;
 }
 
 /** Body substrings Nominatim emits when overloaded (HTTP status is the primary signal). */
@@ -140,6 +147,11 @@ export class NominatimClient {
 	private readonly queue: PQueue;
 	private readonly concurrency: number;
 	/**
+	 * Per-request timeout in ms. Backs the `timeoutMs` passed to
+	 * {@link fetchNominatimResponse}; defaults to 60_000 prior-behavior.
+	 */
+	private readonly timeoutMs: number;
+	/**
 	 * LRU+TTL cache for successful search/reverse responses. `undefined` when
 	 * caching is disabled (either knob is 0).
 	 *
@@ -162,6 +174,7 @@ export class NominatimClient {
 		this.fetchFn = config.fetch ?? globalThis.fetch;
 		this.logger = config.logger ?? silentLogger;
 		this.concurrency = config.concurrency ?? 1;
+		this.timeoutMs = config.timeoutMs ?? 60_000;
 		this.queue = new PQueue({
 			concurrency: this.concurrency,
 			intervalCap: config.intervalCap ?? 1,
@@ -232,6 +245,7 @@ export class NominatimClient {
 				const res = await fetchNominatimResponse(url, this.fetchFn, {
 					headers: { "User-Agent": this.userAgent },
 					signal,
+					timeoutMs: this.timeoutMs,
 				});
 				this.logger.debug("response", {
 					service: "Nominatim",
@@ -391,7 +405,7 @@ export function formatNominatimResult(r: NominatimResult): string {
 interface FetchNominatimOptions {
 	headers: Record<string, string>;
 	signal?: AbortSignal;
-	timeoutMs?: number;
+	timeoutMs: number;
 }
 
 async function fetchNominatimResponse(
@@ -399,7 +413,7 @@ async function fetchNominatimResponse(
 	fetchFn: typeof globalThis.fetch,
 	opts: FetchNominatimOptions,
 ): Promise<Response> {
-	const { signal, timeoutMs = 60_000, ...rest } = opts;
+	const { signal, timeoutMs, ...rest } = opts;
 	const merged = mergeSignals(signal, AbortSignal.timeout(timeoutMs));
 	try {
 		const res = await fetchFn(url, { ...rest, signal: merged });

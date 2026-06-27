@@ -273,9 +273,11 @@ function logResolvedConfig(logger: Logger, config: ResolvedPixiesConfig): void {
 		nominatimConcurrency: config.nominatimConcurrency,
 		nominatimIntervalCap: config.nominatimIntervalCap,
 		nominatimIntervalMs: config.nominatimIntervalMs,
+		nominatimTimeoutMs: config.nominatimTimeoutMs,
 		overpassConcurrency: config.overpassConcurrency,
 		overpassIntervalCap: config.overpassIntervalCap,
 		overpassIntervalMs: config.overpassIntervalMs,
+		overpassTimeoutMs: config.overpassTimeoutMs,
 	});
 }
 
