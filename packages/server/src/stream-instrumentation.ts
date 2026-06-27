@@ -1,7 +1,7 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { isBusyResult, isTaggedError } from "@pixies/core";
+import { isBusyResult, isTaggedError, toolResultCount, type ToolProgress } from "@pixies/core";
 import type { Logger } from "@pixies/core/logging";
-import { captureServerEvent } from "./analytics-events.ts";
+import { captureServerEvent, type ToolCallOutcome } from "./analytics-events.ts";
 import type { PostHogAnalyticsClient } from "./posthog.ts";
 
 /**
@@ -28,6 +28,27 @@ interface TurnToolResult {
 /** Narrow a `turn_end` message to its assistant-message slice. */
 function isAssistantTurn(message: AgentMessage): message is AgentMessage & AssistantTurnMessage {
 	return (message as { role?: unknown }).role === "assistant";
+}
+
+/**
+ * Derive the per-tool `outcome` from the error flag, the busy marker, and the
+ * pre-computed result count.
+ *
+ * - `isError` → `error` (the tool threw or was blocked; the `_tag` is not
+ *   recoverable from the flattened result, so no sub-differentiation).
+ * - busy marker on a success → `busy` (transient OSM overload).
+ * - data-fetch tool with zero features → `empty` (the silent-empty failure).
+ * - else → `success`.
+ */
+function deriveOutcome(
+	isError: boolean,
+	isBusy: boolean,
+	count: number | undefined,
+): ToolCallOutcome {
+	if (isError) return "error";
+	if (isBusy) return "busy";
+	if (count === 0) return "empty";
+	return "success";
 }
 
 /** Ingredients for the byte-identical `error` SSE wire frame, from {@link StreamInstrumentation.fail}. */
@@ -58,7 +79,10 @@ export interface StreamErrorFrame {
  *    {@link fail});
  *  - the `agent turn` capture (per-turn tool count + tool ids, stop reason,
  *    duration, token usage, soft-failure flags) via {@link recordTurnEnd},
- *    with the `turn_index` counter + the turn-start timestamp it pairs with.
+ *    with the `turn_index` counter + the turn-start timestamp it pairs with;
+ *  - the `tool call` capture (per-tool outcome, latency, queue-wait, result
+ *    count) via {@link recordToolEnd}, with the per-`toolCallId` start/queue
+ *    tracking that {@link recordToolStart} / {@link recordToolProgress} feed.
  *
  * Lifecycle invariants (pinned by `pipe-agent-stream.test.ts`):
  *  - a completed stream never emits `agent stream disconnect`;
@@ -99,6 +123,11 @@ export class StreamInstrumentation {
 	// `turn_start` ({@link recordTurnStart}).
 	private turnIndex = 0;
 	private turnStartAt: number = this.startTime;
+	// Per-tool-execution tracking, keyed by `toolCallId`. Each entry stamps the
+	// `tool_execution_start` time and (optionally) the rate-limiter queue-wait
+	// window from `tool_execution_update` progress. Cleaned up at
+	// `tool_execution_end` ({@link recordToolEnd}).
+	private readonly toolStarts = new Map<string, { startedAt: number; queuedAt?: number }>();
 
 	constructor(
 		private readonly distinctId: string,
@@ -191,6 +220,69 @@ export class StreamInstrumentation {
 		// (loop variant) still measures from the prior turn_end rather than the
 		// stream start.
 		this.turnStartAt = Date.now();
+	}
+
+	/**
+	 * Stamp a tool-execution start (`tool_execution_start`). Pairs with the
+	 * matching {@link recordToolEnd} to anchor `duration_ms`. Keyed by
+	 * `toolCallId` so concurrent tool calls don't collide.
+	 */
+	recordToolStart(toolCallId: string): void {
+		this.toolStarts.set(toolCallId, { startedAt: Date.now() });
+	}
+
+	/**
+	 * Record a `tool_execution_update` progress signal (`queued` → `running`).
+	 * `queued` stamps the queue-entry time; `running` resolves `queue_wait_ms`
+	 * from that stamp. Tools that never queue (no rate limiter) never call this.
+	 */
+	recordToolProgress(toolCallId: string, progress: ToolProgress): void {
+		const entry = this.toolStarts.get(toolCallId);
+		if (!entry) return;
+		if (progress.type === "queued") entry.queuedAt = Date.now();
+		if (progress.type === "running" && entry.queuedAt !== undefined) {
+			// queue_wait_ms is read at recordToolEnd; keep the resolved value.
+			entry.queuedAt = Date.now() - entry.queuedAt;
+		}
+	}
+
+	/**
+	 * Capture the `tool call` event at `tool_execution_end` — one structured
+	 * event per tool execution — then clean up the tracking entry. Derives the
+	 * `outcome` from `isError` + the busy marker + the result-count check.
+	 * Carries tool name, latency, optional queue-wait, optional result count.
+	 *
+	 * Privacy: every property is coarse metadata (ids, enums, counts,
+	 * durations). Tool ARGUMENTS and result CONTENT are never captured — only
+	 * the tool id, the derived outcome enum, and (for data-fetch tools) a
+	 * feature count. The error `_tag` is NOT available: pi-agent-core flattens
+	 * thrown errors before they reach the stream loop (see
+	 * {@link ToolCallOutcome}).
+	 *
+	 * @param toolCallId Identifies the tracking entry (cleaned up after).
+	 * @param toolName   The tool id (`tool_execution_end.toolName`).
+	 * @param result     The raw tool result — only `result.details` is read
+	 *                   (for the busy check + feature count). Content text and
+	 *                   error messages are never touched.
+	 * @param isError    `tool_execution_end.isError`.
+	 */
+	recordToolEnd(toolCallId: string, toolName: string, result: unknown, isError: boolean): void {
+		const entry = this.toolStarts.get(toolCallId);
+		const startedAt = entry?.startedAt ?? this.startTime;
+		this.toolStarts.delete(toolCallId);
+		// Only `result.details` is read — never `result.content` (carries text
+		// / error messages that embed place names for OSM errors).
+		const details = (result as { details?: unknown } | null | undefined)?.details;
+		const isBusy = isBusyResult(details);
+		const count = toolResultCount(toolName, details);
+		const outcome = deriveOutcome(isError, isBusy, count);
+		captureServerEvent(this.posthog, this.distinctId, "tool call", {
+			tool_name: toolName,
+			outcome,
+			duration_ms: Date.now() - startedAt,
+			...(entry?.queuedAt !== undefined ? { queue_wait_ms: entry.queuedAt } : {}),
+			...(count !== undefined && !isError && !isBusy ? { result_count: count } : {}),
+		});
 	}
 
 	/**

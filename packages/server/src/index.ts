@@ -4,6 +4,7 @@ import {
 	toClientTranscriptMessage,
 	Result,
 	matchError,
+	isToolProgress,
 	type ResolvedPixiesConfig,
 	type StreamPromptError,
 } from "@pixies/core";
@@ -144,6 +145,18 @@ export function pipeAgentStream(
 				// tool ids, counts, durations, soft-failure flags. No tool args.
 				if (event.type === "turn_start") instr.recordTurnStart();
 				if (event.type === "turn_end") instr.recordTurnEnd(event.message, event.toolResults);
+				// Per-tool analytics. `tool_execution_start` stamps the
+				// duration anchor; `tool_execution_update` progress tracks the
+				// rate-limiter queue wait (queued → running); `tool_execution_end`
+				// captures the `tool call` event — outcome, latency, queue-wait,
+				// result count. Only `result.details` is read (never content/args).
+				if (event.type === "tool_execution_start") instr.recordToolStart(event.toolCallId);
+				if (event.type === "tool_execution_update") {
+					const progress = event.partialResult?.details;
+					if (isToolProgress(progress)) instr.recordToolProgress(event.toolCallId, progress);
+				}
+				if (event.type === "tool_execution_end")
+					instr.recordToolEnd(event.toolCallId, event.toolName, event.result, event.isError);
 				// Measure TTFT on the RAW event, before wire suppression drops
 				// assistant text. Fires mid-stream so even streams that are LATER
 				// aborted still contribute a TTFT measurement — measuring only at

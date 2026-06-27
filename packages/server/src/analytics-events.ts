@@ -25,6 +25,20 @@ import { captureAnalytics, type PostHogAnalyticsClient } from "./posthog.ts";
  */
 export type AgentStopReason = "stop" | "length" | "toolUse" | "error" | "aborted";
 
+/**
+ * Per-tool-execution outcome. Derived from `tool_execution_end`:
+ * - `error`  — `isError: true` (the tool threw or was blocked).
+ * - `busy`   — non-error OSM-busy soft-failure (`{ busy: true }` details).
+ * - `empty`  — non-error data-fetch tool that returned zero features.
+ * - `success`— everything else (includes `display_map`, non-zero data-fetch).
+ *
+ * `error_tag` is NOT captured: pi-agent-core flattens thrown errors to
+ * `{ content: [{ text: error.message }], details: {} }`, so the `_tag` is lost
+ * before the event reaches the stream loop. The `error` outcome still
+ * distinguishes the failure population.
+ */
+export type ToolCallOutcome = "error" | "busy" | "empty" | "success";
+
 export type ServerAnalyticsEvent = {
 	// Stream lifecycle events (captured by `StreamInstrumentation`).
 	"agent stream first token": { ttft_ms: number };
@@ -57,6 +71,26 @@ export type ServerAnalyticsEvent = {
 		had_tool_error: boolean;
 		/** Any non-error busy soft-failure (`{ busy: true }` details). */
 		had_busy_result: boolean;
+	};
+	// Per-tool-execution telemetry (captured by `StreamInstrumentation.recordToolEnd`).
+	"tool call": {
+		/** Tool id (`tool_execution_end.toolName`). NEVER tool args. */
+		tool_name: string;
+		/** Derived outcome — see {@link ToolCallOutcome}. */
+		outcome: ToolCallOutcome;
+		/** `tool_execution_start` → `tool_execution_end` (ms). */
+		duration_ms: number;
+		/**
+		 * Rate-limiter queue wait: `queued` → `running` progress (ms). Omitted
+		 * when the tool never queued (no rate limiter, e.g. `display_map`).
+		 */
+		queue_wait_ms?: number;
+		/**
+		 * Feature count for successful data-fetch tools (query_osm, geocode,
+		 * reverse_geocode). Omitted for non-data-fetch tools and for error/busy
+		 * outcomes. Derived via `toolResultCount` from `@pixies/core`.
+		 */
+		result_count?: number;
 	};
 	// Route-handler events (captured at the handler boundary in `index.ts`).
 	"conversation started": { message_length: number };
