@@ -113,5 +113,5 @@ export type {
 	OverpassResponse,
 	OverpassRateLimitCallbacks,
 } from "./clients/overpass.ts";
-export { OSM_SERVER_BUSY_MESSAGE } from "./tools/busy-message.ts";
+export { NOMINATIM_BUSY_MESSAGE, OVERPASS_BUSY_MESSAGE } from "./tools/busy-message.ts";
 export { isAbortError } from "./utils/abort.ts";

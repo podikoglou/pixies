@@ -3,7 +3,7 @@ import { Type } from "typebox";
 import type { NominatimClient } from "../clients/nominatim.ts";
 import { formatNominatimResult } from "../clients/nominatim.ts";
 import { ToolAbortedError } from "../errors.ts";
-import { OSM_SERVER_BUSY_MESSAGE } from "./busy-message.ts";
+import { NOMINATIM_BUSY_MESSAGE } from "./busy-message.ts";
 import { nominatimResultToData } from "./geocode-entry.ts";
 import {
 	ReverseGeocodeToolDetailsSchema,
@@ -68,7 +68,7 @@ export const reverseGeocodeModule = defineTool<
 			result.error,
 			{
 				NominatimBusy: () => ({
-					...textResult(OSM_SERVER_BUSY_MESSAGE),
+					...textResult(NOMINATIM_BUSY_MESSAGE),
 					details: { busy: true },
 				}),
 			},

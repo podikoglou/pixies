@@ -3,7 +3,7 @@ import { Type } from "typebox";
 import type { OverpassClient, OverpassElement } from "../clients/overpass.ts";
 import { formatElement, getElementCoords } from "../clients/overpass.ts";
 import { ToolAbortedError } from "../errors.ts";
-import { OSM_SERVER_BUSY_MESSAGE } from "./busy-message.ts";
+import { OVERPASS_BUSY_MESSAGE } from "./busy-message.ts";
 import {
 	QueryOsmToolDetailsSchema,
 	type OverpassResultEntry,
@@ -68,7 +68,7 @@ export const queryOsmModule = defineTool<
 			result.error,
 			{
 				OverpassBusy: () => ({
-					...textResult(OSM_SERVER_BUSY_MESSAGE),
+					...textResult(OVERPASS_BUSY_MESSAGE),
 					details: { busy: true },
 				}),
 			},
