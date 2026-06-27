@@ -6,7 +6,7 @@
  * identically in dev and prod. Stock Caddy has no rate-limit plugin (needs an
  * `xcaddy` custom build), and the cost surface we guard is the LLM-triggering
  * endpoints, not static assets. Caddy-side limiting remains an optional
- * future defense-in-depth. See issue #91.
+ * future defense-in-depth.
  */
 
 import { silentLogger, type Logger } from "@pixies/core/logging";

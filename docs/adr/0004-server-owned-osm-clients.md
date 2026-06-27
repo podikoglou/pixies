@@ -6,7 +6,7 @@
 
 Nominatim's [usage policy](https://operations.osmfoundation.org/policies/nominatim/) caps requests at **1 per second per source IP** (interpreted in code as `RATE_LIMIT_MS = 1100` to stay safely under the limit). The cap is per IP, not per client instance and not per conversation.
 
-`NominatimClient` enforces this with an internal promise-chain mutex (`withRateLimit`, `packages/core/src/osm/nominatim.ts`). Pre-refactor that mutex lived at module scope, so it serialized *all* calls in the process — correct for the server by accident, surprising for the TUI (issue #4). Commit `76d6094` ("Move rate-limit state off module scope into `NominatimClient` instance") moved the mutex and `lastCallTime` onto the instance to fix the TUI's hidden-global complaint — and in doing so dropped the cross-conversation serializer with nothing in its place. The note in issue #4 requiring that semantics be preserved lived in a closed issue and was effectively invisible.
+`NominatimClient` enforces this with an internal promise-chain mutex (`withRateLimit`, `packages/core/src/osm/nominatim.ts`). Pre-refactor that mutex lived at module scope, so it serialized *all* calls in the process — correct for the server by accident, surprising for the TUI. Commit `76d6094` ("Move rate-limit state off module scope into `NominatimClient` instance") moved the mutex and `lastCallTime` onto the instance to fix the TUI's hidden-global complaint — and in doing so dropped the cross-conversation serializer with nothing in its place. The note requiring that semantics be preserved lived in a closed issue and was effectively invisible.
 
 The consequence: `createAgent()` news a `NominatimClient` on every call, and `ConversationStore.create()` calls `createAgent()` per conversation. So **N concurrent conversations ⇒ N independent rate-limit chains ⇒ up to N parallel Nominatim requests from one server IP within 1.1s**. That is a usage-policy violation under load, not a theoretical inefficiency. This is a P0 regression.
 
@@ -28,7 +28,7 @@ This refines ADR-0001's seam: ADR-0001 says "core exposes `createAgent()` plus t
 
 3. **Cleanest seam, least coupling.** Three options were on the table:
    - **(a) Server-owned clients injected into `createAgent`** *(chosen)*. One optional parameter. The factory and the client classes are untouched. The TUI path is unchanged. Inversion is localized to one call site per adapter.
-   - **(b) Process-global client singleton in core.** Restores the module-global `chain`/`lastCallTime` that issue #4 objected to, just dressed up. Re-introduces the hidden global the refactor was trying to remove; the TUI inherits a singleton it never asked for.
+   - **(b) Process-global client singleton in core.** Restores the module-global `chain`/`lastCallTime` that the TUI objected to, just dressed up. Re-introduces the hidden global the refactor was trying to remove; the TUI inherits a singleton it never asked for.
    - **(c) Shared mutex behind the client, decoupled from instance.** Keeps per-instance clients but routes the rate-limit chain through an injected shared token. Works, but couples `NominatimClient` to a new abstraction (the token) and obscures the real invariant ("one client per process") behind a wrapper. More machinery for the same outcome.
 
    Option (a) makes the invariant literally structural — *one instance* — rather than emergent from shared mutable state. The thing you can see in the source (`osmClients` stored once on `ConversationStore`) is the thing that is true at runtime.
@@ -64,7 +64,7 @@ If the server ever becomes multi-process, this ADR's *constraint* (one chain per
 
 **Shared-rate-limit-token behind `NominatimClient` (c).** Rejected — adds an abstraction to encode an invariant that "one client per process" already expresses structurally.
 
-**Revert `76d6094` (restore module-scoped mutex).** Rejected — would re-break the TUI property issue #4 fixed (hidden global, surprising for single-user adapters) and is the opposite of ADR-0001's direction.
+**Revert `76d6094` (restore module-scoped mutex).** Rejected — would re-break the TUI property (hidden global, surprising for single-user adapters) and is the opposite of ADR-0001's direction.
 
 ## References
 
@@ -74,8 +74,8 @@ If the server ever becomes multi-process, this ADR's *constraint* (one chain per
 - `packages/core/src/agent.ts` — `createAgent({ osmClients })`, `createOsmClients`.
 - `packages/server/src/conversations.ts` — single `OsmClients` per `ConversationStore`.
 - `docs/api/sse.md` — Concurrency section describes the implemented invariant.
-- Issue #4 — flagged the module-global mutex as a hidden global; this ADR preserves its *multi-tenant* requirement explicitly.
-- Issue #18 — this regression and its framing.
+- Flagged the module-global mutex as a hidden global; this ADR preserves its *multi-tenant* requirement explicitly.
+- This regression and its framing.
 
 ## Revision — 2026-06-25
 

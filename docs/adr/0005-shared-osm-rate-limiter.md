@@ -80,7 +80,7 @@ This decision holds for as long as:
 
 - **Keep the bespoke Nominatim mutex; add a separate Overpass throttle.** Rejected — duplicates throttle logic and loses a single tested primitive.
 - **Process-global p-queue singleton in core.** Rejected (ADR-0004 option b) — re-introduces a hidden global that conflicts with ADR-0001's "adapters own their runtime"; the per-instance approach already encodes the invariant structurally.
-- **Caddy-side API rate limiting instead of in-process.** Out of scope for the OSM layer (this ADR is about OSM clients). The separate HTTP per-IP limit (issue #91) is in-process for the reasons in `packages/server/src/rate-limit.ts`; Caddy remains an optional future defense-in-depth.
+- **Caddy-side API rate limiting instead of in-process.** Out of scope for the OSM layer (this ADR is about OSM clients). The separate HTTP per-IP limit is in-process for the reasons in `packages/server/src/rate-limit.ts`; Caddy remains an optional future defense-in-depth.
 
 ## References
 
@@ -88,4 +88,4 @@ This decision holds for as long as:
 - `packages/core/src/osm/rate-limiter.ts` — `createRateLimiter`.
 - `packages/core/src/osm/nominatim.ts`, `packages/core/src/osm/overpass.ts` — per-service config.
 - [p-queue](https://github.com/sindresorhus/p-queue) — concurrency + interval + strict sliding window.
-- Issue #91 — rate limiting (HTTP API + OSM clients).
+- Rate limiting (HTTP API + OSM clients).

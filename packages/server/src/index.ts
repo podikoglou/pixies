@@ -492,7 +492,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 		() => server.stop(true),
 		// Drain the PostHog event queue before exit (best-effort, awaited).
 		() => (posthog ? posthog.shutdown() : undefined),
-		// Best-effort flush of the LogTape/OTel log sink (#195); swallow errors.
+		// Best-effort flush of the LogTape/OTel log sink; swallow errors.
 		() => dispose().catch(() => {}),
 	]);
 

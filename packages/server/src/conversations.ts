@@ -258,7 +258,7 @@ export class ConversationStore {
 	 * state. Gross corruption (see `PersistedTranscriptSchema` in `@pixies/core`)
 	 * is warn-logged and the conversation starts empty rather than mis-typing the
 	 * in-memory agent state — the user still gets a working conversation; the
-	 * operator gets a `warn` line with the conversationId and entry count. (#106)
+	 * operator gets a `warn` line with the conversationId and entry count.
 	 */
 	private rehydrateTranscript(conv: Conversation, transcript: unknown, id: string): void {
 		if (!Array.isArray(transcript) || transcript.length === 0) return;

@@ -5,10 +5,10 @@ import type { GeocodeResultEntry } from "./schemas.ts";
  * Structured, lossless representation of a Nominatim result for UI consumers.
  * The content-side counterpart to `formatNominatimResult` (still owned by the
  * Nominatim client): the pipe string stays the model-facing serialization, this
- * object is the wire contract for structured rendering (issue #15).
+ * object is the wire contract for structured rendering.
  *
  * Owned by the tools layer because it produces a tool result-entry shape
- * (`GeocodeResultEntry`); the client stays pure transport/parse (issue #181).
+ * (`GeocodeResultEntry`); the client stays pure transport/parse.
  */
 export function nominatimResultToData(r: NominatimResult): GeocodeResultEntry {
 	return {

@@ -103,7 +103,7 @@ test("toClientAssistantMessage output satisfies the strict AssistantMessageSchem
 	expect(Value.Check(AssistantMessageSchema, out)).toBe(true);
 });
 
-// --- ErrorData backward-compatibility (issue #109) ---------------------------
+// --- ErrorData backward-compatibility ---------------------------
 // The `errorTag` / `details` fields are additive; legacy { message }-only
 // payloads must still validate so old clients keep working.
 

@@ -32,7 +32,7 @@ type ApiErrorMessage = Static<typeof ApiErrorMessageSchema>;
  * Extract the `error` string from an HTTP error response body, or `undefined`
  * if the body is not the contracted `{ error: string }` shape. Schema-driven so
  * the manual `typeof` / `"error" in body` boilerplate is replaced by a single
- * `Value.Check` (issue #106).
+ * `Value.Check`.
  */
 export function extractErrorMessage(body: unknown): string | undefined {
 	if (!Value.Check(ApiErrorMessageSchema, body)) return undefined;

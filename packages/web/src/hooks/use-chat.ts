@@ -24,7 +24,7 @@ export function dispatchSseEvent(
 		case "conversation_created":
 			dispatch({ type: "CONVERSATION_CREATED", id: evt.data.id });
 			// Fire navigation intent here, from the event that produces the state
-			// change — not via a state-watching useEffect downstream (issue #51).
+			// change — not via a state-watching useEffect downstream.
 			onConversationCreated?.(evt.data.id);
 			break;
 		case "message_start":

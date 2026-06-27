@@ -57,7 +57,7 @@ function resolveModel(modelRef: string): Model<Api> {
  * undefined). This lets the schema apply documented defaults instead of
  * coercing `""` to `0`/`NaN`, which is critical for fields like
  * `httpRateLimit` where `PIXIES_HTTP_RATE_LIMIT=` must NOT silently disable
- * rate limiting. See config cleanup (#101/#103/#105).
+ * rate limiting.
  */
 function env(name: string): string | undefined {
 	const v = process.env[name];
@@ -69,7 +69,7 @@ function env(name: string): string | undefined {
  * applies its documented default. Coercion is an explicit `Number()` — NOT
  * `Value.Convert` (which silently truncates "3.5" → 3) — so non-integer
  * strings like "3.5" are rejected by `Type.Integer` just like Zod's
- * `z.coerce.number().int()` did. See config cleanup (#101/#103/#105).
+ * `z.coerce.number().int()` did.
  */
 function num(name: string): number | undefined {
 	const v = env(name);

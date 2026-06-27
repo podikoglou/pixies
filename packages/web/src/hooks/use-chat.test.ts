@@ -145,7 +145,7 @@ test("error with errorTag dispatches friendly copy from errorToToastCopy", () =>
 	expect((actions[0] as { message: string }).message).not.toBe("raw msg");
 });
 
-test("error with unknown errorTag falls back to the raw message (wire-trust boundary, #149)", () => {
+test("error with unknown errorTag falls back to the raw message (wire-trust boundary)", () => {
 	const { dispatch, actions } = capture();
 	const evt: SSEEvent = {
 		event: "error",

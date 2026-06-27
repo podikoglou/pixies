@@ -14,7 +14,7 @@ const PIN_THRESHOLD = 100;
 interface ChatViewProps {
 	/** Fired when a `conversation_created` SSE event arrives, with the new id.
 	 * Used by `NewConversationPage` to navigate to `/c/$id` from the event
-	 * source rather than a state-watching effect (issue #51). Optional —
+	 * source rather than a state-watching effect. Optional —
 	 * `ConversationPage` (already on the URL) does not supply it. */
 	onConversationCreated?: (id: string) => void;
 }

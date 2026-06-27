@@ -110,7 +110,7 @@ export function formatDiscordPayload(record: LogRecord): {
 
 	// When a stack will be appended below, reserve one of the 25 slots so the
 	// stack (the most important field for an error alert) is never dropped and
-	// the embed never exceeds Discord's 25-field limit (#95).
+	// the embed never exceeds Discord's 25-field limit.
 	const hasStack = Boolean(stack);
 	const contextCap = hasStack ? MAX_FIELDS - 1 : MAX_FIELDS;
 

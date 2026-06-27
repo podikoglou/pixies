@@ -115,7 +115,7 @@ test("toClientTranscriptMessage output satisfies the strict TranscriptMessageSch
 	}
 });
 
-// ---- #106 Gap 1: PersistedTranscriptSchema / isPersistedTranscript guard -----
+// ---- PersistedTranscriptSchema / isPersistedTranscript guard -----
 //
 // The SQLite `transcript` column stores the full AgentMessage[] (with metadata).
 // We only lock in the happy path: a real persisted row round-trips through the

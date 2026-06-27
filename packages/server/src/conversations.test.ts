@@ -198,7 +198,7 @@ test("get() cache miss rehydrates a non-empty transcript from the DB", async () 
 	expect(conv?.agent.state.messages[0]).toEqual(seeded[0]);
 });
 
-test("get() warns and starts empty when the persisted transcript is grossly corrupt [#106]", async () => {
+test("get() warns and starts empty when the persisted transcript is grossly corrupt", async () => {
 	const warnSpy = mock((_msg?: string, _properties?: Record<string, unknown>) => {});
 	const mockLogger = { warning: warnSpy, error: mock(() => {}) } as unknown as Logger;
 	const db = createTestDb();
@@ -226,7 +226,7 @@ test("get() warns and starts empty when the persisted transcript is grossly corr
 	expect(logged?.[1]?.count).toBe(1);
 });
 
-test("streamPrompt() warns and proceeds with empty state when the persisted transcript is grossly corrupt [#106]", async () => {
+test("streamPrompt() warns and proceeds with empty state when the persisted transcript is grossly corrupt", async () => {
 	const agents: FakeAgent[] = [];
 	const warnSpy = mock((_msg?: string, _properties?: Record<string, unknown>) => {});
 	const mockLogger = { warning: warnSpy, error: mock(() => {}) } as unknown as Logger;
@@ -445,7 +445,7 @@ test("create() initializes tokensUsed to 0 even with unlimited budget", () => {
 	// Smoke test: unlimited budget never blocks
 });
 
-test("DB persistence failures are surfaced via logger.error (regression for #59)", async () => {
+test("DB persistence failures are surfaced via logger.error", async () => {
 	const realDb = createTestDb();
 	// Proxy that breaks ONLY update(); insert/select/delete pass through.
 	const errorDb = new Proxy(realDb, {

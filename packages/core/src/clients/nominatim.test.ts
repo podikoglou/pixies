@@ -249,7 +249,7 @@ test("reverse() returns the parsed result", async () => {
 	if (Result.isOk(r)) expect(r.value?.display_name).toBe("Berlin");
 });
 
-// ---- invalid-shape error contract (pinned for #104 Value.Parse refactor) -----
+// ---- invalid-shape error contract (Value.Parse refactor) -----
 
 test("search() returns Err(NominatimParseError) on invalid shape and tags the cause", async () => {
 	const fetchMock = mock(
@@ -281,7 +281,7 @@ test("reverse() returns Err(NominatimParseError) on invalid shape", async () => 
 	}
 });
 
-// ---- response caching (#127) ------------------------------------------------
+// ---- response caching ------------------------------------------------
 
 const SEARCH_RESULT = [{ place_id: 1, lat: "52.5", lon: "13.4", display_name: "Berlin" }];
 const REVERSE_RESULT = { place_id: 1, lat: "52.5", lon: "13.4", display_name: "Berlin" };
@@ -320,7 +320,7 @@ async function reverseOk(client: NominatimClient, lat: number, lon: number) {
 	return r.value;
 }
 
-test("search() caches a successful response — second identical query skips fetch (#127)", async () => {
+test("search() caches a successful response — second identical query skips fetch", async () => {
 	const fetchMock = mock(() =>
 		Promise.resolve(jsonResponse(SEARCH_RESULT)),
 	) as unknown as typeof fetch;
@@ -332,7 +332,7 @@ test("search() caches a successful response — second identical query skips fet
 	expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
-test("cache hit skips the rate-limit queue entirely (no fetch, no wait) (#127)", async () => {
+test("cache hit skips the rate-limit queue entirely (no fetch, no wait)", async () => {
 	const fetchMock = mock(() =>
 		Promise.resolve(jsonResponse(SEARCH_RESULT)),
 	) as unknown as typeof fetch;

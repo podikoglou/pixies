@@ -63,7 +63,7 @@ export const queryOsmModule = defineTool<
 		if (Result.isOk(result)) return result.value;
 		// OSM-busy is converted into a normal (non-error) result so the model
 		// does not retry; every other error re-throws so the agent marks the
-		// tool call `isError: true` exactly as before (issue #109).
+		// tool call `isError: true` exactly as before.
 		return matchErrorPartial(
 			result.error,
 			{

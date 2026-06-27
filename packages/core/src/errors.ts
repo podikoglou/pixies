@@ -21,7 +21,7 @@ import type { OverpassError } from "./clients/overpass.ts";
  *   classes in the clients) derive their `message` in the constructor so their
  *   text matches the historical throw strings byte-for-byte.
  * - Fail-fast / programmer-bug throws (config parsing, etc.) are intentionally
- *   NOT migrated (see issue #109, Phase 5 skips). `ConfigError` is defined
+ *   NOT migrated (Phase 5 skip). `ConfigError` is defined
  *   here for completeness but unused on that path.
  *
  * See `errors.test.ts` for the per-class contract and `AGENTS.md` /

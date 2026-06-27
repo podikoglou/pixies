@@ -3,7 +3,7 @@ import { test, expect } from "bun:test";
 import { ApiError, buildApiError, extractErrorMessage } from "./client.ts";
 
 /**
- * Schema-driven `extractErrorMessage` / `buildApiError` (issue #106 Gap 3).
+ * Schema-driven `extractErrorMessage` / `buildApiError`.
  *
  * The server's HTTP error responses are `Response.json({ error: "..." }, ...)`.
  * `extractErrorMessage` validates the body against a TypeBox `{ error: string }`
@@ -17,17 +17,17 @@ import { ApiError, buildApiError, extractErrorMessage } from "./client.ts";
 
 // ---- extractErrorMessage ----------------------------------------------------
 
-test("extractErrorMessage returns the string for a valid { error } body [#106]", () => {
+test("extractErrorMessage returns the string for a valid { error } body", () => {
 	expect(extractErrorMessage({ error: "boom" })).toBe("boom");
 });
 
-test("extractErrorMessage tolerates extra fields (forward-compatible with errorTag/details) [#106]", () => {
+test("extractErrorMessage tolerates extra fields (forward-compatible with errorTag/details)", () => {
 	expect(extractErrorMessage({ error: "boom", errorTag: "Foo", extra: 1 })).toBe("boom");
 });
 
 // ---- buildApiError end-to-end ----------------------------------------------
 
-test("buildApiError falls back to status text when body has no error field [#106]", async () => {
+test("buildApiError falls back to status text when body has no error field", async () => {
 	const res = new Response(JSON.stringify({ message: "hi" }), {
 		status: 503,
 		headers: { "content-type": "application/json" },
@@ -38,7 +38,7 @@ test("buildApiError falls back to status text when body has no error field [#106
 	expect(err.status).toBe(503);
 });
 
-test('buildApiError surfaces the error string when body is { error: "boom" } [#106]', async () => {
+test('buildApiError surfaces the error string when body is { error: "boom" }', async () => {
 	const res = new Response(JSON.stringify({ error: "boom" }), {
 		status: 500,
 		headers: { "content-type": "application/json" },
