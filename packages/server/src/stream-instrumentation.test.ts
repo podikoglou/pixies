@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { expect, mock, test } from "bun:test";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { OverpassBusyError } from "@pixies/core";
 import { type Logger } from "@pixies/core/logging";
 import { StreamInstrumentation } from "./stream-instrumentation.ts";
@@ -240,4 +241,181 @@ test("fail() no-ops analytics when the client is undefined (off-switch), but sti
 	expect(errorSpy).toHaveBeenCalledTimes(1);
 	// No client → no capture call site to assert against; the only guarantee is
 	// it must not throw. (No spy to record; success is reaching this line.)
+});
+
+// ---- `agent turn` (recordTurnStart / recordTurnEnd) -----------------------
+
+/**
+ * Minimal `turn_end`-shape stubs. `recordTurnEnd` reads only `message.role`
+ * (the assistant guard), `stopReason`, `usage`, and each result's `toolName` /
+ * `isError` / `details` — so these mirror the real pi shapes at that
+ * granularity. `as unknown as AgentMessage` matches the loop's own stub style.
+ */
+function assistantTurnMessage(
+	opts: {
+		stopReason?: string;
+		input?: number;
+		output?: number;
+		cacheRead?: number;
+		/** Omit cacheRead entirely (vs. reporting 0) to exercise the optional case. */
+		noCacheRead?: boolean;
+	} = {},
+): AgentMessage {
+	const usage: Record<string, unknown> = {
+		input: opts.input ?? 100,
+		output: opts.output ?? 50,
+	};
+	if (!opts.noCacheRead) usage.cacheRead = opts.cacheRead ?? 10;
+	return {
+		role: "assistant",
+		stopReason: opts.stopReason ?? "toolUse",
+		usage,
+	} as unknown as AgentMessage;
+}
+
+/** One tool result (a `turn_end.toolResults[]` member). */
+function turnToolResult(
+	opts: {
+		toolName?: string;
+		isError?: boolean;
+		details?: unknown;
+	} = {},
+): { toolName: string; isError: boolean; details?: unknown } {
+	return {
+		toolName: opts.toolName ?? "query_osm",
+		isError: opts.isError ?? false,
+		...(opts.details !== undefined ? { details: opts.details } : {}),
+	};
+}
+
+test("recordTurnEnd() captures exactly one `agent turn` with coarse-metadata-only properties", () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	const instr = new StreamInstrumentation("conv-1", posthog, logger);
+
+	instr.recordTurnStart();
+	instr.recordTurnEnd(assistantTurnMessage({ stopReason: "toolUse", input: 120, output: 7 }), [
+		turnToolResult({ toolName: "geocode" }),
+		turnToolResult({ toolName: "query_osm" }),
+	]);
+
+	const turn = posthog.captures.filter((c) => c.event === "agent turn");
+	expect(turn).toHaveLength(1);
+	expect(turn[0]).toMatchObject({ distinctId: "conv-1" });
+	// Privacy pin: every key is a count / id / enum / duration. Tool ARGUMENTS
+	// never ship (tool names are ids; args live on tool_execution_start, which
+	// this path never reads). `$process_person_profile: false` is injected
+	// centrally by captureServerEvent.
+	expect(turn[0]!.properties).toEqual({
+		$process_person_profile: false,
+		turn_index: 0,
+		tool_calls: 2,
+		tool_names: ["geocode", "query_osm"],
+		stop_reason: "toolUse",
+		duration_ms: turn[0]!.properties.duration_ms,
+		input_tokens: 120,
+		output_tokens: 7,
+		cache_read_tokens: 10,
+		had_tool_error: false,
+		had_busy_result: false,
+	});
+	expect(Number.isInteger(turn[0]!.properties.duration_ms)).toBe(true);
+	expect(turn[0]!.properties.duration_ms as number).toBeGreaterThanOrEqual(0);
+});
+
+test("turn_index advances per turn (0-based), and duration_ms is measured from the preceding turn_start", () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	const instr = new StreamInstrumentation("conv-1", posthog, logger);
+
+	instr.recordTurnEnd(assistantTurnMessage(), [turnToolResult()]); // turn 0 (no turn_start → stream start)
+	instr.recordTurnStart();
+	instr.recordTurnEnd(assistantTurnMessage(), [turnToolResult(), turnToolResult()]); // turn 1
+
+	const turns = posthog.captures.filter((c) => c.event === "agent turn");
+	expect(turns).toHaveLength(2);
+	expect(turns[0]!.properties.turn_index).toBe(0);
+	expect(turns[1]!.properties.turn_index).toBe(1);
+	// The turn_start-anchored turn can't precede the stream-start-anchored one.
+	expect((turns[1]!.properties.duration_ms as number) >= 0).toBe(true);
+});
+
+test("had_tool_error is true when any tool result in the turn failed", () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	const instr = new StreamInstrumentation("conv-1", posthog, logger);
+
+	instr.recordTurnEnd(assistantTurnMessage(), [
+		turnToolResult({ toolName: "geocode" }),
+		turnToolResult({ toolName: "query_osm", isError: true, details: { boom: true } }),
+	]);
+
+	const props = posthog.captures.filter((c) => c.event === "agent turn")[0]!.properties;
+	expect(props.had_tool_error).toBe(true);
+	// A tool error result is NOT a busy soft-failure (busy is isError: false).
+	expect(props.had_busy_result).toBe(false);
+});
+
+test("had_busy_result is true when a non-error result carries the `{ busy: true }` marker", () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	const instr = new StreamInstrumentation("conv-1", posthog, logger);
+
+	instr.recordTurnEnd(assistantTurnMessage(), [
+		turnToolResult({ toolName: "query_osm", details: { busy: true } }),
+	]);
+
+	const props = posthog.captures.filter((c) => c.event === "agent turn")[0]!.properties;
+	expect(props.had_busy_result).toBe(true);
+	expect(props.had_tool_error).toBe(false);
+});
+
+test("cache_read_tokens is omitted when usage carries no cacheRead", () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	const instr = new StreamInstrumentation("conv-1", posthog, logger);
+
+	instr.recordTurnEnd(assistantTurnMessage({ noCacheRead: true }), []);
+
+	const props = posthog.captures.filter((c) => c.event === "agent turn")[0]!.properties;
+	expect(Object.prototype.hasOwnProperty.call(props, "cache_read_tokens")).toBe(false);
+	// tool_calls=0 && stop_reason defaults to toolUse here; the "agent did
+	// nothing" slice is tool_calls=0 && stop_reason=stop (asserted next).
+	expect(props.tool_calls).toBe(0);
+	expect(props.tool_names).toEqual([]);
+});
+
+test("the `tool_calls=0 && stop_reason=stop` slice captures cleanly (the 'agent did nothing' turn)", () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	const instr = new StreamInstrumentation("conv-1", posthog, logger);
+
+	instr.recordTurnEnd(assistantTurnMessage({ stopReason: "stop", output: 0 }), []);
+
+	const props = posthog.captures.filter((c) => c.event === "agent turn")[0]!.properties;
+	expect(props.tool_calls).toBe(0);
+	expect(props.stop_reason).toBe("stop");
+	expect(props.output_tokens).toBe(0); // flags an empty response
+});
+
+test("recordTurnEnd() skips capture for a non-assistant turn_end message (best-effort, no crash)", () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	const instr = new StreamInstrumentation("conv-1", posthog, logger);
+
+	// A toolResult message is not the assistant message the recorder expects.
+	const toolResultMessage = {
+		role: "toolResult",
+		toolName: "x",
+		isError: false,
+	} as unknown as AgentMessage;
+	instr.recordTurnEnd(toolResultMessage, [turnToolResult()]);
+
+	expect(posthog.captures.filter((c) => c.event === "agent turn")).toHaveLength(0);
+	// turn_index is NOT advanced on a skipped turn — the counter tracks turns
+	// that actually produced a capture. (The agent loop always emits the
+	// assistant message, so this path is purely defensive.)
+	instr.recordTurnEnd(assistantTurnMessage(), []);
+	expect(posthog.captures.filter((c) => c.event === "agent turn")).toHaveLength(1);
+	expect(posthog.captures[0]!.properties.turn_index).toBe(0);
 });

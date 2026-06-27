@@ -136,6 +136,14 @@ export function pipeAgentStream(
 	void (async () => {
 		try {
 			for await (const event of result.stream) {
+				// Per-turn analytics. `turn_start` anchors the turn's
+				// `duration_ms` (the agent loop omits it for the first turn, so
+				// the recorder falls back to stream start). `turn_end` carries
+				// the assistant message (stopReason + usage) + the turn's tool
+				// results, which `recordTurnEnd` reduces to coarse metadata —
+				// tool ids, counts, durations, soft-failure flags. No tool args.
+				if (event.type === "turn_start") instr.recordTurnStart();
+				if (event.type === "turn_end") instr.recordTurnEnd(event.message, event.toolResults);
 				// Measure TTFT on the RAW event, before wire suppression drops
 				// assistant text. Fires mid-stream so even streams that are LATER
 				// aborted still contribute a TTFT measurement — measuring only at
