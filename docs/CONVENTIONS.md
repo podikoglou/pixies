@@ -11,25 +11,23 @@ All source files use kebab-case naming (e.g. `chat-reducer.ts`, `use-chat.ts`).
 
 ## Icons
 
-Icons come from [pqoqubbw/icons](https://github.com/pqoqubbw/icons) (lucide-animated).
-All icon components follow the lucide-animated pattern:
-- `"use client"` directive
-- `forwardRef` with handle interface (`startAnimation`/`stopAnimation`)
-- `motion` animation variants and `useAnimation` controls
-- `cn()` for className merging
-- `displayName` on the component
-- Exported from `@/components/icons/index.ts`
-
-Do NOT hand-roll raw SVGs or use `lucide-react` directly — always use pqoqubbw icons.
+Source animated icons from [pqoqubbw/icons](https://github.com/pqoqubbw/icons) —
+adapt the closest original into `@/components/icons/*` (each file carries its MIT
+provenance). Static icons use [`lucide-react`](https://lucide.dev). Don't
+hand-roll a raw SVG. The component pattern — `forwardRef`, motion variants,
+`cn()`, `displayName`, the barrel re-export — is visible in any one file in that
+directory; read it, don't restate it here.
 
 ## UI components
 
-Prefer existing shadcn UI components (`@/components/ui/*`) over custom styling.
-Minimize custom CSS/Tailwind — compose from shadcn primitives.
+Source new components from [9ui.dev](https://9ui.dev) first (LLM-friendly
+catalog: <https://www.9ui.dev/llms.txt>); adapted copies live in
+`@/components/ui/*`. Compose from those over custom styling. They're built on
+`@base-ui/react` — see `packages/web/package.json`.
 
-When a shadcn component's CSS selector (e.g. `has-[>svg]` grid) conflicts with
-pqoqubbw's `<div>` icon wrapper, override the layout with `flex` on the shadcn
-component rather than abandoning it.
+When a component's CSS selector conflicts with an animated icon's `<div>`
+wrapper, override the layout with `flex` on the component rather than
+abandoning it.
 
 ## Layout
 
@@ -42,18 +40,11 @@ Any Drizzle column declared as `text({ mode: "json" }).$type<T>()` MUST be
 re-validated with a TypeBox `Value.Check` at its read boundary before its value
 is trusted — `$type<>` is compile-time only and performs no runtime validation;
 persisted JSON is untrusted. Each `$type<>` column in `schema.ts` carries a
-comment naming its guard. See ADR-0008.
+comment naming its guard.
 
 ## Animations
 
 For animation principles (interruptible, enter/exit, stagger, contextual icon
 animations, scale on press, etc.), use the `make-interfaces-feel-better` skill.
 
-Project-specific notes not covered by the skill:
-- `animate-timeline-enter` CSS class (defined in `globals.css`) for chat message
-  entry — extends with `@keyframes` in `globals.css`.
-- shadcn components have built-in `transition-*` micro-interactions (button
-  scale on active, tooltip opacity, accordion height) — don't add custom wrappers.
-- `animate-pulse` from Tailwind for cursor/loading states.
-- `tw-animate-css` imported in `globals.css` for additional utilities.
-- Use `motion` (not `framer-motion`). Do NOT add `framer-motion`.
+Project-specific: use `motion` — do NOT add `framer-motion`.
