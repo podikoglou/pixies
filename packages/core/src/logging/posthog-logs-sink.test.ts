@@ -82,8 +82,10 @@ test("redactRecord scrubs multiple keys and leaves other keys intact", () => {
 test("redactRecord replaces a cause property (TypeBox parse error payload) with [redacted]", () => {
 	// TypeBox's Value.Parse throws an AssertError whose non-enumerable `cause`
 	// is { source, errors, value } — `value` is the entire parsed response
-	// (place names). @logtape/otel serializes value.cause regardless of
-	// enumerability, so the record's top-level `cause` must be scrubbed.
+	// (place names). The default `semconv` exceptionMode never reads `.cause`,
+	// but `raw` mode (or a flipped default) serializes it regardless of
+	// enumerability, so the record's top-level `cause` must be scrubbed as
+	// defense-in-depth.
 	const err = new Error("Parse");
 	Object.defineProperty(err, "cause", {
 		value: { source: "Parse", errors: [], value: { display_name: "10 Downing Street" } },
@@ -103,7 +105,32 @@ test("redactRecord replaces a cause property (TypeBox parse error payload) with 
 	expect(out.properties.service).toBe("Nominatim");
 });
 
-// ---- 6. honors a custom keys argument ---------------------------------------
+// ---- 6. redacts err (re-thrown *ParseError logged at agent stream error) -----
+
+test("redactRecord replaces an err property (stream-error TaggedError) with [redacted]", () => {
+	// An Overpass/Nominatim *ParseError re-thrown verbatim by recoverBusyOrThrow
+	// reaches StreamInstrumentation.fail, which logs it as { err }. The
+	// TaggedError's `.cause` is the TypeBox parse error whose non-enumerable
+	// `.cause.value` is the full response (place names); in raw exceptionMode
+	// serializeValue recurses `.cause` and ships the payload via the `err` key
+	// — a path the top-level `cause` entry does not cover. The denylist is the
+	// egress boundary, so the whole `err` object is scrubbed; stdout keeps it.
+	const inner = new Error("Parse");
+	Object.defineProperty(inner, "cause", {
+		value: { source: "Parse", errors: [], value: { display_name: "10 Downing Street" } },
+		enumerable: false,
+	});
+	const err = new Error("Overpass: invalid response shape");
+	Object.assign(err, { cause: inner });
+	const r = record("error", "agent stream error", { conversationId: "conv-1", err });
+
+	const out = redactRecord(r, DEFAULT_REDACT_KEYS);
+
+	expect(out.properties.err).toBe("[redacted]");
+	expect(out.properties.conversationId).toBe("conv-1");
+});
+
+// ---- 7. honors a custom keys argument ---------------------------------------
 
 test("redactRecord honors a custom keys argument", () => {
 	const r = record("info", "request", { secret: "shh", url: "ok-to-keep" });
@@ -115,7 +142,7 @@ test("redactRecord honors a custom keys argument", () => {
 	expect(out.properties.url).toBe("ok-to-keep");
 });
 
-// ---- 7. smoke: getPostHogLogsSink constructs without throwing ---------------
+// ---- 8. smoke: getPostHogLogsSink constructs without throwing ---------------
 
 test("getPostHogLogsSink constructs without throwing (import compat)", () => {
 	// Transitively imports @logtape/otel + its OTel deps on Bun. We do NOT feed
