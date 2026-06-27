@@ -48,9 +48,9 @@ Off by default; enabled by setting `PIXIES_POSTHOG_API_KEY` (the server secret �
 
 When enabled, `info`+ server log records are shipped to PostHog Logs over OTLP/HTTP (`<host>/i/v1/logs`). `debug`-level records are dropped at the logger threshold and never leave the instance.
 
-**Redaction at egress:** the `url` and `query` properties are replaced with `"[redacted]"` before egress, because Nominatim request URLs encode the `q=<place>` query parameter (sensitive location data). Local stdout retains full detail — redaction applies only on the off-instance egress path. This is defense-in-depth: today's location-bearing fields are `debug` (already dropped), but the redaction protects against an operator raising the level to `debug` and against future info+ fields.
+**Allowlist at egress:** the sink ships only an allowlist of known-safe property keys; every other property is replaced with `"[redacted]"` before egress. Local stdout retains full detail — the allowlist applies only on the off-instance egress path. This is privacy by construction: a future log field carrying user location, query text, client IP, or raw error/stack data is scrubbed by default, because no key ships unless a maintainer has explicitly approved it.
 
-Records DO carry: the message string, category, level, timestamp, and other structured properties (counts, durations, service names, conversation ids, error tags). They never carry the query text or place names — those live only in the `url`/`query` fields, which are redacted.
+Records carry: the message string (a fixed template), category, level, timestamp, and the allowlisted structured properties — counts, durations, service names, conversation ids, and tags. They never carry query text, place names, client IPs, or raw error/stack text: those keys are not on the allowlist, so they are scrubbed to `"[redacted]"` at egress.
 
 ## Alerting (replaces the Discord transport)
 
@@ -66,7 +66,7 @@ Previously a fire-and-forget Discord webhook sink forwarded **every** server `er
 - **New error types.** An **Error Tracking** alert on _issue created/reopened_ (client exceptions) → Discord/Slack/Teams/webhook. Each new grouping is a new error type.
 - **Error spikes.** **Spike detection** on exception volume → Discord/Slack/Teams/webhook.
 
-**Privacy:** alerting sends no additional data. It only fires on records already in PostHog — server logs redacted at the egress sink (`url`/`query` scrubbed) and exception stack traces that carry code paths, never query/DOM text. Because query text and place names never reach PostHog, they can never appear in an alert.
+**Privacy:** alerting sends no additional data. It only fires on records already in PostHog — server logs filtered at the egress sink (only allowlisted property keys ship) and exception stack traces that carry code paths, never query/DOM text. Because query text, place names, client IPs, and raw error text never reach PostHog, they can never appear in an alert.
 
 ## Server analytics (PostHog events)
 
@@ -98,4 +98,4 @@ distinctIds are deliberately **not** correlated with the browser's anonymous Pos
 
 ## Changing this
 
-Any change that enables a capture surface or adds a `capture` call must update this document, and must never capture query strings — they may contain sensitive location data. Any new server log field that could carry location data must be added to the PostHog sink's `redactKeys` (`packages/core/src/logging/posthog-logs-sink.ts`). Any new server capture event must carry only coarse metadata (counts, ids, tags) and must never include message, query, or place text.
+Any change that enables a capture surface or adds a `capture` call must update this document, and must never capture query strings — they may contain sensitive location data. Any new server log property must be added to the PostHog sink's allowlist (`DEFAULT_ALLOW_KEYS` in `packages/core/src/logging/posthog-logs-sink.ts`) before it will ship to PostHog: unknown properties are scrubbed to `"[redacted]"` at egress by default, so only add a key once it is known to carry no user location, query, IP, or raw error/stack data. Any new server capture event must carry only coarse metadata (counts, ids, tags) and must never include message, query, or place text.

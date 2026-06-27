@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
 import type { LogRecord } from "@logtape/logtape";
-import { redactRecord, DEFAULT_REDACT_KEYS, getPostHogLogsSink } from "./posthog-logs-sink.ts";
+import { allowlistRecord, DEFAULT_ALLOW_KEYS, getPostHogLogsSink } from "./posthog-logs-sink.ts";
 
 /** Build a real LogTape LogRecord for tests. */
 function record(
@@ -20,76 +20,90 @@ function record(
 	};
 }
 
-// ---- 1. redacts a matching url property -------------------------------------
+// ---- 1. allowed keys pass; everything else is scrubbed -----------------------
 
-test("redactRecord replaces a matching url property with [redacted]", () => {
-	const r = record("info", "nominatim request", {
-		url: "https://nominatim.test/search?q=Kreuzberg",
-		statusCode: 200,
+test("allowlistRecord passes allowed keys and scrubs the rest", () => {
+	const r = record("error", "failed to insert conversation", {
+		conversationId: "abc",
+		statusCode: 500,
+		err: new Error("boom"),
 	});
 
-	const out = redactRecord(r, DEFAULT_REDACT_KEYS);
+	const out = allowlistRecord(r, DEFAULT_ALLOW_KEYS);
 
-	expect(out.properties.url).toBe("[redacted]");
-	expect(out.properties.statusCode).toBe(200);
+	expect(out.properties.conversationId).toBe("abc");
+	expect(out.properties.statusCode).toBe(500);
+	expect(out.properties.err).toBe("[redacted]");
 });
 
-// ---- 2. does not mutate the input (console still sees original) -------------
+// ---- 2. does not mutate the input (console still sees original) --------------
 
-test("redactRecord does not mutate the input record", () => {
-	const r = record("info", "nominatim request", {
-		url: "https://nominatim.test/search?q=Kreuzberg",
-	});
-	const originalUrl = r.properties.url;
+test("allowlistRecord does not mutate the input record", () => {
+	const err = new Error("boom");
+	const r = record("error", "failed", { err });
 
-	redactRecord(r, DEFAULT_REDACT_KEYS);
+	allowlistRecord(r, DEFAULT_ALLOW_KEYS);
 
 	// The caller's record (e.g. the console sink) must still see full detail.
-	expect(r.properties.url).toBe(originalUrl);
+	expect(r.properties.err).toBe(err);
 });
 
-// ---- 3. returns the same reference when nothing matches ---------------------
+// ---- 3. returns the same reference when every property is allowed ------------
 
-test("redactRecord returns the same record reference when no keys match", () => {
+test("allowlistRecord returns the same record reference when every property is allowed", () => {
 	const r = record("info", "request", { statusCode: 200, durationMs: 12 });
 
-	const out = redactRecord(r, DEFAULT_REDACT_KEYS);
+	const out = allowlistRecord(r, DEFAULT_ALLOW_KEYS);
 
 	// No allocation — nothing to scrub.
 	expect(out).toBe(r);
 });
 
-// ---- 4. scrubs multiple keys and leaves others intact -----------------------
+// ---- 4. the default allowlist scrubs every known leak key --------------------
+// Pins the contract that closes the leaks behind #220/#221/#222: a denylist
+// could only block keys we remembered; the allowlist ships them scrubbed by
+// default because none are approved.
 
-test("redactRecord scrubs multiple keys and leaves other keys intact", () => {
-	const r = record("debug", "search", {
+test("the default allowlist scrubs every location/ip/error-bearing key and keeps safe metadata", () => {
+	const r = record("warning", "leaks", {
 		url: "https://nominatim.test/search?q=cafe",
 		query: "cafe near me",
+		err: new Error("raw OSM body"),
+		ip: "203.0.113.7",
+		cause: new Error("invalid response shape"),
+		remark: "runtime error text",
+		// known-safe metadata that must still ship
 		conversationId: "abc",
 		durationMs: 42,
+		service: "Overpass",
 	});
 
-	const out = redactRecord(r, DEFAULT_REDACT_KEYS);
+	const out = allowlistRecord(r, DEFAULT_ALLOW_KEYS);
 
 	expect(out.properties.url).toBe("[redacted]");
 	expect(out.properties.query).toBe("[redacted]");
+	expect(out.properties.err).toBe("[redacted]");
+	expect(out.properties.ip).toBe("[redacted]");
+	expect(out.properties.cause).toBe("[redacted]");
+	expect(out.properties.remark).toBe("[redacted]");
 	expect(out.properties.conversationId).toBe("abc");
 	expect(out.properties.durationMs).toBe(42);
+	expect(out.properties.service).toBe("Overpass");
 });
 
-// ---- 5. honors a custom keys argument ---------------------------------------
+// ---- 5. honors a custom allowKeys argument -----------------------------------
 
-test("redactRecord honors a custom keys argument", () => {
-	const r = record("info", "request", { secret: "shh", url: "ok-to-keep" });
+test("allowlistRecord honors a custom allowKeys argument", () => {
+	const r = record("info", "x", { keep: "yes", scrub: "no" });
 
-	const out = redactRecord(r, ["secret"]);
+	const out = allowlistRecord(r, ["keep"]);
 
-	expect(out.properties.secret).toBe("[redacted]");
-	// `url` is NOT in the custom key set, so it survives.
-	expect(out.properties.url).toBe("ok-to-keep");
+	expect(out.properties.keep).toBe("yes");
+	// `scrub` is not in the custom allow set, so it is redacted.
+	expect(out.properties.scrub).toBe("[redacted]");
 });
 
-// ---- 6. smoke: getPostHogLogsSink constructs without throwing ---------------
+// ---- 6. smoke: getPostHogLogsSink constructs without throwing ----------------
 
 test("getPostHogLogsSink constructs without throwing (import compat)", () => {
 	// Transitively imports @logtape/otel + its OTel deps on Bun. We do NOT feed
