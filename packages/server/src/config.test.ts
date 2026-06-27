@@ -4,11 +4,10 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { readServerConfigFromEnv } from "./config.ts";
 
 /**
- * `readServerConfigFromEnv` is the seam that brought `PIXIES_WEB_DIST` /
- * `PIXIES_MIGRATIONS_FOLDER` out of module-level `??` fallbacks and into a
- * TypeBox schema (issue #231). These tests pin its contract: the
- * `import.meta.dir`-relative defaults apply when unset, env vars override,
- * and empty/whitespace is treated as unset (mirroring core's `env()`).
+ * `readServerConfigFromEnv` resolves the server boot paths (`webDist`,
+ * `migrationsFolder`) from `PIXIES_*` env vars with `import.meta.dir`-relative
+ * defaults. These tests pin its contract: defaults apply when unset, env vars
+ * override, and empty/whitespace is treated as unset (mirroring core's `env()`).
  */
 const KEYS = ["PIXIES_WEB_DIST", "PIXIES_MIGRATIONS_FOLDER"] as const;
 const saved: Record<string, string | undefined> = {};
