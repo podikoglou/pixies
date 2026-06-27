@@ -380,21 +380,21 @@ test("cache_read_tokens is omitted when usage carries no cacheRead", () => {
 	const props = posthog.captures.filter((c) => c.event === "agent turn")[0]!.properties;
 	expect(Object.prototype.hasOwnProperty.call(props, "cache_read_tokens")).toBe(false);
 	// tool_calls=0 && stop_reason defaults to toolUse here; the "agent did
-	// nothing" slice is tool_calls=0 && stop_reason=end_turn (asserted next).
+	// nothing" slice is tool_calls=0 && stop_reason=stop (asserted next).
 	expect(props.tool_calls).toBe(0);
 	expect(props.tool_names).toEqual([]);
 });
 
-test("the `tool_calls=0 && stop_reason=end_turn` slice captures cleanly (the 'agent did nothing' turn)", () => {
+test("the `tool_calls=0 && stop_reason=stop` slice captures cleanly (the 'agent did nothing' turn)", () => {
 	const { logger } = mockLogger();
 	const posthog = spyPostHog();
 	const instr = new StreamInstrumentation("conv-1", posthog, logger);
 
-	instr.recordTurnEnd(assistantTurnMessage({ stopReason: "end_turn", output: 0 }), []);
+	instr.recordTurnEnd(assistantTurnMessage({ stopReason: "stop", output: 0 }), []);
 
 	const props = posthog.captures.filter((c) => c.event === "agent turn")[0]!.properties;
 	expect(props.tool_calls).toBe(0);
-	expect(props.stop_reason).toBe("end_turn");
+	expect(props.stop_reason).toBe("stop");
 	expect(props.output_tokens).toBe(0); // flags an empty response
 });
 
