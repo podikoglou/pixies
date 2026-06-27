@@ -2,13 +2,16 @@ import path from "node:path";
 import { Type } from "typebox";
 import type { Static } from "typebox";
 import { Value } from "typebox/value";
+import { env } from "@pixies/core";
 
 /**
  * Server-only boot configuration: filesystem paths the server resolves at
- * startup that have no meaning in `@pixies/core` (the kernel has no concept of
- * the web SPA bundle or the Drizzle migrations folder). Declared here rather
- * than folded into core's `PixiesConfigSchema` to keep UI/HTTP concerns out of
- * the kernel — see ADR-0011.
+ * startup. `webDist` locates the web SPA bundle — a UI-asset concept core has
+ * no business owning. `migrationsFolder` locates Drizzle's migration metadata:
+ * core owns the drizzle client and schema, but `migrate()` is called only from
+ * the server boot path, so the folder is a server runtime concern, not a
+ * kernel one. Declared here rather than folded into core's `PixiesConfigSchema`
+ * — see ADR-0011.
  */
 export const ServerConfigSchema = Type.Object({
 	webDist: Type.String({
@@ -22,16 +25,6 @@ export const ServerConfigSchema = Type.Object({
 });
 
 export type ServerConfig = Static<typeof ServerConfigSchema>;
-
-/**
- * Read an env var, treating undefined/empty/whitespace as unset (returns
- * undefined) so the schema applies its documented default. Mirrors core's
- * `env()` helper in `agent.ts` so both config surfaces agree on empty-as-unset.
- */
-function env(name: string): string | undefined {
-	const v = process.env[name];
-	return v && v.trim().length > 0 ? v : undefined;
-}
 
 /**
  * Resolve server boot paths from `PIXIES_WEB_DIST` / `PIXIES_MIGRATIONS_FOLDER`,
