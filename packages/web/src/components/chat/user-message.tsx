@@ -1,4 +1,4 @@
-import { formatTime } from "./assistant-message";
+import { formatTime } from "@/lib/format-time";
 
 interface UserMessageProps {
 	text: string;

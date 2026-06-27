@@ -116,6 +116,45 @@ test("done with durationMs dispatches STREAM_DONE with responseTimeMs", () => {
 	expect(actions).toEqual([{ type: "STREAM_DONE", responseTimeMs: 1234 }]);
 });
 
+test("message_end without startTime dispatches MESSAGE_END with undefined responseTimeMs", () => {
+	const { dispatch, actions } = capture();
+	const evt: SSEEvent = {
+		event: "message_end",
+		data: { message: { role: "assistant", content: [{ type: "text", text: "hi" }] } },
+	};
+
+	dispatchSseEvent(evt, dispatch, () => {
+		throw new Error("should not fire");
+	});
+
+	expect(actions).toEqual([{ type: "MESSAGE_END", text: "hi", responseTimeMs: undefined }]);
+});
+
+test("message_end with startTime dispatches MESSAGE_END carrying a computed responseTimeMs", () => {
+	const { dispatch, actions } = capture();
+	const evt: SSEEvent = {
+		event: "message_end",
+		data: { message: { role: "assistant", content: [{ type: "text", text: "hi" }] } },
+	};
+	// Pin startTime well in the past so the elapsed computation is non-trivial and
+	// resilient to CI clock jitter.
+	const startTime = Date.now() - 1234;
+
+	dispatchSseEvent(
+		evt,
+		dispatch,
+		() => {
+			throw new Error("should not fire");
+		},
+		startTime,
+	);
+
+	expect(actions).toHaveLength(1);
+	expect(actions[0]).toMatchObject({ type: "MESSAGE_END", text: "hi" });
+	const { responseTimeMs } = actions[0] as { responseTimeMs?: number };
+	expect(responseTimeMs).toBeGreaterThanOrEqual(1234);
+});
+
 test("error does not fire callback and dispatches SET_ERROR", () => {
 	const { dispatch, actions } = capture();
 	const evt: SSEEvent = { event: "error", data: { message: "boom" } };
