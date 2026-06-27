@@ -14,7 +14,7 @@ Declare a server-owned TypeBox schema, `ServerConfigSchema` in `packages/server/
 
 ## Rationale
 
-1. **The kernel has no concept of either path.** core's stated boundary is "No UI or HTTP dependencies." `webDist` is a UI asset path; `migrationsFolder` is a Drizzle path, and `drizzle-orm` is a server-only dependency. Putting them in `PixiesConfigSchema` leaks server/UI concerns into the kernel.
+1. **Neither path has a consumer in the kernel.** `webDist` is a UI-asset concept — the directory the server serves the SPA bundle from — excluded by core's stated "No UI or HTTP dependencies" boundary. `migrationsFolder` is subtler: core depends on `drizzle-orm` and owns the client factory (`createDb`) and the schema, so drizzle is *not* server-only. But core exports `createDb`, not `migrate`; the migrations folder is read only by `migrate()`, which runs exclusively in the server boot path. The path is therefore a server runtime concern — meaningless to anything core exposes — even though the library it parameterizes lives in core.
 2. **Consistency without coupling.** The server already depends on `typebox`, so a second schema is cheap and reuses the identical `Value.Default` / `Value.Parse` / `Static<T>` patterns — one set of conventions, two owners split along the package boundary.
 3. **Deletion test.** Delete `ServerConfigSchema` and `readServerConfigFromEnv`: the two paths lose their schema home, their `.env.example` documentation, and the `opts.serverConfig` injection seam — the three gaps this decision exists to close.
 
@@ -29,6 +29,7 @@ Declare a server-owned TypeBox schema, `ServerConfigSchema` in `packages/server/
 **Negative:**
 
 - Two config types and two readers exist (`ResolvedPixiesConfig` / `ServerConfig`). The split reflects the package boundary rather than fragmenting one concern, so it is the cost of keeping core clean.
+- `PIXIES_WEB_DIST` unset or empty resolves to the absolute `import.meta.dir`-relative default rather than cwd; serving from the working directory requires setting the var explicitly.
 
 ## Durability
 
@@ -36,7 +37,7 @@ This holds while core stays free of UI/HTTP dependencies and these two remain se
 
 ## Alternatives considered
 
-- **Fold into core's `PixiesConfigSchema`.** Rejected — violates core's no-UI/HTTP boundary; both paths are server-only (a web bundle path and a Drizzle path).
+- **Fold into core's `PixiesConfigSchema`.** Rejected — `webDist` violates core's no-UI boundary, and `migrate()` (the sole consumer of `migrationsFolder`) is server-side, so the path has no kernel consumer.
 - **Flatten `webDist` / `migrationsFolder` into individual `StartServerOptions` fields.** Rejected — loses the single schema home and the shared defaults/validation, and breaks parallelism with the existing `opts.config?: ResolvedPixiesConfig` seam.
 
 ## References
