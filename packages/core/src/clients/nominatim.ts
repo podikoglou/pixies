@@ -120,6 +120,16 @@ export interface NominatimConfig {
 /** Body substrings Nominatim emits when overloaded (HTTP status is the primary signal). */
 const BUSY_BODY_MARKERS = ["The server is probably too busy to handle your request"];
 
+/**
+ * Model-facing message returned when Nominatim reports a server-busy
+ * condition. Names the service so the model can tell the user which one is
+ * down rather than collapsing both backing services into a generic "OSM".
+ */
+export const NOMINATIM_BUSY_MESSAGE =
+	"Nominatim is currently overloaded or unavailable. This is a transient infrastructure issue — " +
+	"do not retry this or a different Nominatim query. Tell the user that Nominatim is temporarily " +
+	"unavailable and suggest they try again later.";
+
 /** Client for Nominatim search and reverse-geocoding. */
 export class NominatimClient {
 	private readonly baseUrl: string;

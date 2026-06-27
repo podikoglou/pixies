@@ -1,13 +1,19 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
 import { Result } from "better-result";
-import { NOMINATIM_BUSY_MESSAGE, OVERPASS_BUSY_MESSAGE } from "./busy-message.ts";
+
 import {
 	NominatimBusyError,
 	NominatimHttpError,
+	NOMINATIM_BUSY_MESSAGE,
 	type NominatimClient,
 } from "../clients/nominatim.ts";
-import { OverpassBusyError, OverpassHttpError, type OverpassClient } from "../clients/overpass.ts";
+import {
+	OverpassBusyError,
+	OverpassHttpError,
+	OVERPASS_BUSY_MESSAGE,
+	type OverpassClient,
+} from "../clients/overpass.ts";
 import { queryOsmModule } from "./tool-query-osm.ts";
 import { reverseGeocodeModule } from "./tool-reverse-geocode.ts";
 import { geocodeModule } from "./tool-geocode.ts";

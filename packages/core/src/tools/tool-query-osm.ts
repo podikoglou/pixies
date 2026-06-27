@@ -3,7 +3,7 @@ import { Type } from "typebox";
 import type { OverpassClient, OverpassElement } from "../clients/overpass.ts";
 import { formatElement, getElementCoords } from "../clients/overpass.ts";
 import { ToolAbortedError } from "../errors.ts";
-import { OVERPASS_BUSY_MESSAGE } from "./busy-message.ts";
+import { OVERPASS_BUSY_MESSAGE } from "../clients/overpass.ts";
 import {
 	QueryOsmToolDetailsSchema,
 	type OverpassResultEntry,

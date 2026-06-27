@@ -124,7 +124,22 @@ export interface OverpassConfig {
 }
 
 /** Body substrings Overpass emits when overloaded (HTTP status is the primary signal). */
-const BUSY_BODY_MARKERS = ["<status>HTTP 503</status>"];
+const BUSY_BODY_MARKERS = [
+	"<status>HTTP 503</status>",
+	"The server is probably too busy to handle your request",
+	"Probably the server is down",
+	"Probably the server is overcrowded",
+];
+
+/**
+ * Model-facing message returned when Overpass reports a server-busy condition.
+ * Names the service so the model can tell the user which one is down rather
+ * than collapsing both backing services into a generic "OSM".
+ */
+export const OVERPASS_BUSY_MESSAGE =
+	"Overpass is currently overloaded or unavailable. This is a transient infrastructure issue — " +
+	"do not retry this or a different Overpass query. Tell the user that Overpass is temporarily " +
+	"unavailable and suggest they try again later.";
 
 /** Client for Overpass QL queries. */
 export class OverpassClient {

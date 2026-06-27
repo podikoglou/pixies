@@ -3,7 +3,7 @@ import { Type } from "typebox";
 import type { NominatimClient } from "../clients/nominatim.ts";
 import { formatNominatimResult } from "../clients/nominatim.ts";
 import { ToolAbortedError } from "../errors.ts";
-import { NOMINATIM_BUSY_MESSAGE } from "./busy-message.ts";
+import { NOMINATIM_BUSY_MESSAGE } from "../clients/nominatim.ts";
 import { nominatimResultToData } from "./geocode-entry.ts";
 import {
 	ReverseGeocodeToolDetailsSchema,
