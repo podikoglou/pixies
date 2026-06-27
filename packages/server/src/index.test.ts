@@ -2,7 +2,11 @@
 import { afterAll, expect, test } from "bun:test";
 import { type ResolvedPixiesConfig } from "@pixies/core";
 import { silentLogger } from "@pixies/core/logging";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { startServer, type ServerInstance } from "./index.ts";
+import { readServerConfigFromEnv } from "./config.ts";
 
 /**
  * Regression: `startServer` used to call
@@ -61,4 +65,34 @@ test("startServer boots and serves /health regardless of cwd", async () => {
 	expect(res.status).toBe(200);
 	const body = await res.json();
 	expect(body).toEqual({ status: "ok", conversations: 0 });
+});
+
+/**
+ * Pins the `opts.serverConfig` injection seam (ADR-0011): an explicit
+ * `serverConfig` must override `readServerConfigFromEnv()`, the way `opts.config`
+ * overrides `readConfigFromEnv()`. The default `migrationsFolder` is reused so
+ * `migrate()` still finds the repo's drizzle metadata; `webDist` is pointed at a
+ * temp fixture whose `index.html` carries a marker. If the override did not flow
+ * through, `/` would fall through to the default dist (404 here) instead of
+ * serving the marker — proving `serverConfig.webDist` reaches the static handler.
+ */
+test("opts.serverConfig overrides readServerConfigFromEnv and flows to the static handler", async () => {
+	const tempWebDist = fs.mkdtempSync(path.join(os.tmpdir(), "pixies-webdist-"));
+	fs.writeFileSync(path.join(tempWebDist, "index.html"), "<h1>override-webdist</h1>");
+	const override = startServer({
+		config,
+		serverConfig: { ...readServerConfigFromEnv(), webDist: tempWebDist },
+		logger: silentLogger,
+		host: "127.0.0.1",
+		port: 0,
+	});
+	try {
+		const base = `http://localhost:${override.server.port}`;
+		const res = await fetch(`${base}/`);
+		expect(res.status).toBe(200);
+		expect(await res.text()).toBe("<h1>override-webdist</h1>");
+	} finally {
+		override.stop();
+		fs.rmSync(tempWebDist, { recursive: true, force: true });
+	}
 });

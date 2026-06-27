@@ -17,15 +17,12 @@ import path from "node:path";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { captureServerEvent } from "./analytics-events.ts";
 import { ConversationStore } from "./conversations.ts";
+import { readServerConfigFromEnv, type ServerConfig } from "./config.ts";
 import { translateAgentEvent } from "./events.ts";
 import { createPostHogAnalyticsClient, type PostHogAnalyticsClient } from "./posthog.ts";
 import { checkRateLimit, getClientIp, IpRateLimiter } from "./rate-limit.ts";
 import { SseWriter } from "./sse.ts";
 import { StreamInstrumentation } from "./stream-instrumentation.ts";
-
-const WEB_DIST = process.env.PIXIES_WEB_DIST ?? path.resolve(import.meta.dir, "../../web/dist");
-const MIGRATIONS_FOLDER =
-	process.env.PIXIES_MIGRATIONS_FOLDER ?? path.resolve(import.meta.dir, "../../../drizzle");
 
 let globalHandlersRegistered = false;
 
@@ -72,6 +69,8 @@ export interface ServerInstance {
 
 export interface StartServerOptions extends Partial<Pick<ResolvedPixiesConfig, "host" | "port">> {
 	config?: ResolvedPixiesConfig;
+	/** Injection seam for the server-only boot paths (web dist, migrations folder). */
+	serverConfig?: ServerConfig;
 	logger?: Logger;
 	/** Injection seam for tests; defaults to a real client when `config.posthogApiKey` is set. */
 	posthog?: PostHogAnalyticsClient;
@@ -251,7 +250,11 @@ function withRequestLogging(
 	};
 }
 
-function logResolvedConfig(logger: Logger, config: ResolvedPixiesConfig): void {
+function logResolvedConfig(
+	logger: Logger,
+	config: ResolvedPixiesConfig,
+	serverConfig: ServerConfig,
+): void {
 	logger.info("pixies server configuration", {
 		host: config.host,
 		port: config.port,
@@ -278,6 +281,8 @@ function logResolvedConfig(logger: Logger, config: ResolvedPixiesConfig): void {
 		overpassIntervalCap: config.overpassIntervalCap,
 		overpassIntervalMs: config.overpassIntervalMs,
 		overpassTimeoutMs: config.overpassTimeoutMs,
+		webDist: serverConfig.webDist,
+		migrationsFolder: serverConfig.migrationsFolder,
 	});
 }
 
@@ -291,8 +296,9 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 		}
 		throw e;
 	}
+	const serverConfig = opts.serverConfig ?? readServerConfigFromEnv();
 	const db = createDb(config.dbFile);
-	migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+	migrate(db, { migrationsFolder: serverConfig.migrationsFolder });
 	// Server-side PostHog Logs, env-gated via the TypeBox config (off when
 	// PIXIES_POSTHOG_API_KEY is unset). Distinct from the VITE_POSTHOG_* browser
 	// vars: this is the server secret.
@@ -311,7 +317,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 		(config.posthogApiKey
 			? createPostHogAnalyticsClient({ apiKey: config.posthogApiKey, host: config.posthogHost })
 			: undefined);
-	logResolvedConfig(logger, config);
+	logResolvedConfig(logger, config, serverConfig);
 	const store = new ConversationStore(config, db, createAgent, logger);
 	const rateLimiter = new IpRateLimiter({
 		maxRequests: config.httpRateLimit,
@@ -402,9 +408,9 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 		fetch: withRequestLogging(logger, (req) => {
 			const url = new URL(req.url);
 			const requested = url.pathname === "/" ? "/index.html" : url.pathname;
-			const file = Bun.file(path.join(WEB_DIST, requested));
+			const file = Bun.file(path.join(serverConfig.webDist, requested));
 			if (file.size > 0) return new Response(file);
-			const indexHtml = Bun.file(path.join(WEB_DIST, "index.html"));
+			const indexHtml = Bun.file(path.join(serverConfig.webDist, "index.html"));
 			if (indexHtml.size > 0) return new Response(indexHtml);
 			return Response.json({ error: "not found" }, { status: 404 });
 		}),
