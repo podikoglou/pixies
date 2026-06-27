@@ -1,10 +1,7 @@
 /**
  * Structured logger factory built on LogTape.
  *
- * Every log line goes to the console. When a `discordSink` is provided (e.g.
- * {@link getDiscordSink}), `error`+ lines are *additionally* forwarded to it
- * (the sink self-filters and fires non-blocking, never blocking the request
- * path). When a `posthogSink` is provided (e.g.
+ * Every log line goes to the console. When a `posthogSink` is provided (e.g.
  * {@link getPostHogLogsSink}), `info`+ lines are *additionally* shipped to
  * PostHog Logs over OTel (redacted at the egress sink, off when unset).
  *
@@ -28,8 +25,6 @@ export interface CreateLoggerOptions {
 	name?: string;
 	/** Minimum level emitted to the console. Default `"info"`. */
 	level?: LogLevel;
-	/** Optional sink for `error`+ log lines (e.g. {@link getDiscordSink}). */
-	discordSink?: Sink;
 	/** Optional sink for `info`+ log lines shipped off-instance (e.g. {@link getPostHogLogsSink}). */
 	posthogSink?: Sink;
 }
@@ -51,10 +46,6 @@ export function createLogger(opts: CreateLoggerOptions = {}): Logger {
 	if (!configured) {
 		const sinks: Record<string, Sink> = { console: getConsoleSink() };
 		const rootSinks = ["console"];
-		if (opts.discordSink) {
-			sinks.discord = opts.discordSink;
-			rootSinks.push("discord");
-		}
 		if (opts.posthogSink) {
 			sinks.posthog = opts.posthogSink;
 			rootSinks.push("posthog");

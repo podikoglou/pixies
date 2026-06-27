@@ -10,7 +10,6 @@ import {
 } from "@pixies/core";
 import { createDb } from "@pixies/core/db";
 import { createLogger, dispose, type Logger } from "@pixies/core/logging";
-import { getDiscordSink } from "@pixies/core/logging/discord-sink";
 import { getPostHogLogsSink } from "@pixies/core/logging/posthog-logs-sink";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
@@ -330,7 +329,6 @@ function logResolvedConfig(logger: Logger, config: ResolvedPixiesConfig): void {
 		trustProxy: config.trustProxy,
 		trustedProxyHops: config.trustedProxyHops,
 		conversationTokenBudget: config.conversationTokenBudget,
-		discordWebhookUrl: config.discordWebhookUrl ? "set" : "unset",
 		apiKey: config.apiKey ? "set" : "unset",
 		posthogApiKey: config.posthogApiKey ? "set" : "unset",
 		contactEmail: config.contactEmail ?? "unset",
@@ -358,9 +356,6 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 	}
 	const db = createDb(config.dbFile);
 	migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-	const sink = config.discordWebhookUrl
-		? getDiscordSink({ url: config.discordWebhookUrl })
-		: undefined;
 	// Server-side PostHog Logs, env-gated via the TypeBox config (off when
 	// PIXIES_POSTHOG_API_KEY is unset). Distinct from the VITE_POSTHOG_* browser
 	// vars: this is the server secret.
@@ -370,7 +365,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 				token: config.posthogApiKey,
 			})
 		: undefined;
-	const logger = opts.logger ?? createLogger({ discordSink: sink, posthogSink });
+	const logger = opts.logger ?? createLogger({ posthogSink });
 	registerGlobalHandlers(logger);
 	// Off-switch: no `PIXIES_POSTHOG_API_KEY` → no client → no analytics network.
 	// Injectable via `opts.posthog` so tests can pass a spy.

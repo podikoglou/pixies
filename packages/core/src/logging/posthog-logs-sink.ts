@@ -28,9 +28,10 @@
  * `@opentelemetry/*` packages directly (they resolve transitively through
  * `@logtape/otel`). The exporter batches and flushes on a timer; the server's
  * `registerGracefulShutdown` calls `process.exit(0)`, which may drop an
- * in-flight batch. This matches the DiscordTransport fire-and-forget posture
- * — logging must never block shutdown, and the console sink retains the
- * authoritative copy either way.
+ * in-flight batch. This matches the fire-and-forget posture — logging must
+ * never block shutdown, and the console sink retains the authoritative copy
+ * either way. Error/fatal alerting is handled downstream by PostHog (see
+ * docs/posthog-privacy.md), not by an in-process transport.
  */
 import type { LogRecord, Sink } from "@logtape/logtape";
 import { getOpenTelemetrySink } from "@logtape/otel";

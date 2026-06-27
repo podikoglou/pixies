@@ -125,12 +125,6 @@ export const PixiesConfigSchema = Type.Object({
 		default: 1000,
 		description: "Overpass interval window length in ms (default-instance policy: 1000)",
 	}),
-	discordWebhookUrl: Type.Optional(
-		Type.String({
-			format: "url",
-			description: "Discord webhook URL to receive error/fatal log alerts",
-		}),
-	),
 	posthogHost: Type.String({
 		format: "url",
 		default: "https://eu.i.posthog.com",
