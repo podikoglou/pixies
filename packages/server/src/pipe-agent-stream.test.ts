@@ -135,6 +135,31 @@ const turnEndEvent = (toolResults: unknown[] = []): AgentEvent =>
 	}) as unknown as AgentEvent;
 const turnStartEvent = (): AgentEvent => ({ type: "turn_start" }) as unknown as AgentEvent;
 
+/** A `tool_execution_end` stub carrying the result shape `recordToolEnd` reads. */
+const toolEndEvent = (
+	toolCallId: string,
+	toolName: string,
+	details: unknown,
+	isError = false,
+): AgentEvent =>
+	({
+		type: "tool_execution_end",
+		toolCallId,
+		toolName,
+		result: { content: [{ type: "text", text: "stub" }], details },
+		isError,
+	}) as unknown as AgentEvent;
+
+/** A `tool_execution_update` stub carrying a validated progress payload. */
+const toolProgressEvent = (toolCallId: string, type: "queued" | "running"): AgentEvent =>
+	({
+		type: "tool_execution_update",
+		toolCallId,
+		toolName: "query_osm",
+		args: {},
+		partialResult: { details: { type } },
+	}) as unknown as AgentEvent;
+
 /** stubStore variant whose `abort` is a spy, so disconnect forwarding is assertable. */
 function stubStoreWithSpy(): { store: ConversationStore; abortSpy: ReturnType<typeof mock> } {
 	const abortSpy = mock((_id: string) => {});
@@ -468,4 +493,46 @@ test("pipeAgentStream consumes turn_end and captures one `agent turn` per turn (
 		tool_names: ["query_osm"],
 		had_tool_error: true,
 	});
+});
+
+test("pipeAgentStream consumes tool_execution events and captures one `tool call` per execution", async () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	// One tool: start → queued → running → end (success, 2 features).
+	// Pins the loop wiring that forwards tool events to the recorder.
+	const response = pipeAgentStream(
+		stubStore(),
+		{
+			stream: closingStream([
+				{
+					type: "tool_execution_start",
+					toolCallId: "t1",
+					toolName: "query_osm",
+					args: {},
+				} as unknown as AgentEvent,
+				toolProgressEvent("t1", "queued"),
+				toolProgressEvent("t1", "running"),
+				toolEndEvent("t1", "query_osm", {
+					data: [{ type: "node", id: 1, lat: 0, lon: 0, name: "a" }],
+				}),
+			]),
+		},
+		"conv-tool",
+		logger,
+		posthog,
+	);
+
+	await response.text();
+
+	const calls = posthog.captures.filter((c) => c.event === "tool call");
+	expect(calls).toHaveLength(1);
+	expect(calls[0]).toMatchObject({ distinctId: "conv-tool" });
+	expect(calls[0]!.properties).toMatchObject({
+		$process_person_profile: false,
+		tool_name: "query_osm",
+		outcome: "success",
+		result_count: 1,
+	});
+	expect(Number.isInteger(calls[0]!.properties.duration_ms)).toBe(true);
+	expect(Number.isInteger(calls[0]!.properties.queue_wait_ms)).toBe(true);
 });

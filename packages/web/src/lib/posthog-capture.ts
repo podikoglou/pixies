@@ -1,5 +1,5 @@
 import type { PostHog } from "posthog-js";
-import { parseToolResult, isBusyResult } from "@pixies/core";
+import { toolResultCount } from "@pixies/core";
 
 /**
  * Forward a caught React render error to PostHog Error Tracking.
@@ -23,52 +23,13 @@ export function captureReactError(
 }
 
 /**
- * Data-fetch tools whose empty / zero-result outcome is a product signal.
- * `display_map` is excluded: it is a UI tool whose emptiness is already
- * observed via the `map_opened`/`marker_count` event, and its
- * `details.data.markers` is empty for `queryRef` maps so it would misclassify.
+ * Re-exported from `@pixies/core` so the web `tool_empty` event and the server
+ * `tool call` event share a single count-derivation path. The function returns
+ * `undefined` (don't fire `tool_empty`) for non-data-fetch tools and busy
+ * soft-failures; a raw int otherwise, so the empty-RATE headline metric
+ * (`count(result_count=0) / count(tool_empty)`) has a denominator.
  */
-const DATA_FETCH_TOOLS = ["query_osm", "geocode", "reverse_geocode"] as const;
-
-/**
- * Count the features a successful data-fetch tool call returned, or return
- * `undefined` when no `tool_empty` event should fire.
- *
- * Mirrors the existing `tool_error` shape but for the success path: a places
- * app's defining failure is the *silent* empty success (200 OK, zero features).
- * The empty-RATE is the headline metric (`count(result_count=0) / count(tool_empty)`),
- * so this fires on EVERY success and carries the raw count rather than only
- * firing on empty (which would leave no denominator). A raw int lets PostHog
- * compute native percentiles/histograms — same precedent as `marker_count`.
- *
- * Returns `undefined` (don't fire) when:
- * - `toolName` is not a data-fetch tool (e.g. `display_map`, unknown tools); and
- * - `isBusyResult(details)` — the OSM-busy soft-failure is a SUCCESS
- *   (`isError: false`) that signals a transient server issue, not a genuine
- *   zero-feature outcome, and would pollute the empty-rate.
- *
- * Count is derived from the canonical `parseToolResult` parser (reused from
- * `@pixies/core` so it can never drift from the tool's own `details` shape).
- *
- * Carries only the tool id and a count — never query text, place names,
- * or coordinates (see docs/posthog-privacy.md).
- */
-export function toolResultCount(toolName: string, details: unknown): number | undefined {
-	if (!(DATA_FETCH_TOOLS as readonly string[]).includes(toolName)) return undefined;
-	if (isBusyResult(details)) return undefined;
-
-	const parsed = parseToolResult(toolName, details);
-	switch (parsed.kind) {
-		case "query_osm":
-		case "geocode":
-			return parsed.entries.length;
-		case "reverse_geocode":
-			return 1;
-		default:
-			// `empty` (parse failure / no result) and any other kind → 0.
-			return 0;
-	}
-}
+export { toolResultCount };
 
 /** Event → props mapping for `captureEvent`. */
 export type EventProps = {
