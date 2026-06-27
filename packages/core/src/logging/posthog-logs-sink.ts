@@ -59,10 +59,6 @@ export const DEFAULT_ALLOW_KEYS = [
 	// counts & durations
 	"statusCode",
 	"durationMs",
-	"waitMs",
-	"queryLength",
-	"queueSize",
-	"pending",
 	"evictedCount",
 	"windowCount",
 	"requestCount",
