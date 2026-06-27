@@ -1,7 +1,34 @@
-import { isTaggedError } from "@pixies/core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { isBusyResult, isTaggedError } from "@pixies/core";
 import type { Logger } from "@pixies/core/logging";
 import { captureServerEvent } from "./analytics-events.ts";
 import type { PostHogAnalyticsClient } from "./posthog.ts";
+
+/**
+ * Structural slice of an `AssistantMessage` read by the `agent turn` capture.
+ *
+ * `turn_end.message` is typed as the broad `AgentMessage` (a server-side
+ * re-export of the real `AssistantMessage` would drag a transitive dep in, so
+ * this names just the fields the capture touches). The {@link isAssistantTurn}
+ * guard narrows to it.
+ */
+interface AssistantTurnMessage {
+	role: "assistant";
+	stopReason: string;
+	usage: { input: number; output: number; cacheRead?: number };
+}
+
+/** Structural slice of a `turn_end` tool result: id + error flag + details. */
+interface TurnToolResult {
+	toolName: string;
+	isError: boolean;
+	details?: unknown;
+}
+
+/** Narrow a `turn_end` message to its assistant-message slice. */
+function isAssistantTurn(message: AgentMessage): message is AgentMessage & AssistantTurnMessage {
+	return (message as { role?: unknown }).role === "assistant";
+}
 
 /** Ingredients for the byte-identical `error` SSE wire frame, from {@link StreamInstrumentation.fail}. */
 export interface StreamErrorFrame {
@@ -28,7 +55,10 @@ export interface StreamErrorFrame {
  *    away) events so the impossible "completed && aborted" can't be
  *    represented, and a cancel after completion can't double-count;
  *  - the `agent stream error` capture, which ships the error TAG ONLY (see
- *    {@link fail}).
+ *    {@link fail});
+ *  - the `agent turn` capture (per-turn tool count + tool ids, stop reason,
+ *    duration, token usage, soft-failure flags) via {@link recordTurnEnd},
+ *    with the `turn_index` counter + the turn-start timestamp it pairs with.
  *
  * Lifecycle invariants (pinned by `pipe-agent-stream.test.ts`):
  *  - a completed stream never emits `agent stream disconnect`;
@@ -61,6 +91,14 @@ export class StreamInstrumentation {
 	// time is still folded into `duration_ms` / `ttft_ms` since both are
 	// measured from `startTime`.
 	private firstTokenMs: number | undefined;
+	// Per-turn tracking. `turnIndex` is the counter reported on each
+	// `agent turn` capture (0-based, advanced after each {@link recordTurnEnd}).
+	// `turnStartAt` anchors the turn's `duration_ms`. The agent loop emits
+	// `turn_start` only for turns AFTER the first, so this initialises to the
+	// stream start — turn 0 measures from there, later turns from their
+	// `turn_start` ({@link recordTurnStart}).
+	private turnIndex = 0;
+	private turnStartAt: number = this.startTime;
 
 	constructor(
 		private readonly distinctId: string,
@@ -91,6 +129,68 @@ export class StreamInstrumentation {
 	 */
 	recordFirstOutput(): void {
 		if (this.firstOutputAt === undefined) this.firstOutputAt = Date.now();
+	}
+
+	/**
+	 * Stamp the start of an agent turn (`turn_start` event). Pairs with the next
+	 * {@link recordTurnEnd} to anchor the turn's `duration_ms`. The agent loop
+	 * omits `turn_start` for the first turn, so the recorder falls back to the
+	 * stream start ({@link turnStartAt}'s initial value).
+	 */
+	recordTurnStart(): void {
+		this.turnStartAt = Date.now();
+	}
+
+	/**
+	 * Capture the `agent turn` event at `turn_end` — one structured event per
+	 * turn of the agent loop — then advance {@link turnIndex}. Carries the
+	 * tool-call count + tool ids, stop reason, per-turn duration, token usage,
+	 * and the soft-failure flags. Mirrors the existing capture seam: distinctId
+	 * is the conversation id, `$process_person_profile: false` is injected
+	 * centrally by `captureServerEvent`.
+	 *
+	 * Privacy: every property is coarse metadata (counts, ids, enums,
+	 * durations). Tool ARGUMENTS are never captured (they carry place
+	 * names/coords); `tool_names` ships ids only. Token usage comes straight
+	 * off the assistant message's `usage`. A non-assistant `turn_end` message
+	 * (the agent loop always emits the assistant message, so this shouldn't
+	 * happen) is skipped, not crashed — the analytics event is best-effort.
+	 *
+	 * @param message     The assistant message from `turn_end` (carries
+	 *                    `stopReason` + `usage`).
+	 * @param toolResults The turn's tool results — `length` is the tool-call
+	 *                    count; each carries `toolName` (id) + `isError` + the
+	 *                    busy-marked `details`.
+	 */
+	recordTurnEnd(message: AgentMessage, toolResults: TurnToolResult[]): void {
+		// The agent loop emits the assistant message at turn_end; guard once for
+		// the structural slice rather than asserting.
+		if (!isAssistantTurn(message)) return;
+		// tool ids only — NEVER args (toolResults carry no args, and the args
+		// live on `tool_execution_start`, which this path never reads).
+		const toolNames = toolResults.map((r) => r.toolName);
+		const hadToolError = toolResults.some((r) => r.isError);
+		// Busy is a SUCCESS (isError: false) but a transient OSM soft-failure —
+		// `isBusyResult` reads the `{ busy: true }` marker off `details`.
+		const hadBusyResult = toolResults.some((r) => !r.isError && isBusyResult(r.details));
+		const cacheRead = message.usage.cacheRead;
+		captureServerEvent(this.posthog, this.distinctId, "agent turn", {
+			turn_index: this.turnIndex,
+			tool_calls: toolResults.length,
+			tool_names: toolNames,
+			stop_reason: message.stopReason,
+			duration_ms: Date.now() - this.turnStartAt,
+			input_tokens: message.usage.input,
+			output_tokens: message.usage.output,
+			...(typeof cacheRead === "number" ? { cache_read_tokens: cacheRead } : {}),
+			had_tool_error: hadToolError,
+			had_busy_result: hadBusyResult,
+		});
+		this.turnIndex += 1;
+		// Re-anchor defensively: a later turn that never sees a `turn_start`
+		// (loop variant) still measures from the prior turn_end rather than the
+		// stream start.
+		this.turnStartAt = Date.now();
 	}
 
 	/**
