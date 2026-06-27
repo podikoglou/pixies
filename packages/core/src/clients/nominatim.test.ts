@@ -7,7 +7,6 @@ import {
 	NominatimHttpError,
 	NominatimParseError,
 } from "./nominatim.ts";
-import { createOsmClients } from "../agent.ts";
 import { type Logger } from "../logging/index.ts";
 import { ToolAbortedError } from "../errors.ts";
 
@@ -39,17 +38,6 @@ function makeClient(fetch: typeof globalThis.fetch, intervalMs = 40, logger?: Lo
 }
 
 // ---- ADR-0004 invariant: one client serializes its requests ------------------
-
-test("createOsmClients builds a single NominatimClient (ADR-0004 wiring)", () => {
-	const clients = createOsmClients({
-		overpassUrl: "https://overpass.example.com",
-		nominatimUrl: "https://nominatim.example.com",
-		userAgent: "pixies-test",
-	});
-	expect(clients.nominatim).toBeInstanceOf(NominatimClient);
-	// One clients object ⇒ one nominatim ⇒ one queue ⇒ one chain (ADR-0004/0005).
-	expect(clients.overpass).toBeDefined();
-});
 
 test("one NominatimClient serializes concurrent searches (ADR-0004 invariant)", async () => {
 	const first = deferred<Response>();

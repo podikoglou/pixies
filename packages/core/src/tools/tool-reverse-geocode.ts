@@ -3,7 +3,7 @@ import { Type } from "typebox";
 import type { NominatimClient } from "../clients/nominatim.ts";
 import { formatNominatimResult } from "../clients/nominatim.ts";
 import { ToolAbortedError } from "../errors.ts";
-import { OSM_SERVER_BUSY_MESSAGE } from "./busy-message.ts";
+import { NOMINATIM_BUSY_MESSAGE } from "../clients/nominatim.ts";
 import { nominatimResultToData } from "./geocode-entry.ts";
 import {
 	ReverseGeocodeToolDetailsSchema,
@@ -62,13 +62,13 @@ export const reverseGeocodeModule = defineTool<
 			});
 		});
 		if (Result.isOk(result)) return result.value;
-		// OSM-busy → non-error result (do not retry); everything else re-throws
-		// so the agent marks the tool call `isError: true`.
+		// Nominatim-busy → non-error result (do not retry); everything else
+		// re-throws so the agent marks the tool call `isError: true`.
 		return matchErrorPartial(
 			result.error,
 			{
 				NominatimBusy: () => ({
-					...textResult(OSM_SERVER_BUSY_MESSAGE),
+					...textResult(NOMINATIM_BUSY_MESSAGE),
 					details: { busy: true },
 				}),
 			},

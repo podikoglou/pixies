@@ -6,7 +6,7 @@ import { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.t
 import { silentLogger, type Logger } from "./logging/index.ts";
 import { NominatimClient } from "./clients/nominatim.ts";
 import { OverpassClient } from "./clients/overpass.ts";
-import { createTools, type OsmClients } from "./tools/index.ts";
+import { createTools } from "./tools/index.ts";
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 
 export type { ResolvedPixiesConfig } from "./config-schema.ts";
@@ -121,85 +121,109 @@ export interface CreateAgentOptions {
 	config: ResolvedPixiesConfig;
 	fetch?: typeof globalThis.fetch;
 	/**
-	 * Pre-built OSM clients. When omitted, clients are constructed inside this
-	 * call via {@link createOsmClients} (the path used by single-user adapters
-	 * such as the TUI). Multi-tenant adapters (e.g. the server) MUST inject a
-	 * single shared instance so the Nominatim rate-limit chain is process-global
-	 * — see ADR-0004.
+	 * Pre-built Nominatim client. When omitted, the client is constructed
+	 * inside this call via {@link createNominatimClient} (the path used by
+	 * single-user adapters and tests). Multi-tenant adapters (e.g. the server)
+	 * MUST inject a single shared instance so the Nominatim rate-limit chain is
+	 * process-global — see ADR-0004.
 	 */
-	osmClients?: OsmClients;
+	nominatim?: NominatimClient;
+	/**
+	 * Pre-built Overpass client; see {@link CreateAgentOptions.nominatim} for
+	 * the injection / fallback contract.
+	 */
+	overpass?: OverpassClient;
 }
 
-export interface CreateOsmClientsOptions
-	extends
-		Pick<ResolvedPixiesConfig, "overpassUrl" | "nominatimUrl" | "contactEmail" | "userAgent">,
-		Partial<
-			Pick<
-				ResolvedPixiesConfig,
-				| "nominatimConcurrency"
-				| "nominatimIntervalCap"
-				| "nominatimIntervalMs"
-				| "nominatimCacheTtlMs"
-				| "nominatimCacheMaxEntries"
-				| "overpassConcurrency"
-				| "overpassIntervalCap"
-				| "overpassIntervalMs"
-			>
-		> {
+/**
+ * Runtime overrides both service-client factories accept alongside resolved
+ * config: an injectable `fetch` (for tests) and a `logger`. Shared across the
+ * Nominatim and Overpass factories since both bridge config → client the same
+ * way.
+ */
+interface ClientFactoryOverrides {
 	fetch?: typeof globalThis.fetch;
 	logger?: Logger;
 }
 
-export function createOsmClients(options: CreateOsmClientsOptions): OsmClients {
-	const logger = options.logger ?? silentLogger;
-	return {
-		nominatim: new NominatimClient({
-			baseUrl: options.nominatimUrl,
-			contactEmail: options.contactEmail,
-			userAgent: options.userAgent,
-			fetch: options.fetch,
-			concurrency: options.nominatimConcurrency,
-			intervalCap: options.nominatimIntervalCap,
-			intervalMs: options.nominatimIntervalMs,
-			cacheTtlMs: options.nominatimCacheTtlMs,
-			cacheMaxEntries: options.nominatimCacheMaxEntries,
-			logger,
-		}),
-		overpass: new OverpassClient({
-			baseUrl: options.overpassUrl,
-			userAgent: options.userAgent,
-			fetch: options.fetch,
-			concurrency: options.overpassConcurrency,
-			intervalCap: options.overpassIntervalCap,
-			intervalMs: options.overpassIntervalMs,
-			logger,
-		}),
-	};
+/**
+ * Resolved-config fields that configure a {@link NominatimClient}. Kept as a
+ * named Pick so the factory's input surface is self-documenting and stays in
+ * lockstep with the schema fields rather than a free-form partial.
+ */
+type NominatimConfigFields = Pick<
+	ResolvedPixiesConfig,
+	| "nominatimUrl"
+	| "contactEmail"
+	| "userAgent"
+	| "nominatimConcurrency"
+	| "nominatimIntervalCap"
+	| "nominatimIntervalMs"
+	| "nominatimCacheTtlMs"
+	| "nominatimCacheMaxEntries"
+>;
+
+/**
+ * Build a {@link NominatimClient} from resolved config. The single source of
+ * truth for the config → client projection, used by both the server-owned
+ * singleton (ADR-0004) and the {@link createAgent} fallback — so adding a
+ * Nominatim knob is a one-site change with no silent drift between the two.
+ */
+export function createNominatimClient(
+	config: NominatimConfigFields,
+	opts: ClientFactoryOverrides = {},
+): NominatimClient {
+	return new NominatimClient({
+		baseUrl: config.nominatimUrl,
+		contactEmail: config.contactEmail,
+		userAgent: config.userAgent,
+		fetch: opts.fetch,
+		concurrency: config.nominatimConcurrency,
+		intervalCap: config.nominatimIntervalCap,
+		intervalMs: config.nominatimIntervalMs,
+		cacheTtlMs: config.nominatimCacheTtlMs,
+		cacheMaxEntries: config.nominatimCacheMaxEntries,
+		logger: opts.logger ?? silentLogger,
+	});
+}
+
+/**
+ * Resolved-config fields that configure an {@link OverpassClient}; see
+ * {@link NominatimConfigFields}.
+ */
+type OverpassConfigFields = Pick<
+	ResolvedPixiesConfig,
+	"overpassUrl" | "userAgent" | "overpassConcurrency" | "overpassIntervalCap" | "overpassIntervalMs"
+>;
+
+/**
+ * Build an {@link OverpassClient} from resolved config; see
+ * {@link createNominatimClient} for why the projection lives in one factory.
+ */
+export function createOverpassClient(
+	config: OverpassConfigFields,
+	opts: ClientFactoryOverrides = {},
+): OverpassClient {
+	return new OverpassClient({
+		baseUrl: config.overpassUrl,
+		userAgent: config.userAgent,
+		fetch: opts.fetch,
+		concurrency: config.overpassConcurrency,
+		intervalCap: config.overpassIntervalCap,
+		intervalMs: config.overpassIntervalMs,
+		logger: opts.logger ?? silentLogger,
+	});
 }
 
 export function createAgent(options: CreateAgentOptions): Agent {
 	const { config } = options;
 	const model = resolveModel(config.model);
-	// Inject callers own the client lifetime (server: one per process). When not
-	// injected, build a fresh pair — this preserves the TUI/test path. See ADR-0004.
-	const clients =
-		options.osmClients ??
-		createOsmClients({
-			overpassUrl: config.overpassUrl,
-			nominatimUrl: config.nominatimUrl,
-			contactEmail: config.contactEmail,
-			userAgent: config.userAgent,
-			fetch: options.fetch,
-			nominatimConcurrency: config.nominatimConcurrency,
-			nominatimIntervalCap: config.nominatimIntervalCap,
-			nominatimIntervalMs: config.nominatimIntervalMs,
-			nominatimCacheTtlMs: config.nominatimCacheTtlMs,
-			nominatimCacheMaxEntries: config.nominatimCacheMaxEntries,
-			overpassConcurrency: config.overpassConcurrency,
-			overpassIntervalCap: config.overpassIntervalCap,
-			overpassIntervalMs: config.overpassIntervalMs,
-		});
-	const tools = createTools(clients);
+	// Inject callers own the client lifetime (server: one per process). When
+	// not injected, build a fresh pair — this preserves the single-user/test
+	// path. See ADR-0004.
+	const nominatim = options.nominatim ?? createNominatimClient(config, { fetch: options.fetch });
+	const overpass = options.overpass ?? createOverpassClient(config, { fetch: options.fetch });
+	const tools = createTools(nominatim, overpass);
 	return new Agent({
 		initialState: {
 			systemPrompt: SYSTEM_PROMPT,

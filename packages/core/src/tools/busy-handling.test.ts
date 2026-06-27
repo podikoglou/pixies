@@ -1,13 +1,19 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
 import { Result } from "better-result";
-import { OSM_SERVER_BUSY_MESSAGE } from "./busy-message.ts";
+
 import {
 	NominatimBusyError,
 	NominatimHttpError,
+	NOMINATIM_BUSY_MESSAGE,
 	type NominatimClient,
 } from "../clients/nominatim.ts";
-import { OverpassBusyError, OverpassHttpError, type OverpassClient } from "../clients/overpass.ts";
+import {
+	OverpassBusyError,
+	OverpassHttpError,
+	OVERPASS_BUSY_MESSAGE,
+	type OverpassClient,
+} from "../clients/overpass.ts";
 import { queryOsmModule } from "./tool-query-osm.ts";
 import { reverseGeocodeModule } from "./tool-reverse-geocode.ts";
 import { geocodeModule } from "./tool-geocode.ts";
@@ -20,7 +26,7 @@ test("query_osm: OverpassBusyError returns normal result with busy message", asy
 	} as unknown as OverpassClient;
 	const tool = queryOsmModule.build({ overpass: busyOverpass });
 	const result = await tool.execute("call-1", { query: "[out:json];node(1);out;" });
-	expect((result.content[0] as { text: string }).text).toBe(OSM_SERVER_BUSY_MESSAGE);
+	expect((result.content[0] as { text: string }).text).toBe(OVERPASS_BUSY_MESSAGE);
 	expect(result.details).toEqual({ busy: true });
 	// Must NOT be flagged as an error — model should see it as a normal result
 	expect((result as { isError?: unknown }).isError).toBeUndefined();
@@ -47,7 +53,7 @@ test("reverse_geocode: NominatimBusyError returns normal result with busy messag
 	} as unknown as NominatimClient;
 	const tool = reverseGeocodeModule.build({ nominatim: busyNominatim });
 	const result = await tool.execute("call-3", { lat: 52.5, lon: 13.4 });
-	expect((result.content[0] as { text: string }).text).toBe(OSM_SERVER_BUSY_MESSAGE);
+	expect((result.content[0] as { text: string }).text).toBe(NOMINATIM_BUSY_MESSAGE);
 	expect(result.details).toEqual({ busy: true });
 	expect((result as { isError?: unknown }).isError).toBeUndefined();
 });
@@ -76,7 +82,7 @@ test("geocode: NominatimBusyError returns normal result with busy message", asyn
 	} as unknown as NominatimClient;
 	const tool = geocodeModule.build({ nominatim: busyNominatim });
 	const result = await tool.execute("call-5", { query: "Berlin" });
-	expect((result.content[0] as { text: string }).text).toBe(OSM_SERVER_BUSY_MESSAGE);
+	expect((result.content[0] as { text: string }).text).toBe(NOMINATIM_BUSY_MESSAGE);
 	expect(result.details).toEqual({ busy: true, data: [] });
 	expect((result as { isError?: unknown }).isError).toBeUndefined();
 });

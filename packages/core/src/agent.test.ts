@@ -1,15 +1,15 @@
 /// <reference types="bun" />
 import { afterEach, expect, mock, test } from "bun:test";
 import { ParseError } from "typebox/value";
-import { createOsmClients, readConfigFromEnv } from "./agent.ts";
+import { createNominatimClient, createOverpassClient, readConfigFromEnv } from "./agent.ts";
 import type { ResolvedPixiesConfig } from "./config-schema.ts";
 
 /**
  * Env-backed config propagation and validation.
  *
  * Originally added for the 6 OSM rate-limit knobs (full pipeline:
- * `PIXIES_*` env vars → `readConfigFromEnv` → `createOsmClients` → per-client
- * p-queue limiter). Extended to cover the full numeric field
+ * `PIXIES_*` env vars → `readConfigFromEnv` → per-service factory →
+ * per-client p-queue limiter). Extended to cover the full numeric field
  * set, URL/email format validation, and the empty-as-unset rule (D3) that
  * prevents `PIXIES_HTTP_RATE_LIMIT=` from silently disabling rate limiting.
  * Defaults equal the public-instance policy.
@@ -150,7 +150,7 @@ function jsonResponse(data: unknown): Response {
 	});
 }
 
-test("a smaller PIXIES_NOMINATIM_INTERVAL_MS speeds up serialization through createOsmClients", async () => {
+test("a smaller PIXIES_NOMINATIM_INTERVAL_MS speeds up serialization through createNominatimClient", async () => {
 	setEnv({ PIXIES_NOMINATIM_INTERVAL_MS: "40" });
 	const config = readConfigFromEnv();
 
@@ -160,18 +160,10 @@ test("a smaller PIXIES_NOMINATIM_INTERVAL_MS speeds up serialization through cre
 		return Promise.resolve(jsonResponse([]));
 	}) as unknown as typeof fetch;
 
-	const clients = createOsmClients({
-		overpassUrl: "https://overpass.example.com/api/interpreter",
-		nominatimUrl: "https://nominatim.example.com",
-		userAgent: "pixies-test",
-		fetch: fetchMock,
-		nominatimIntervalMs: config.nominatimIntervalMs,
-		nominatimIntervalCap: config.nominatimIntervalCap,
-		nominatimConcurrency: config.nominatimConcurrency,
-	});
+	const nominatim = createNominatimClient(config, { fetch: fetchMock });
 
-	await clients.nominatim.search("Berlin");
-	await clients.nominatim.search("Vienna");
+	await nominatim.search("Berlin");
+	await nominatim.search("Vienna");
 
 	expect(starts).toHaveLength(2);
 	// The 40ms override took effect (not the 1100ms default): spacing is at
@@ -195,7 +187,7 @@ function deferred<T>(): Deferred<T> {
 	return { promise, resolve };
 }
 
-test("a higher PIXIES_OVERPASS_CONCURRENCY allows more parallel queries through createOsmClients", async () => {
+test("a higher PIXIES_OVERPASS_CONCURRENCY allows more parallel queries through createOverpassClient", async () => {
 	// Default policy is 2/2/1000; override concurrency + intervalCap to 4 and
 	// assert 4 run concurrently. (p-queue bounds starts per window by
 	// intervalCap as well as concurrency, so both must rise to let 4 start in
@@ -213,20 +205,12 @@ test("a higher PIXIES_OVERPASS_CONCURRENCY allows more parallel queries through 
 		return d.promise;
 	}) as unknown as typeof fetch;
 
-	const clients = createOsmClients({
-		overpassUrl: "https://overpass.example.com/api/interpreter",
-		nominatimUrl: "https://nominatim.example.com",
-		userAgent: "pixies-test",
-		fetch: fetchMock,
-		overpassConcurrency: config.overpassConcurrency,
-		overpassIntervalCap: config.overpassIntervalCap,
-		overpassIntervalMs: config.overpassIntervalMs,
-	});
+	const overpass = createOverpassClient(config, { fetch: fetchMock });
 
-	const p1 = clients.overpass.query("[out:json];node(1);out;");
-	const p2 = clients.overpass.query("[out:json];node(2);out;");
-	const p3 = clients.overpass.query("[out:json];node(3);out;");
-	const p4 = clients.overpass.query("[out:json];node(4);out;");
+	const p1 = overpass.query("[out:json];node(1);out;");
+	const p2 = overpass.query("[out:json];node(2);out;");
+	const p3 = overpass.query("[out:json];node(3);out;");
+	const p4 = overpass.query("[out:json];node(4);out;");
 
 	await Promise.resolve();
 	await Promise.resolve();
