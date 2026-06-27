@@ -34,9 +34,7 @@ export const queryOsmModule = defineTool<
 	execute: async ({ overpass }, _toolCallId, params, signal, _onUpdate) => {
 		throwIfAborted(signal);
 		const result = await Result.gen(async function* () {
-			const response = yield* Result.await(
-				overpass.query(params.query, signal),
-			);
+			const response = yield* Result.await(overpass.query(params.query, signal));
 			const elements = response.elements ?? [];
 			if (elements.length === 0) {
 				return Result.ok({

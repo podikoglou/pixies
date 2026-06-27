@@ -74,12 +74,12 @@ test("referenced item has non-query_osm result → null", () => {
 			toolCallId: "call-1",
 			toolName: "geocode",
 			args: {},
-		status: "done",
-		resultText: null,
-		result: { kind: "geocode", entries: [] },
-	},
-];
-const result = resolveMapMarkers("call-1", undefined, items);
+			status: "done",
+			resultText: null,
+			result: { kind: "geocode", entries: [] },
+		},
+	];
+	const result = resolveMapMarkers("call-1", undefined, items);
 	expect(result).toBeNull();
 });
 

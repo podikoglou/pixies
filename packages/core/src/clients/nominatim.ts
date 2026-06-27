@@ -225,26 +225,23 @@ export class NominatimClient {
 		url: URL,
 		signal?: AbortSignal,
 	): Promise<{ json: unknown; statusCode: number; contentType: string }> {
-		return this.withRateLimit(
-			async () => {
-				this.logger.debug("request", { service: "Nominatim", url: url.toString() });
-				const start = Date.now();
-				const res = await fetchNominatimResponse(url, this.fetchFn, {
-					headers: { "User-Agent": this.userAgent },
-					signal,
-					timeoutMs: this.timeoutMs,
-				});
-				this.logger.debug("response", {
-					service: "Nominatim",
-					statusCode: res.status,
-					durationMs: Date.now() - start,
-				});
-				const contentType = res.headers.get("content-type") ?? "";
-				const json = await res.json();
-				return { json, statusCode: res.status, contentType };
-			},
-			signal,
-		);
+		return this.withRateLimit(async () => {
+			this.logger.debug("request", { service: "Nominatim", url: url.toString() });
+			const start = Date.now();
+			const res = await fetchNominatimResponse(url, this.fetchFn, {
+				headers: { "User-Agent": this.userAgent },
+				signal,
+				timeoutMs: this.timeoutMs,
+			});
+			this.logger.debug("response", {
+				service: "Nominatim",
+				statusCode: res.status,
+				durationMs: Date.now() - start,
+			});
+			const contentType = res.headers.get("content-type") ?? "";
+			const json = await res.json();
+			return { json, statusCode: res.status, contentType };
+		}, signal);
 	}
 
 	/** Search Nominatim for a place name or address. */

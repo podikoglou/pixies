@@ -179,63 +179,60 @@ export class OverpassClient {
 		const logger = this.logger;
 		return Result.tryPromise({
 			try: () =>
-				this.withRateLimit(
-					async () => {
-						logger.debug("request", { service: "Overpass", queryLength: query.length });
-						const start = Date.now();
-						const res = await fetchOverpassResponse(this.baseUrl, this.fetchFn, {
-							method: "POST",
-							headers: {
-								"User-Agent": this.userAgent,
-								"Content-Type": "application/x-www-form-urlencoded",
-							},
-							body: `data=${encodeURIComponent(query)}`,
-							signal: parentSignal,
-							timeoutMs: this.timeoutMs,
-						});
-						logger.debug("response", {
+				this.withRateLimit(async () => {
+					logger.debug("request", { service: "Overpass", queryLength: query.length });
+					const start = Date.now();
+					const res = await fetchOverpassResponse(this.baseUrl, this.fetchFn, {
+						method: "POST",
+						headers: {
+							"User-Agent": this.userAgent,
+							"Content-Type": "application/x-www-form-urlencoded",
+						},
+						body: `data=${encodeURIComponent(query)}`,
+						signal: parentSignal,
+						timeoutMs: this.timeoutMs,
+					});
+					logger.debug("response", {
+						service: "Overpass",
+						statusCode: res.status,
+						durationMs: Date.now() - start,
+					});
+					const contentType = res.headers.get("content-type") ?? "";
+					if (!contentType.includes("application/json")) {
+						logger.warning("non-json content type", {
 							service: "Overpass",
 							statusCode: res.status,
-							durationMs: Date.now() - start,
+							contentType,
 						});
-						const contentType = res.headers.get("content-type") ?? "";
-						if (!contentType.includes("application/json")) {
-							logger.warning("non-json content type", {
-								service: "Overpass",
-								statusCode: res.status,
-								contentType,
-							});
-							throw new OverpassParseError({ message: "Only [out:json] is supported" });
-						}
-						const json = await res.json();
-						let parsed: OverpassResponse;
-						try {
-							parsed = Value.Parse(OverpassResponseSchema, json);
-						} catch (err) {
-							logger.warning("invalid response shape", {
-								service: "Overpass",
-								statusCode: res.status,
-								contentType,
-								cause: err,
-							});
-							throw new OverpassParseError({
-								message: "Overpass: invalid response shape",
-								cause: err,
-							});
-						}
-						if (parsed.remark) {
-							logger.warning("overpass remark", {
-								service: "Overpass",
-								statusCode: res.status,
-								contentType,
-								remark: parsed.remark,
-							});
-							throw new OverpassRemarkError({ remark: parsed.remark });
-						}
+						throw new OverpassParseError({ message: "Only [out:json] is supported" });
+					}
+					const json = await res.json();
+					let parsed: OverpassResponse;
+					try {
+						parsed = Value.Parse(OverpassResponseSchema, json);
+					} catch (err) {
+						logger.warning("invalid response shape", {
+							service: "Overpass",
+							statusCode: res.status,
+							contentType,
+							cause: err,
+						});
+						throw new OverpassParseError({
+							message: "Overpass: invalid response shape",
+							cause: err,
+						});
+					}
+					if (parsed.remark) {
+						logger.warning("overpass remark", {
+							service: "Overpass",
+							statusCode: res.status,
+							contentType,
+							remark: parsed.remark,
+						});
+						throw new OverpassRemarkError({ remark: parsed.remark });
+					}
 					return parsed;
-				},
-					parentSignal,
-				),
+				}, parentSignal),
 			catch: toOverpassError,
 		});
 	}

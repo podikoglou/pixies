@@ -155,9 +155,9 @@ export function transcriptToItems(transcript: ConversationTranscript): TimelineI
 					kind: "tool-call",
 					toolCallId: msg.toolCallId,
 					toolName: msg.toolName,
-				args: undefined,
-				status: msg.isError ? "error" : isBusyResult(msg.details) ? "warning" : "done",
-				resultText: joinContentText(msg.content, "\n") || null,
+					args: undefined,
+					status: msg.isError ? "error" : isBusyResult(msg.details) ? "warning" : "done",
+					resultText: joinContentText(msg.content, "\n") || null,
 					result: parsed,
 				});
 				break;

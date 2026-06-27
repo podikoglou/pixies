@@ -106,16 +106,9 @@ export type {
 } from "./transcript-schema.ts";
 
 export { NominatimClient, formatNominatimResult } from "./clients/nominatim.ts";
-export type {
-	NominatimConfig,
-	NominatimResult,
-} from "./clients/nominatim.ts";
+export type { NominatimConfig, NominatimResult } from "./clients/nominatim.ts";
 export { OverpassClient, formatElement } from "./clients/overpass.ts";
-export type {
-	OverpassConfig,
-	OverpassElement,
-	OverpassResponse,
-} from "./clients/overpass.ts";
+export type { OverpassConfig, OverpassElement, OverpassResponse } from "./clients/overpass.ts";
 export { NOMINATIM_BUSY_MESSAGE } from "./clients/nominatim.ts";
 export { OVERPASS_BUSY_MESSAGE } from "./clients/overpass.ts";
 export { isAbortError } from "./utils/abort.ts";
