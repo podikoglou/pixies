@@ -65,7 +65,7 @@ Read from `.env` (copy `.env.example`).
 | `PIXIES_TRUSTED_PROXY_HOPS`        | `1`                    | Rightmost trusted XFF hops for IP-spoofing prevention                           |
 | `PIXIES_CONVERSATION_TOKEN_BUDGET` | `0`                    | Max tokens (input + output) per conversation across all turns (`0` = unlimited) |
 
-### OSM clients (rate limiting & caching)
+### OSM clients (rate limiting, caching & timeouts)
 
 | Variable                             | Default                                             | Description                                                 |
 | ------------------------------------ | --------------------------------------------------- | ----------------------------------------------------------- |
@@ -74,10 +74,12 @@ Read from `.env` (copy `.env.example`).
 | `PIXIES_OVERPASS_CONCURRENCY`        | `2`                                                 | Max concurrent in-flight Overpass requests                  |
 | `PIXIES_OVERPASS_INTERVAL_CAP`       | `2`                                                 | Max Overpass requests started per interval window           |
 | `PIXIES_OVERPASS_INTERVAL_MS`        | `1000`                                              | Overpass interval window length (ms)                        |
+| `PIXIES_OVERPASS_TIMEOUT_MS`         | `60000`                                             | Timeout for each Overpass HTTP request (ms)                 |
 | `PIXIES_NOMINATIM_URL`               | `https://nominatim.openstreetmap.org`               | Custom Nominatim endpoint                                   |
 | `PIXIES_NOMINATIM_CONCURRENCY`       | `1`                                                 | Max concurrent in-flight Nominatim requests                 |
 | `PIXIES_NOMINATIM_INTERVAL_CAP`      | `1`                                                 | Max Nominatim requests started per interval window          |
 | `PIXIES_NOMINATIM_INTERVAL_MS`       | `1100`                                              | Nominatim interval window length (ms)                       |
+| `PIXIES_NOMINATIM_TIMEOUT_MS`        | `60000`                                             | Timeout for each Nominatim HTTP request (ms)                |
 | `PIXIES_NOMINATIM_CACHE_TTL_MS`      | `86400000`                                          | TTL for cached Nominatim responses (ms; `0` disables)       |
 | `PIXIES_NOMINATIM_CACHE_MAX_ENTRIES` | `1000`                                              | Max cached Nominatim responses (LRU eviction; `0` disables) |
 | `PIXIES_USER_AGENT`                  | `Pixies/1.0 (https://github.com/podikoglou/pixies)` | User-Agent header for OSM requests                          |
@@ -93,6 +95,22 @@ Read from `.env` (copy `.env.example`).
 
 > `PIXIES_WEB_DIST` and `PIXIES_MIGRATIONS_FOLDER` are baked into the image at build time (web assets and Drizzle migrations are copied during the build) and are not set via `.env`; override them only if you customize the build.
 
+## Token budget
+
+`PIXIES_CONVERSATION_TOKEN_BUDGET` caps the tokens a single conversation may
+consume across **all** of its turns (input + output). `0` (the default) means
+unlimited. The cap is per conversation — not per user or global.
+
+Once a conversation's used tokens reach the budget, the next prompt is rejected
+with **HTTP 403** and a `BudgetExceeded` body carrying `used` and `budget`. The
+client surfaces this as a toast telling the user to start a new conversation;
+the existing transcript stays readable.
+
+Tokens are counted from each assistant message's `usage.totalTokens`. A
+rehydrated transcript whose rows predate usage tracking (ADR-0008) undercounts
+— such messages contribute `0` — so an old conversation may run slightly past
+its intended cap before a rejection fires.
+
 ## Persistence
 
 Three named volumes persist data across restarts:
@@ -100,6 +118,8 @@ Three named volumes persist data across restarts:
 - `pixies-data` — SQLite database at `/app/data/pixies.db`
 - `caddy-data` — Let's Encrypt certificates and ACME state
 - `caddy-config` — Caddy configuration
+
+Conversations are stored in the SQLite database and survive restarts. A bounded in-memory cache (`PIXIES_CACHE_SIZE`, default 50) holds recently-active conversations; idle conversations are evicted from memory after 24 hours and rehydrated from the database on next access.
 
 ## Common commands
 
