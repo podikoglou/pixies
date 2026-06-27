@@ -95,6 +95,11 @@ export {
 	isPersistedTranscript,
 	toClientTranscriptMessage,
 } from "./transcript-schema.ts";
+export {
+	countTranscriptTokens,
+	budgetExceeded,
+	type TranscriptTokenCount,
+} from "./token-budget.ts";
 export type {
 	ConversationTranscript,
 	TranscriptContentBlock,
