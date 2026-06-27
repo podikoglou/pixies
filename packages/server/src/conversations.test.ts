@@ -226,6 +226,77 @@ test("get() warns and starts empty when the persisted transcript is grossly corr
 	expect(logged?.[1]?.count).toBe(1);
 });
 
+test("get() reuses the miss-loaded conversation on the next read without rebuilding the agent", async () => {
+	const calls: FakeAgent[] = [];
+	const { store, db } = makeStore({ agentFactory: makeFakeFactory(calls) });
+	const id = "seeded-id";
+	const seeded: AgentMessage[] = [
+		{ role: "user", content: "hi", timestamp: 1 } as unknown as AgentMessage,
+	];
+	await db.insert(conversationsTable).values({ id, transcript: seeded });
+
+	// Miss: load + build + cache. Exactly one factory call.
+	const first = await store.get(id);
+	expect(first).toBeDefined();
+	expect(calls.length).toBe(1);
+
+	// Hit: the cached conversation object is handed back unchanged — no rebuild.
+	const second = await store.get(id);
+	expect(second).toBe(first);
+	expect(calls.length).toBe(1);
+});
+
+test("streamPrompt() reuses the conversation get() loaded without a second factory call", async () => {
+	const calls: FakeAgent[] = [];
+	const { store, db } = makeStore({ agentFactory: makeFakeFactory(calls) });
+	const id = "shared-load-id";
+	await db.insert(conversationsTable).values({
+		id,
+		transcript: [{ role: "user", content: "hi", timestamp: 1 } as unknown as AgentMessage],
+	});
+
+	// get() loads on a miss and caches the live conversation (one factory call).
+	const loaded = await store.get(id);
+	expect(loaded).toBeDefined();
+	expect(calls.length).toBe(1);
+
+	// streamPrompt() finds the same cache entry — the two entry points share one
+	// load path, so no agent is rebuilt.
+	const result = await store.streamPrompt(id, "again");
+	expect(Result.isOk(result)).toBe(true);
+	expect(calls.length).toBe(1);
+	if (Result.isOk(result)) {
+		for await (const _ of result.value.stream) {
+			// drain
+		}
+	}
+});
+
+test("a grossly corrupt row warns exactly once and is not re-validated on a cache hit", async () => {
+	const warnSpy = mock((_msg?: string, _properties?: Record<string, unknown>) => {});
+	const mockLogger = { warning: warnSpy, error: mock(() => {}) } as unknown as Logger;
+	const db = createTestDb();
+	const store = new ConversationStore(baseConfig, db, makeFakeFactory(), mockLogger);
+	stores.push(store);
+
+	const id = "corrupt-once-id";
+	// Persisted blob has entries but no `role` — fails PersistedTranscriptSchema.
+	await db.insert(conversationsTable).values({
+		id,
+		transcript: [{ foo: "bar" }] as unknown as AgentMessage[],
+	});
+
+	// Miss: the ADR-0008 guard inside rehydrateTranscript runs once and warns.
+	const first = await store.get(id);
+	expect(first).toBeDefined();
+	expect(warnSpy).toHaveBeenCalledTimes(1);
+
+	// Hit: the cached, already-degraded conversation is reused — the guard does
+	// not run again, so the warning count stays at one.
+	await store.get(id);
+	expect(warnSpy).toHaveBeenCalledTimes(1);
+});
+
 test("streamPrompt() warns and proceeds with empty state when the persisted transcript is grossly corrupt", async () => {
 	const agents: FakeAgent[] = [];
 	const warnSpy = mock((_msg?: string, _properties?: Record<string, unknown>) => {});
