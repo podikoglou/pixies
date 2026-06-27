@@ -23,6 +23,29 @@ export type ServerAnalyticsEvent = {
 	"agent stream done": { duration_ms: number; ttft_ms?: number };
 	"agent stream disconnect": { elapsed_ms: number; had_output: boolean };
 	"agent stream error": { error_tag?: string };
+	// Per-turn agent-loop telemetry (captured by `StreamInstrumentation.recordTurnEnd`).
+	"agent turn": {
+		/** 0-based index of the turn within the stream (counter in the recorder). */
+		turn_index: number;
+		/** Tool-call count for the turn (`turn_end.toolResults.length`). */
+		tool_calls: number;
+		/** Tool ids only — NEVER args (args carry place names/coords). */
+		tool_names: string[];
+		/** `turn_end.message.stopReason` (`stop` | `length` | `toolUse` | `error` | `aborted`). */
+		stop_reason: string;
+		/** Per-turn latency: turn_start → turn_end (ms). */
+		duration_ms: number;
+		/** `turn_end.message.usage.input`. */
+		input_tokens: number;
+		/** `turn_end.message.usage.output`. */
+		output_tokens: number;
+		/** `usage.cacheRead` when the provider reports it (optional). */
+		cache_read_tokens?: number;
+		/** Any tool result in the turn failed (`tool_execution_end.isError`). */
+		had_tool_error: boolean;
+		/** Any non-error busy soft-failure (`{ busy: true }` details). */
+		had_busy_result: boolean;
+	};
 	// Route-handler events (captured at the handler boundary in `index.ts`).
 	"conversation started": { message_length: number };
 	"message sent": { message_length: number };
