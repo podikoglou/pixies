@@ -76,6 +76,7 @@ export {
 	DisplayMapToolDetailsSchema,
 	parseToolResult,
 	isBusyResult,
+	toolResultCount,
 } from "./tools/index.ts";
 export type {
 	GeocodeToolDetails,
