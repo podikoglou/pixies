@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
 import { Result } from "better-result";
+import { ParseError } from "typebox/value";
 import {
 	NominatimBusyError,
 	NominatimClient,
@@ -36,6 +37,55 @@ function makeClient(fetch: typeof globalThis.fetch, intervalMs = 40, logger?: Lo
 		logger,
 	});
 }
+
+// ---- config validation at construction (#230) --------------------------------
+
+/** Minimal valid base config; individual tests add one bad knob. */
+function baseConfig() {
+	return {
+		baseUrl: "https://nominatim.example.com",
+		userAgent: "pixies-test",
+		fetch: (() => Promise.resolve(new Response("[]"))) as unknown as typeof globalThis.fetch,
+	};
+}
+
+test("construction applies documented defaults when knobs are omitted (no undefined reaches p-queue)", async () => {
+	const fetchMock = mock(() => Promise.resolve(jsonResponse([]))) as unknown as typeof fetch;
+	// Omit every defaulted knob; the client must still construct with valid
+	// (defaulted) numbers rather than passing undefined into p-queue / LRUCache.
+	const client = new NominatimClient({
+		baseUrl: "https://nominatim.example.com",
+		userAgent: "pixies-test",
+		fetch: fetchMock,
+	});
+
+	const r = await client.search("Berlin");
+
+	// A successful result proves every defaulted knob was a valid number —
+	// undefined concurrency/interval/timeout would misbehave or throw here.
+	expect(Result.isOk(r)).toBe(true);
+	expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test("construction rejects out-of-bounds config at the boundary (fails fast, not inside p-queue)", () => {
+	expect(() => new NominatimClient({ ...baseConfig(), concurrency: -5 })).toThrow(ParseError);
+	expect(() => new NominatimClient({ ...baseConfig(), concurrency: 0 })).toThrow(ParseError);
+	expect(() => new NominatimClient({ ...baseConfig(), intervalMs: 0 })).toThrow(ParseError);
+	expect(() => new NominatimClient({ ...baseConfig(), intervalCap: 0 })).toThrow(ParseError);
+	expect(() => new NominatimClient({ ...baseConfig(), cacheMaxEntries: -1 })).toThrow(ParseError);
+	expect(() => new NominatimClient({ ...baseConfig(), cacheTtlMs: -1 })).toThrow(ParseError);
+	expect(() => new NominatimClient({ ...baseConfig(), timeoutMs: 0 })).toThrow(ParseError);
+});
+
+test("construction rejects a non-URL base URL at the boundary", () => {
+	expect(() => new NominatimClient({ ...baseConfig(), baseUrl: "not-a-url" })).toThrow(ParseError);
+});
+
+test("construction rejects a malformed contact email at the boundary", () => {
+	expect(() => new NominatimClient({ ...baseConfig(), contactEmail: "not-an-email" })).toThrow(
+		ParseError,
+	);
+});
 
 // ---- ADR-0004 invariant: one client serializes its requests ------------------
 
