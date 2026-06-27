@@ -93,7 +93,7 @@ Read from `.env` (copy `.env.example`).
 | `VITE_POSTHOG_KEY`           | —                          | PostHog **public** project token for the web SPA — enables browser telemetry when set (off by default)                                  |
 | `VITE_POSTHOG_HOST`          | `https://app.posthog.com`  | PostHog Cloud host for the browser client                                                                                               |
 
-> `PIXIES_WEB_DIST` and `PIXIES_MIGRATIONS_FOLDER` are baked into the image at build time (web assets and Drizzle migrations are copied during the build) and are not set via `.env`; override them only if you customize the build.
+> `PIXIES_WEB_DIST` and `PIXIES_MIGRATIONS_FOLDER` (documented in `.env.example`) default to the server-relative `packages/web/dist` and repo-root `drizzle/` folders. In the published image they are set at build time, where the build copies the web assets and migrations in; override them only if you customize the build layout.
 
 ## Token budget
 

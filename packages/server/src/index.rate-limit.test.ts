@@ -7,11 +7,9 @@ import { IpRateLimiter, checkRateLimit, getClientIp } from "./rate-limit.ts";
  *
  * Mirrors the wiring in `index.ts`: one shared `IpRateLimiter`, with each POST
  * handler calling `checkRateLimit` at the top and returning the `429` on deny.
- * `startServer` itself can't be exercised in-process because its
- * `migrate({ migrationsFolder: "./drizzle" })` is cwd-relative (the folder
- * lives at the repo root, not under `packages/server`)).
- * This replica validates the real HTTP path: `server.requestIP` → `429` +
- * integer `Retry-After`, shared across both LLM-cost POST endpoints.
+ * This replica validates the real HTTP path — `server.requestIP` → `429` +
+ * integer `Retry-After`, shared across both LLM-cost POST endpoints — without
+ * booting the full `startServer`.
  */
 test("POST /conversations and /conversations/:id/messages return 429 once the per-IP limit is exceeded", async () => {
 	const limiter = new IpRateLimiter({
