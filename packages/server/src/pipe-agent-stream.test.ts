@@ -116,6 +116,25 @@ const toolStartEvent = (): AgentEvent =>
 		args: {},
 	}) as unknown as AgentEvent;
 
+/**
+ * A `turn_end` event carrying the assistant message (stopReason + usage) and
+ * the turn's tool results. The loop forwards this to `instr.recordTurnEnd`,
+ * which reads only `message.role/stopReason/usage` and each result's
+ * `toolName`/`isError`/`details` — so the stub mirrors the real pi shape at
+ * that granularity (`packages/server/src/events.ts`).
+ */
+const turnEndEvent = (toolResults: unknown[] = []): AgentEvent =>
+	({
+		type: "turn_end",
+		message: {
+			role: "assistant",
+			stopReason: "toolUse",
+			usage: { input: 80, output: 20, cacheRead: 5 },
+		},
+		toolResults,
+	}) as unknown as AgentEvent;
+const turnStartEvent = (): AgentEvent => ({ type: "turn_start" }) as unknown as AgentEvent;
+
 /** stubStore variant whose `abort` is a spy, so disconnect forwarding is assertable. */
 function stubStoreWithSpy(): { store: ConversationStore; abortSpy: ReturnType<typeof mock> } {
 	const abortSpy = mock((_id: string) => {});
@@ -401,4 +420,52 @@ test("pipeAgentStream does NOT capture `agent stream done` for an aborted stream
 	// completion (the `state === "running"` guard).
 	expect(posthog.captures.filter((c) => c.event === "agent stream done")).toHaveLength(0);
 	expect(abortSpy).toHaveBeenCalledWith("conv-3");
+});
+
+test("pipeAgentStream consumes turn_end and captures one `agent turn` per turn (turn_index 0-based)", async () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	// Two turns: turn 0 (no turn_start — measures from stream start) carries a
+	// geocode result; turn 1 carries a tool error. Pins the loop wiring that
+	// forwards turn_start/turn_end to the recorder.
+	const response = pipeAgentStream(
+		stubStore(),
+		{
+			stream: closingStream([
+				turnEndEvent([{ toolName: "geocode", isError: false, details: { features: 2 } }]),
+				turnStartEvent(),
+				turnEndEvent([{ toolName: "query_osm", isError: true, details: { boom: true } }]),
+			]),
+		},
+		"conv-turn",
+		logger,
+		posthog,
+	);
+
+	await response.text();
+
+	const turns = posthog.captures.filter((c) => c.event === "agent turn");
+	expect(turns).toHaveLength(2);
+	expect(turns[0]).toMatchObject({ distinctId: "conv-turn" });
+	// Coarse metadata only — no tool args, no message/query text.
+	expect(turns[0]!.properties).toMatchObject({
+		$process_person_profile: false,
+		turn_index: 0,
+		tool_calls: 1,
+		tool_names: ["geocode"],
+		stop_reason: "toolUse",
+		input_tokens: 80,
+		output_tokens: 20,
+		cache_read_tokens: 5,
+		had_tool_error: false,
+		had_busy_result: false,
+	});
+	expect(Number.isInteger(turns[0]!.properties.duration_ms)).toBe(true);
+	// Turn 1 advanced the counter and surfaced the tool error.
+	expect(turns[1]!.properties).toMatchObject({
+		turn_index: 1,
+		tool_calls: 1,
+		tool_names: ["query_osm"],
+		had_tool_error: true,
+	});
 });
