@@ -39,7 +39,7 @@ export interface StreamErrorFrame {
  *
  * Extracted as a recorder OBJECT (not a higher-order wrapper tapping the event
  * stream) so the HTTP loop stays readable and the timing/analytics are
- * unit-testable in isolation without an SSE round-trip (see #210). The wrapper
+ * unit-testable in isolation without an SSE round-trip. The wrapper
  * alternative was rejected: it would entangle with the SSE translation loop and
  * the raw-event TTFT measurement that must happen BEFORE wire translation.
  */

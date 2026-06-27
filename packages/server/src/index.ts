@@ -109,7 +109,7 @@ async function readMessage(req: Request): Promise<MessageResult> {
  * `running → completed | aborted` lifecycle machine, and ALL analytics
  * captures (first token / done / disconnect / error) — lives in the
  * {@link StreamInstrumentation} seam, constructed below and tapped at each
- * lifecycle point (see #210).
+ * lifecycle point.
  *
  * @param onOpen   Optional preamble writer (e.g. `conversation_created`).
  * @param abortId  Conversation id to abort on client disconnect.

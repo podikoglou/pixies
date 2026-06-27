@@ -9,8 +9,8 @@ import { captureAnalytics, type PostHogAnalyticsClient } from "./posthog.ts";
  * as its own contract; this is the server's half.
  *
  * Names KEEP their existing (spaces-and-all) form. Renaming to match the web
- * (e.g. server `message sent` → web `message_sent`) is a deliberate NON-change
- * (see #210): the server keys events by conversation id / IP, the web by an
+ * (e.g. server `message sent` → web `message_sent`) is a deliberate NON-change:
+ * the server keys events by conversation id / IP, the web by an anonymous
  * anonymous browser id, so the two sides are complementary signals, not a
  * single unified contract. Aligning them is a decision to make separately.
  *
