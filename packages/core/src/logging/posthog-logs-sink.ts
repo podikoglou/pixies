@@ -10,43 +10,19 @@
  * `packages/server/src/index.ts`). Unset → no records leave the instance; the
  * console sink continues to carry full detail.
  *
- * ## Redaction at egress (defense-in-depth)
+ * ## Allowlist at egress (privacy by construction)
  * The console sink keeps every field verbatim; **only this egress path
- * scrubs** the `url`, `query`, `cause`, and `err` properties (default, see
- * {@link DEFAULT_REDACT_KEYS}). Today the only location-encoding fields are
- * Nominatim request URLs (`?q=<place name>`) logged at `debug`, which the
- * root logger's `info` threshold already drops before this sink is reached.
- * Redaction is still required as defense-in-depth: it protects against (a) an
- * operator raising the level to `debug`, and (b) future info+ fields that may
- * carry location data. Any new server log field that could carry location data
- * MUST be added to `redactKeys` (see docs/posthog-privacy.md).
+ * filters** `record.properties`. Rather than scrub a denylist of
+ * known-sensitive keys, the sink ships ONLY the keys in
+ * {@link DEFAULT_ALLOW_KEYS} and replaces every other property with
+ * `"[redacted]"` before egress. A future `logger.error(..., { err })` or
+ * `{ request }` therefore cannot leak by default — unknown keys are scrubbed
+ * unless explicitly approved. Local stdout retains full detail for debugging.
  *
- * `cause` is scrubbed because the Overpass/Nominatim "invalid response shape"
- * warnings (info+) attach the TypeBox `Value.Parse` error there, and that
- * error's `cause` is `{ source, errors, value }` where `value` is the **entire
- * parsed response** — place names, OSM tags, coordinates. `@logtape/otel`'s
- * default `semconv` `exceptionMode` emits only `exception.type`/`.message`/
- * `.stacktrace` and never reads `.cause`, so this does NOT leak today. But in
- * `raw` `exceptionMode` (or if the default ever flips), `serializeValue` reads
- * `.cause` directly regardless of enumerability and would ship the payload.
- * Scrubbing the record's top-level `cause` removes the error (and its nested
- * payload) before OTLP ever sees it, regardless of mode — defense-in-depth
- * that does not depend on the active `exceptionMode`. Local stdout retains
- * full detail for debugging.
- *
- * `err` is scrubbed wherever it appears: the live `Error` object it carries is
- * walked verbatim by `@logtape/otel`, so any `err`-keyed log is a potential
- * payload carrier. The concrete case is `agent stream error`
- * (`packages/server/src/stream-instrumentation.ts`): an Overpass/Nominatim
- * `*ParseError`/`*HttpError` re-thrown verbatim by `recoverBusyOrThrow`
- * reaches `StreamInstrumentation.fail`, which logs it as `{ err }`. That
- * `TaggedError`'s `.cause` is the same TypeBox parse error (its nested `.value`
- * is the full response), and in `raw` `exceptionMode` `serializeValue`
- * recurses `.cause` and ships the payload via the `err` key — a path the
- * top-level `cause` entry above does not cover (`err` is a different key).
- * Scrubbing `err` wholesale also drops its `.message`, which for `*HttpError`
- * embeds the OSM response body. Local stdout retains the full object; the
- * analytics capture is already tag-only, so this aligns the logs path with it.
+ * Any new server log field that is safe to ship MUST be added to
+ * {@link DEFAULT_ALLOW_KEYS} (see docs/posthog-privacy.md). Adding a key that
+ * carries user location, query, IP, or raw error/stack data is the one way to
+ * leak; the default is safe.
  *
  * ## Fire-and-forget / shutdown
  * Uses `@logtape/otel`'s shortcut exporter mode (`{ serviceName,
@@ -63,38 +39,84 @@
 import type { LogRecord, Sink } from "@logtape/logtape";
 import { getOpenTelemetrySink } from "@logtape/otel";
 
-/**
- * Keys scrubbed from `record.properties` before egress to PostHog Cloud.
- *
- * - `url`, `query` — Nominatim request URLs encode the `q=<place>` parameter.
- * - `cause` — TypeBox parse errors carry the full parsed response (place
- *   names) in their nested `cause.value`; see the file-level redaction note.
- * - `err` — the live `Error` object logged at `agent stream error` (and any
- *   other `err`-keyed log) whose `.cause` chain / `.message` can carry the
- *   same payload; see the file-level redaction note.
- */
-export const DEFAULT_REDACT_KEYS = ["url", "query", "cause", "err"] as const;
-
 const REDACTED = "[redacted]";
 
 /**
- * Return a copy of `record` with any property in `keys` replaced by
+ * Property keys permitted to leave the instance in `record.properties`; every
+ * other key is scrubbed to `"[redacted]"` at egress. Add a key here ONLY once
+ * it is known to carry no user location, query, IP, or raw error/stack data.
+ *
+ * Covers: identifiers and routing, counts and durations, response metadata,
+ * and the resolved server config logged once at boot.
+ */
+export const DEFAULT_ALLOW_KEYS = [
+	// identifiers & routing
+	"service",
+	"event",
+	"conversationId",
+	"method",
+	"path",
+	// counts & durations
+	"statusCode",
+	"durationMs",
+	"evictedCount",
+	"windowCount",
+	"requestCount",
+	"maxRequests",
+	"retryAfterMs",
+	"count",
+	"missingUsage",
+	// response metadata
+	"contentType",
+	// resolved server config (logged once at boot by `logResolvedConfig`)
+	"host",
+	"port",
+	"model",
+	"thinkingLevel",
+	"dbFile",
+	"cacheSize",
+	"httpRateLimit",
+	"httpRateLimitWindowMs",
+	"trustProxy",
+	"trustedProxyHops",
+	"conversationTokenBudget",
+	"apiKey",
+	"posthogApiKey",
+	"contactEmail",
+	"overpassUrl",
+	"nominatimUrl",
+	"userAgent",
+	"nominatimConcurrency",
+	"nominatimIntervalCap",
+	"nominatimIntervalMs",
+	"nominatimTimeoutMs",
+	"overpassConcurrency",
+	"overpassIntervalCap",
+	"overpassIntervalMs",
+	"overpassTimeoutMs",
+] as const;
+
+/**
+ * Return a copy of `record` with any property NOT in `allowKeys` replaced by
  * `"[redacted]"`.
  *
  * Pure: never mutates the input (the console sink must still see full detail).
- * Returns the **same** record reference when nothing matches — no allocation,
- * no scrubbing needed.
+ * Returns the **same** record reference when every property is allowed — no
+ * allocation, no scrubbing needed.
  */
-export function redactRecord(record: LogRecord, keys: readonly string[]): LogRecord {
-	let matched = false;
-	const redacted: Record<string, unknown> = { ...record.properties };
-	for (const key of keys) {
-		if (key in redacted) {
-			redacted[key] = REDACTED;
-			matched = true;
+export function allowlistRecord(record: LogRecord, allowKeys: readonly string[]): LogRecord {
+	const allow = new Set(allowKeys);
+	let disallowed = false;
+	const filtered: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(record.properties)) {
+		if (allow.has(key)) {
+			filtered[key] = value;
+		} else {
+			filtered[key] = REDACTED;
+			disallowed = true;
 		}
 	}
-	return matched ? { ...record, properties: redacted } : record;
+	return disallowed ? { ...record, properties: filtered } : record;
 }
 
 export interface PostHogLogsSinkOptions {
@@ -104,16 +126,16 @@ export interface PostHogLogsSinkOptions {
 	token: string;
 	/** OTel `service.name`. Default `"pixies-server"`. */
 	serviceName?: string;
-	/** Property keys to scrub before egress. Defaults to {@link DEFAULT_REDACT_KEYS}. */
-	redactKeys?: readonly string[];
+	/** Property keys permitted at egress; all others are scrubbed. Default {@link DEFAULT_ALLOW_KEYS}. */
+	allowKeys?: readonly string[];
 }
 
 /**
  * Build a LogTape sink that forwards `info`+ records to PostHog Logs over
- * OTLP/HTTP, scrubbing `redactKeys` from each record's properties first. Off
- * when unset (the server only builds this when a PostHog key is configured).
- * Uses `@logtape/otel`'s shortcut exporter mode so core imports no
- * `@opentelemetry/*` packages directly.
+ * OTLP/HTTP, shipping only `allowKeys` from each record's properties and
+ * scrubbing the rest. Off when unset (the server only builds this when a
+ * PostHog key is configured). Uses `@logtape/otel`'s shortcut exporter mode
+ * so core imports no `@opentelemetry/*` packages directly.
  */
 export function getPostHogLogsSink(opts: PostHogLogsSinkOptions): Sink {
 	const otelSink = getOpenTelemetrySink({
@@ -123,8 +145,8 @@ export function getPostHogLogsSink(opts: PostHogLogsSinkOptions): Sink {
 			headers: { Authorization: `Bearer ${opts.token}` },
 		},
 	});
-	const keys = opts.redactKeys ?? DEFAULT_REDACT_KEYS;
+	const allowKeys = opts.allowKeys ?? DEFAULT_ALLOW_KEYS;
 	return (record: LogRecord): void => {
-		otelSink(redactRecord(record, keys));
+		otelSink(allowlistRecord(record, allowKeys));
 	};
 }
