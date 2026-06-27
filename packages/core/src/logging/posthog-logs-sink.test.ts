@@ -77,7 +77,33 @@ test("redactRecord scrubs multiple keys and leaves other keys intact", () => {
 	expect(out.properties.durationMs).toBe(42);
 });
 
-// ---- 5. honors a custom keys argument ---------------------------------------
+// ---- 5. redacts cause (TypeBox parse errors carry the full response) --------
+
+test("redactRecord replaces a cause property (TypeBox parse error payload) with [redacted]", () => {
+	// TypeBox's Value.Parse throws an AssertError whose non-enumerable `cause`
+	// is { source, errors, value } — `value` is the entire parsed response
+	// (place names). @logtape/otel serializes value.cause regardless of
+	// enumerability, so the record's top-level `cause` must be scrubbed.
+	const err = new Error("Parse");
+	Object.defineProperty(err, "cause", {
+		value: { source: "Parse", errors: [], value: { display_name: "10 Downing Street" } },
+		enumerable: false,
+	});
+	const r = record("warning", "invalid response shape", {
+		service: "Nominatim",
+		statusCode: 200,
+		contentType: "application/json",
+		cause: err,
+	});
+
+	const out = redactRecord(r, DEFAULT_REDACT_KEYS);
+
+	expect(out.properties.cause).toBe("[redacted]");
+	expect(out.properties.statusCode).toBe(200);
+	expect(out.properties.service).toBe("Nominatim");
+});
+
+// ---- 6. honors a custom keys argument ---------------------------------------
 
 test("redactRecord honors a custom keys argument", () => {
 	const r = record("info", "request", { secret: "shh", url: "ok-to-keep" });
@@ -89,7 +115,7 @@ test("redactRecord honors a custom keys argument", () => {
 	expect(out.properties.url).toBe("ok-to-keep");
 });
 
-// ---- 6. smoke: getPostHogLogsSink constructs without throwing ---------------
+// ---- 7. smoke: getPostHogLogsSink constructs without throwing ---------------
 
 test("getPostHogLogsSink constructs without throwing (import compat)", () => {
 	// Transitively imports @logtape/otel + its OTel deps on Bun. We do NOT feed
