@@ -76,8 +76,12 @@ export class IpRateLimiter {
 		state.count++;
 		if (state.count > this.maxRequests) {
 			const retryAfterMs = Math.max(1, state.windowStart + this.windowMs - now);
+			// `ip` is deliberately omitted: it already keys the `rate limit
+			// exceeded` analytics event (distinct id = ip), so logging it here
+			// would only duplicate it as a free-text property — and the PostHog
+			// Logs denylist does not redact `ip`, so it would reach PostHog
+			// Cloud verbatim. No telemetry is lost by dropping it. See #222.
 			this.logger.warning("rate limit denied", {
-				ip,
 				requestCount: state.count,
 				maxRequests: this.maxRequests,
 				retryAfterMs,
