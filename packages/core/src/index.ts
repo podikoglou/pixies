@@ -33,6 +33,7 @@ export {
 	createNominatimClient,
 	createOverpassClient,
 	readConfigFromEnv,
+	env,
 } from "./agent.ts";
 export type { CreateAgentOptions } from "./agent.ts";
 export { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
