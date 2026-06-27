@@ -13,7 +13,8 @@ import {
 	Result,
 	ConversationNotFoundError,
 	PromptConflictError,
-	BudgetExceededError,
+	countTranscriptTokens,
+	budgetExceeded,
 	type CreateAgentOptions,
 	type NominatimClient,
 	type OverpassClient,
@@ -22,16 +23,6 @@ import {
 } from "@pixies/core";
 import { conversations as conversationsTable, type DbClient } from "@pixies/core/db";
 import { silentLogger, type Logger } from "@pixies/core/logging";
-
-function computeTokensUsed(messages: AgentMessage[]): number {
-	let total = 0;
-	for (const msg of messages) {
-		if (msg.role === "assistant" && typeof (msg as any).usage?.totalTokens === "number") {
-			total += (msg as any).usage.totalTokens;
-		}
-	}
-	return total;
-}
 
 interface Conversation {
 	readonly id: string;
@@ -182,10 +173,11 @@ export class ConversationStore {
 				new PromptConflictError({ id, message: "conversation already has an in-flight prompt" }),
 			);
 
-		const budget = this.config.conversationTokenBudget;
-		if (budget > 0 && conv.tokensUsed >= budget) {
-			return Result.err(new BudgetExceededError({ used: conv.tokensUsed, budget }));
-		}
+		// Budget guard reads the STORED tokensUsed (not a fresh recount) —
+		// preserving the historical semantics where the cap is checked against
+		// the count persisted from the previous turn's `.finally`.
+		const exceeded = budgetExceeded(conv.tokensUsed, this.config.conversationTokenBudget);
+		if (exceeded) return Result.err(exceeded);
 
 		conv.inFlight = true;
 		conv.lastActivity = Date.now();
@@ -209,7 +201,9 @@ export class ConversationStore {
 					)
 					.finally(() => {
 						unsubscribe();
-						conv.tokensUsed = computeTokensUsed(conv.agent.state.messages);
+						// Recount uses `.total` only — live messages always carry
+						// usage, and warning here would fire every turn.
+						conv.tokensUsed = countTranscriptTokens(conv.agent.state.messages).total;
 						conv.inFlight = false;
 						this.db
 							.update(conversationsTable)
@@ -279,7 +273,22 @@ export class ConversationStore {
 			return;
 		}
 		conv.agent.state.messages = transcript;
-		conv.tokensUsed = computeTokensUsed(conv.agent.state.messages);
+		// Rehydrated rows are persisted, untrusted data (ADR-0008): an assistant
+		// message written by an older binary may lack `usage`, undercounting the
+		// budget. The count surfaces that as `missingUsage`; warn once at load so
+		// the silent undercount becomes a signaled one (consistent with the
+		// corrupt-transcript warn above), rather than rejecting the row outright.
+		const count = countTranscriptTokens(conv.agent.state.messages);
+		conv.tokensUsed = count.total;
+		if (count.missingUsage > 0) {
+			this.logger.warning(
+				"rehydrated transcript has assistant messages missing usage; token budget undercounted",
+				{
+					conversationId: id,
+					missingUsage: count.missingUsage,
+				},
+			);
+		}
 	}
 
 	private evictIfNeeded(): void {
