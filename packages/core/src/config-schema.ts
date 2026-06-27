@@ -110,6 +110,12 @@ export const PixiesConfigSchema = Type.Object({
 		default: 1000,
 		description: "Max cached Nominatim responses (LRU eviction). 0 disables caching.",
 	}),
+	nominatimTimeoutMs: Type.Integer({
+		minimum: 1,
+		default: 60_000,
+		description:
+			"Timeout for each Nominatim HTTP request in ms (default: 60s). Nominatim is fast and 1 req/s-capped, so this can be far tighter than Overpass.",
+	}),
 	overpassConcurrency: Type.Integer({
 		minimum: 1,
 		default: 2,
@@ -124,6 +130,12 @@ export const PixiesConfigSchema = Type.Object({
 		minimum: 1,
 		default: 1000,
 		description: "Overpass interval window length in ms (default-instance policy: 1000)",
+	}),
+	overpassTimeoutMs: Type.Integer({
+		minimum: 1,
+		default: 60_000,
+		description:
+			"Timeout for each Overpass HTTP request in ms (default: 60s). Overpass legitimately takes 10–60s when healthy, so keep generous until tuned from measurement.",
 	}),
 	posthogHost: Type.String({
 		format: "url",

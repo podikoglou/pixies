@@ -106,9 +106,11 @@ test("readConfigFromEnv applies the default-instance policy when OSM rate env va
 	expect(config.nominatimIntervalMs).toBe(1100);
 	expect(config.nominatimCacheTtlMs).toBe(86_400_000);
 	expect(config.nominatimCacheMaxEntries).toBe(1000);
+	expect(config.nominatimTimeoutMs).toBe(60_000);
 	expect(config.overpassConcurrency).toBe(2);
 	expect(config.overpassIntervalCap).toBe(2);
 	expect(config.overpassIntervalMs).toBe(1000);
+	expect(config.overpassTimeoutMs).toBe(60_000);
 });
 
 test("readConfigFromEnv applies the descriptive default User-Agent when PIXIES_USER_AGENT is unset", () => {
@@ -118,16 +120,18 @@ test("readConfigFromEnv applies the descriptive default User-Agent when PIXIES_U
 	expect(config.userAgent).toBe("Pixies/1.0 (https://github.com/podikoglou/pixies)");
 });
 
-test("readConfigFromEnv coerces the 8 OSM env vars with Number()", () => {
+test("readConfigFromEnv coerces the 10 OSM env vars with Number()", () => {
 	setEnv({
 		PIXIES_NOMINATIM_CONCURRENCY: "5",
 		PIXIES_NOMINATIM_INTERVAL_CAP: "4",
 		PIXIES_NOMINATIM_INTERVAL_MS: "250",
 		PIXIES_NOMINATIM_CACHE_TTL_MS: "3600000",
 		PIXIES_NOMINATIM_CACHE_MAX_ENTRIES: "500",
+		PIXIES_NOMINATIM_TIMEOUT_MS: "8000",
 		PIXIES_OVERPASS_CONCURRENCY: "8",
 		PIXIES_OVERPASS_INTERVAL_CAP: "7",
 		PIXIES_OVERPASS_INTERVAL_MS: "900",
+		PIXIES_OVERPASS_TIMEOUT_MS: "45000",
 	});
 	const config = readConfigFromEnv();
 	expect(config.nominatimConcurrency).toBe(5);
@@ -135,9 +139,11 @@ test("readConfigFromEnv coerces the 8 OSM env vars with Number()", () => {
 	expect(config.nominatimIntervalMs).toBe(250);
 	expect(config.nominatimCacheTtlMs).toBe(3_600_000);
 	expect(config.nominatimCacheMaxEntries).toBe(500);
+	expect(config.nominatimTimeoutMs).toBe(8_000);
 	expect(config.overpassConcurrency).toBe(8);
 	expect(config.overpassIntervalCap).toBe(7);
 	expect(config.overpassIntervalMs).toBe(900);
+	expect(config.overpassTimeoutMs).toBe(45_000);
 });
 
 // ---- behavioral: smaller Nominatim intervalMs speeds up serialization --------
@@ -277,12 +283,24 @@ const NUMERIC_FIELD_SPECS: readonly NumericFieldSpec[] = [
 		defaultValue: 1000,
 		min: 0,
 	},
+	{
+		envKey: "PIXIES_NOMINATIM_TIMEOUT_MS",
+		field: "nominatimTimeoutMs",
+		defaultValue: 60_000,
+		min: 1,
+	},
 	{ envKey: "PIXIES_OVERPASS_CONCURRENCY", field: "overpassConcurrency", defaultValue: 2, min: 1 },
 	{ envKey: "PIXIES_OVERPASS_INTERVAL_CAP", field: "overpassIntervalCap", defaultValue: 2, min: 1 },
 	{
 		envKey: "PIXIES_OVERPASS_INTERVAL_MS",
 		field: "overpassIntervalMs",
 		defaultValue: 1000,
+		min: 1,
+	},
+	{
+		envKey: "PIXIES_OVERPASS_TIMEOUT_MS",
+		field: "overpassTimeoutMs",
+		defaultValue: 60_000,
 		min: 1,
 	},
 ];

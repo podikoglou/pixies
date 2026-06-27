@@ -37,9 +37,11 @@ const config: ResolvedPixiesConfig = {
 	nominatimIntervalMs: 1100,
 	nominatimCacheTtlMs: 86_400_000,
 	nominatimCacheMaxEntries: 1000,
+	nominatimTimeoutMs: 60_000,
 	overpassConcurrency: 2,
 	overpassIntervalCap: 2,
 	overpassIntervalMs: 1000,
+	overpassTimeoutMs: 60_000,
 	posthogHost: "https://eu.i.posthog.com",
 	conversationTokenBudget: 0,
 };
