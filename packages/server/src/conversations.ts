@@ -101,8 +101,32 @@ export class ConversationStore {
 	}
 
 	async get(id: string): Promise<Conversation | undefined> {
+		return this.loadConversation(id);
+	}
+
+	/**
+	 * Resolve a conversation by id from cache or DB — the single owner of the
+	 * cache-miss load path previously duplicated by `get()` and `streamPrompt()`.
+	 *
+	 * On a cache hit it touches the LRU (move to tail + bump `lastActivity`)
+	 * and returns the live conversation, replicating the prior `get()` cache-hit
+	 * behavior. On a miss it loads the persisted row, builds a fresh
+	 * `Conversation`, rehydrates its transcript, and inserts it under eviction.
+	 * A missing row yields `undefined`, leaving the not-found mapping to each
+	 * caller: `get()` returns `undefined`; `streamPrompt()` maps it to
+	 * `Err(ConversationNotFoundError)` at its own call site.
+	 *
+	 * `streamPrompt()` pre-checks the cache and only routes the *miss* through
+	 * here, so its separate LRU re-touch (after the in-flight/budget guards) is
+	 * unchanged. Centralizing the miss path means the ADR-0008 persisted-
+	 * transcript guard (`isPersistedTranscript`, called once inside
+	 * `rehydrateTranscript`) is trusted from exactly one read site instead of
+	 * two duplicated copies that had to stay in lockstep.
+	 */
+	private async loadConversation(id: string): Promise<Conversation | undefined> {
 		let conv = this.map.get(id);
 		if (conv) {
+			// Cache hit: move to LRU tail and refresh activity so it survives eviction.
 			this.map.delete(id);
 			this.map.set(id, conv);
 			conv.lastActivity = Date.now();
@@ -141,32 +165,16 @@ export class ConversationStore {
 	): Promise<Result<{ stream: ReadableStream<AgentEvent> }, StreamPromptError>> {
 		let conv = this.map.get(id);
 		if (!conv) {
-			const rows = await this.db
-				.select()
-				.from(conversationsTable)
-				.where(eq(conversationsTable.id, id))
-				.limit(1);
-
-			if (rows.length === 0)
+			// Cache miss: route through the shared loader. Not-found is mapped
+			// to Err(ConversationNotFoundError) here, at the call site — the
+			// loader returns undefined for a missing row. On a hit the loader
+			// is skipped, so the LRU re-touch below (after the guards) stays
+			// the sole cache ordering for this path.
+			conv = await this.loadConversation(id);
+			if (!conv)
 				return Result.err(
 					new ConversationNotFoundError({ id, message: `conversation not found: ${id}` }),
 				);
-
-			const row = rows[0]!;
-			conv = {
-				id,
-				agent: this.agentFactory({ config: this.config, osmClients: this.osmClients }),
-				lastActivity: Date.now(),
-				inFlight: false,
-				tokensUsed: 0,
-			};
-
-			if (row.transcript && row.transcript.length > 0) {
-				this.rehydrateTranscript(conv, row.transcript, id);
-			}
-
-			this.map.set(id, conv);
-			this.evictIfNeeded();
 		}
 		if (conv.inFlight)
 			return Result.err(
