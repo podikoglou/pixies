@@ -48,7 +48,15 @@ Off by default; enabled by setting `PIXIES_POSTHOG_API_KEY` (the server secret �
 
 When enabled, `info`+ server log records are shipped to PostHog Logs over OTLP/HTTP (`<host>/i/v1/logs`). `debug`-level records are dropped at the logger threshold and never leave the instance.
 
-**Redaction at egress:** the `url`, `query`, and `cause` properties are replaced with `"[redacted]"` before egress. `url`/`query` carry the Nominatim place query; `cause` is attached to OSM response-shape warnings and may embed the parsed body (place names, OSM tags). Local stdout retains full detail — redaction applies only on the off-instance egress path. This is defense-in-depth: today's location-bearing fields are `debug` (already dropped), but the redaction protects against an operator raising the level to `debug` and against future info+ fields.
+**Redaction at egress:** four property keys are replaced with `"[redacted]"` before egress:
+
+| Key | Why it can carry location data |
+|---|---|
+| `url`, `query` | Nominatim request URLs encode the place query (`?q=<place>`). |
+| `cause` | Attached to OSM response-shape warnings; the TypeBox parse error's nested `value` is the full parsed body (place names, OSM tags). |
+| `err` | The live `Error` object logged at `agent stream error`. Its `.message` embeds the OSM HTTP body and its `.cause` chain reaches the parsed response — the same payload as `cause`, reached via a different key. |
+
+Local stdout retains full detail — redaction applies only on the off-instance egress path. This is defense-in-depth: today's location-bearing fields are `debug` (already dropped), but the redaction protects against an operator raising the level to `debug` and against future info+ fields.
 
 Records DO carry: the message string, category, level, timestamp, and other structured properties (counts, durations, service names, conversation ids, error tags). They never carry the query text or place names — those live only in the redacted fields.
 
