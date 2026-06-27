@@ -12,7 +12,7 @@
  *
  * ## Redaction at egress (defense-in-depth)
  * The console sink keeps every field verbatim; **only this egress path
- * scrubs** the `url` and `query` properties (default, see
+ * scrubs** the `url`, `query`, and `cause` properties (default, see
  * {@link DEFAULT_REDACT_KEYS}). Today the only location-encoding fields are
  * Nominatim request URLs (`?q=<place name>`) logged at `debug`, which the
  * root logger's `info` threshold already drops before this sink is reached.
@@ -20,6 +20,15 @@
  * operator raising the level to `debug`, and (b) future info+ fields that may
  * carry location data. Any new server log field that could carry location data
  * MUST be added to `redactKeys` (see docs/posthog-privacy.md).
+ *
+ * `cause` is scrubbed because the Overpass/Nominatim "invalid response shape"
+ * warnings (info+) attach the TypeBox `Value.Parse` error there, and that
+ * error's `cause` is `{ source, errors, value }` where `value` is the **entire
+ * parsed response** — place names, OSM tags, coordinates. `@logtape/otel`
+ * serializes `value.cause` regardless of enumerability, so the payload would
+ * reach PostHog Logs. Scrubbing the record's top-level `cause` removes the
+ * error (and its nested payload) before OTLP ever sees it, in every exception
+ * mode. Local stdout retains full detail for debugging.
  *
  * ## Fire-and-forget / shutdown
  * Uses `@logtape/otel`'s shortcut exporter mode (`{ serviceName,
@@ -36,8 +45,14 @@
 import type { LogRecord, Sink } from "@logtape/logtape";
 import { getOpenTelemetrySink } from "@logtape/otel";
 
-/** Keys scrubbed from `record.properties` before egress to PostHog Cloud. */
-export const DEFAULT_REDACT_KEYS = ["url", "query"] as const;
+/**
+ * Keys scrubbed from `record.properties` before egress to PostHog Cloud.
+ *
+ * - `url`, `query` — Nominatim request URLs encode the `q=<place>` parameter.
+ * - `cause` — TypeBox parse errors carry the full parsed response (place
+ *   names) in their nested `cause.value`; see the file-level redaction note.
+ */
+export const DEFAULT_REDACT_KEYS = ["url", "query", "cause"] as const;
 
 const REDACTED = "[redacted]";
 
