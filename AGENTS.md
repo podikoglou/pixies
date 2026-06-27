@@ -3,15 +3,9 @@
 Pixies is a web chat app that answers natural-language place questions via
 OpenStreetMap data.
 
-This is a `bun` workspace monorepo with three packages:
-
-| Package          | Purpose                                                                    |
-| ---------------- | -------------------------------------------------------------------------- |
-| `@pixies/core`   | Shared kernel — config, agent factory, SSE event types, OSM clients, tools |
-| `@pixies/server` | Bun HTTP server — conversation API, SSE streaming, static web serving      |
-| `@pixies/web`    | React SPA — the primary chat interface                                     |
-
-Build: `bun run typecheck` / Format: `bun run format` / Lint: `bun run lint` / Test: `bun run test`
+`bun` workspace monorepo: `@pixies/core` (kernel — config, agent, SSE event
+types, OSM clients, tools), `@pixies/server` (Bun HTTP server + SSE streaming),
+`@pixies/web` (React SPA). See CONTRIBUTING.md for the full layout and scripts.
 
 Before pushing any PR: run `bun run typecheck && bun run lint && bun run format:check && bun run test` locally.
 Before merging any PR: `gh pr checks <n> --watch` and only merge if CI is green.

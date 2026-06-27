@@ -10,6 +10,17 @@ Monorepo with three packages:
 | `@pixies/server` | Bun HTTP server. Conversation API, SSE streaming.                 |
 | `@pixies/web`    | React SPA. Chat interface.                                        |
 
+## Reference docs
+
+| Doc | Answers |
+|---|---|
+| [docs/api/sse.md](docs/api/sse.md) | the conversation + SSE wire protocol |
+| [docs/errors.md](docs/errors.md) | the error taxonomy, wire invariant, and tag schema |
+| [docs/posthog-privacy.md](docs/posthog-privacy.md) | what telemetry is collected and how to disable it |
+| [docs/DOCKER.md](docs/DOCKER.md) | deployment, env vars, and token-budget semantics |
+| [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | code conventions |
+| [docs/adr/](docs/adr/) | architecture decision records |
+
 ## Getting started
 
 1. Fork and clone the repo
@@ -43,15 +54,7 @@ Lefthook runs on every commit (format → typecheck → lint). Setup: `lefthook 
 
 ## Code conventions
 
-Follow [docs/CONVENTIONS.md](docs/CONVENTIONS.md).
-
-Generally:
-
-- kebab-case filenames
-- Prefer [9ui](https://9ui.dev) UI primitives over custom styling
-- Use [pqoqubbw/icons](https://icons.pqoqubbw.dev/) for icons
-
-Some architecture decisions are documented in [docs/adr/](docs/adr/).
+Follow [docs/CONVENTIONS.md](docs/CONVENTIONS.md). Some architecture decisions are documented in [docs/adr/](docs/adr/).
 
 ## Adding a tool
 
@@ -64,7 +67,7 @@ Some architecture decisions are documented in [docs/adr/](docs/adr/).
 
 2. Register in `packages/core/src/tools/index.ts` — add one entry to the `TOOL_MODULES` const and one `module.build({ … })` line in `createTools`. The build list is keyed by tool name with a mapped type over `TOOL_MODULES`, so the two must stay in sync (missing/extra keys are compile errors).
 
-3. Preferably test: `packages/core/src/tools/<name>.test.ts` — construct via `module.build({ …context })` (or `module.build()` for context-less tools); see [display-map.test.ts](./packages/core/src/tools/display-map.test.ts).
+3. Test it: `packages/core/src/tools/<name>.test.ts` — construct via `module.build({ …context })` (or `module.build()` for context-less tools); see [display-map.test.ts](./packages/core/src/tools/display-map.test.ts).
 
 
 
