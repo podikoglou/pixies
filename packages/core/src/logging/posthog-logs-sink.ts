@@ -12,7 +12,7 @@
  *
  * ## Redaction at egress (defense-in-depth)
  * The console sink keeps every field verbatim; **only this egress path
- * scrubs** the `url` and `query` properties (default, see
+ * scrubs** the `url`, `query`, `cause`, and `err` properties (default, see
  * {@link DEFAULT_REDACT_KEYS}). Today the only location-encoding fields are
  * Nominatim request URLs (`?q=<place name>`) logged at `debug`, which the
  * root logger's `info` threshold already drops before this sink is reached.
@@ -20,6 +20,33 @@
  * operator raising the level to `debug`, and (b) future info+ fields that may
  * carry location data. Any new server log field that could carry location data
  * MUST be added to `redactKeys` (see docs/posthog-privacy.md).
+ *
+ * `cause` is scrubbed because the Overpass/Nominatim "invalid response shape"
+ * warnings (info+) attach the TypeBox `Value.Parse` error there, and that
+ * error's `cause` is `{ source, errors, value }` where `value` is the **entire
+ * parsed response** — place names, OSM tags, coordinates. `@logtape/otel`'s
+ * default `semconv` `exceptionMode` emits only `exception.type`/`.message`/
+ * `.stacktrace` and never reads `.cause`, so this does NOT leak today. But in
+ * `raw` `exceptionMode` (or if the default ever flips), `serializeValue` reads
+ * `.cause` directly regardless of enumerability and would ship the payload.
+ * Scrubbing the record's top-level `cause` removes the error (and its nested
+ * payload) before OTLP ever sees it, regardless of mode — defense-in-depth
+ * that does not depend on the active `exceptionMode`. Local stdout retains
+ * full detail for debugging.
+ *
+ * `err` is scrubbed wherever it appears: the live `Error` object it carries is
+ * walked verbatim by `@logtape/otel`, so any `err`-keyed log is a potential
+ * payload carrier. The concrete case is `agent stream error`
+ * (`packages/server/src/stream-instrumentation.ts`): an Overpass/Nominatim
+ * `*ParseError`/`*HttpError` re-thrown verbatim by `recoverBusyOrThrow`
+ * reaches `StreamInstrumentation.fail`, which logs it as `{ err }`. That
+ * `TaggedError`'s `.cause` is the same TypeBox parse error (its nested `.value`
+ * is the full response), and in `raw` `exceptionMode` `serializeValue`
+ * recurses `.cause` and ships the payload via the `err` key — a path the
+ * top-level `cause` entry above does not cover (`err` is a different key).
+ * Scrubbing `err` wholesale also drops its `.message`, which for `*HttpError`
+ * embeds the OSM response body. Local stdout retains the full object; the
+ * analytics capture is already tag-only, so this aligns the logs path with it.
  *
  * ## Fire-and-forget / shutdown
  * Uses `@logtape/otel`'s shortcut exporter mode (`{ serviceName,
@@ -36,8 +63,17 @@
 import type { LogRecord, Sink } from "@logtape/logtape";
 import { getOpenTelemetrySink } from "@logtape/otel";
 
-/** Keys scrubbed from `record.properties` before egress to PostHog Cloud. */
-export const DEFAULT_REDACT_KEYS = ["url", "query"] as const;
+/**
+ * Keys scrubbed from `record.properties` before egress to PostHog Cloud.
+ *
+ * - `url`, `query` — Nominatim request URLs encode the `q=<place>` parameter.
+ * - `cause` — TypeBox parse errors carry the full parsed response (place
+ *   names) in their nested `cause.value`; see the file-level redaction note.
+ * - `err` — the live `Error` object logged at `agent stream error` (and any
+ *   other `err`-keyed log) whose `.cause` chain / `.message` can carry the
+ *   same payload; see the file-level redaction note.
+ */
+export const DEFAULT_REDACT_KEYS = ["url", "query", "cause", "err"] as const;
 
 const REDACTED = "[redacted]";
 
@@ -68,7 +104,7 @@ export interface PostHogLogsSinkOptions {
 	token: string;
 	/** OTel `service.name`. Default `"pixies-server"`. */
 	serviceName?: string;
-	/** Property keys to scrub before egress. Default `["url", "query"]`. */
+	/** Property keys to scrub before egress. Defaults to {@link DEFAULT_REDACT_KEYS}. */
 	redactKeys?: readonly string[];
 }
 
