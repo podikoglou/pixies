@@ -1,9 +1,11 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { NominatimClient } from "../clients/nominatim.ts";
+import type { OverpassClient } from "../clients/overpass.ts";
 import { geocodeModule } from "./tool-geocode.ts";
 import { reverseGeocodeModule } from "./tool-reverse-geocode.ts";
 import { queryOsmModule } from "./tool-query-osm.ts";
 import { displayMapModule } from "./tool-display-map.ts";
-import type { ToolModule, OsmClients } from "./tool-module.ts";
+import type { ToolModule } from "./tool-module.ts";
 
 const TOOL_MODULES = {
 	geocode: geocodeModule,
@@ -13,8 +15,6 @@ const TOOL_MODULES = {
 } as const;
 
 type ToolName = keyof typeof TOOL_MODULES;
-
-export type { OsmClients } from "./tool-module.ts";
 
 export type { ToolProgress } from "./progress.ts";
 export { ToolProgressSchema, isToolProgress } from "./progress.ts";
@@ -39,19 +39,19 @@ export type {
 } from "./schemas.ts";
 
 /**
- * Build every tool's `AgentTool` from the `OsmClients` bag. This is the only
- * place that knows the bag; each tool's `build` takes just the context it
- * depends on (or nothing, for context-less tools).
+ * Build every tool's `AgentTool` from its backing service clients. Each tool's
+ * `build` takes just the context it depends on (or nothing, for context-less
+ * tools) — the two clients are passed through, not bundled.
  *
  * `builds` is keyed by tool name with a mapped type over `TOOL_MODULES`, so the
  * build path and the parse path cannot silently drift — adding a tool requires
  * touching both, enforced at compile time.
  */
-export function createTools(clients: OsmClients): AgentTool[] {
+export function createTools(nominatim: NominatimClient, overpass: OverpassClient): AgentTool[] {
 	const builds: { [K in keyof typeof TOOL_MODULES]: AgentTool } = {
-		geocode: geocodeModule.build({ nominatim: clients.nominatim }),
-		reverse_geocode: reverseGeocodeModule.build({ nominatim: clients.nominatim }),
-		query_osm: queryOsmModule.build({ overpass: clients.overpass }),
+		geocode: geocodeModule.build({ nominatim }),
+		reverse_geocode: reverseGeocodeModule.build({ nominatim }),
+		query_osm: queryOsmModule.build({ overpass }),
 		display_map: displayMapModule.build(),
 	};
 	return Object.values(builds);

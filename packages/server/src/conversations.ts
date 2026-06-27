@@ -7,14 +7,16 @@ import {
 import { eq } from "drizzle-orm";
 import {
 	createAgent,
-	createOsmClients,
+	createNominatimClient,
+	createOverpassClient,
 	isPersistedTranscript,
 	Result,
 	ConversationNotFoundError,
 	PromptConflictError,
 	BudgetExceededError,
 	type CreateAgentOptions,
-	type OsmClients,
+	type NominatimClient,
+	type OverpassClient,
 	type ResolvedPixiesConfig,
 	type StreamPromptError,
 } from "@pixies/core";
@@ -45,7 +47,8 @@ export class ConversationStore {
 	private readonly map = new Map<string, Conversation>();
 	private readonly sweeper: ReturnType<typeof setInterval>;
 	private readonly config: ResolvedPixiesConfig;
-	private readonly osmClients: OsmClients;
+	private readonly nominatim: NominatimClient;
+	private readonly overpass: OverpassClient;
 	private readonly db: DbClient;
 	private readonly maxSize: number;
 	private readonly agentFactory: (opts: CreateAgentOptions) => Agent;
@@ -62,21 +65,11 @@ export class ConversationStore {
 		this.maxSize = config.cacheSize;
 		this.agentFactory = agentFactory;
 		this.logger = logger;
-		this.osmClients = createOsmClients({
-			overpassUrl: config.overpassUrl,
-			nominatimUrl: config.nominatimUrl,
-			contactEmail: config.contactEmail,
-			userAgent: config.userAgent,
-			nominatimConcurrency: config.nominatimConcurrency,
-			nominatimIntervalCap: config.nominatimIntervalCap,
-			nominatimIntervalMs: config.nominatimIntervalMs,
-			nominatimCacheTtlMs: config.nominatimCacheTtlMs,
-			nominatimCacheMaxEntries: config.nominatimCacheMaxEntries,
-			overpassConcurrency: config.overpassConcurrency,
-			overpassIntervalCap: config.overpassIntervalCap,
-			overpassIntervalMs: config.overpassIntervalMs,
-			logger: this.logger,
-		});
+		// One client per service per process (ADR-0004). Constructed once here
+		// and injected into every agent so each service's rate-limit chain is
+		// process-global, independent of conversation count.
+		this.nominatim = createNominatimClient(config, { logger: this.logger });
+		this.overpass = createOverpassClient(config, { logger: this.logger });
 		this.sweeper = setInterval(() => this.sweep(), SWEEP_INTERVAL_MS);
 	}
 
@@ -84,7 +77,11 @@ export class ConversationStore {
 		const id = uuidv7();
 		const conv: Conversation = {
 			id,
-			agent: this.agentFactory({ config: this.config, osmClients: this.osmClients }),
+			agent: this.agentFactory({
+				config: this.config,
+				nominatim: this.nominatim,
+				overpass: this.overpass,
+			}),
 			lastActivity: Date.now(),
 			inFlight: false,
 			tokensUsed: 0,
@@ -120,7 +117,11 @@ export class ConversationStore {
 		const row = rows[0]!;
 		conv = {
 			id,
-			agent: this.agentFactory({ config: this.config, osmClients: this.osmClients }),
+			agent: this.agentFactory({
+				config: this.config,
+				nominatim: this.nominatim,
+				overpass: this.overpass,
+			}),
 			lastActivity: Date.now(),
 			inFlight: false,
 			tokensUsed: 0,
@@ -155,7 +156,11 @@ export class ConversationStore {
 			const row = rows[0]!;
 			conv = {
 				id,
-				agent: this.agentFactory({ config: this.config, osmClients: this.osmClients }),
+				agent: this.agentFactory({
+					config: this.config,
+					nominatim: this.nominatim,
+					overpass: this.overpass,
+				}),
 				lastActivity: Date.now(),
 				inFlight: false,
 				tokensUsed: 0,

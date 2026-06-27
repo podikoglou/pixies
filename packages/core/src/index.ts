@@ -28,8 +28,13 @@ export type { OverpassError } from "./clients/overpass.ts";
 export type { StreamPromptError, PixiesError, PixiesErrorTag } from "./errors.ts";
 export { PixiesErrorTagSchema } from "./errors.ts";
 
-export { createAgent, createOsmClients, readConfigFromEnv } from "./agent.ts";
-export type { CreateAgentOptions, CreateOsmClientsOptions } from "./agent.ts";
+export {
+	createAgent,
+	createNominatimClient,
+	createOverpassClient,
+	readConfigFromEnv,
+} from "./agent.ts";
+export type { CreateAgentOptions } from "./agent.ts";
 export { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
 export { SYSTEM_PROMPT } from "./system-prompt.ts";
 export {
@@ -81,7 +86,6 @@ export type {
 	ToolResult,
 	GeocodeResultEntry,
 	OverpassResultEntry,
-	OsmClients,
 } from "./tools/index.ts";
 export {
 	ConversationTranscriptSchema,

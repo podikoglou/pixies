@@ -1,13 +1,6 @@
 import type { AgentTool, ToolExecutionMode } from "@earendil-works/pi-agent-core";
 import type { Static, TSchema } from "typebox";
 import { Value } from "typebox/value";
-import type { NominatimClient } from "../clients/nominatim.ts";
-import type { OverpassClient } from "../clients/overpass.ts";
-
-export interface OsmClients {
-	nominatim: NominatimClient;
-	overpass: OverpassClient;
-}
 
 export interface ToolModule<TResult extends { kind: string }> {
 	detailsSchema: TSchema;
@@ -38,9 +31,7 @@ export function parseSchema<S extends TSchema, R>(
  *
  * The returned object is both a `ToolModule<TResult>` (so it can be keyed in a
  * registry for `parseToolResult`) and carries a `build(ctx)` method that
- * produces a concrete `AgentTool` once its context is supplied. `createTools`
- * is the one place that knows the `OsmClients` bag and projects it into each
- * tool's context.
+ * produces a concrete `AgentTool` once its context is supplied.
  *
  * Each tool declares exactly the context it needs (`TContext`) via `execute`'s
  * first parameter — an arbitrary object the tool types itself (e.g.
