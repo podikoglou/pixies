@@ -3,7 +3,7 @@ import type { PixiesErrorTag } from "@pixies/core";
 /**
  * Pick friendly toast copy for an SSE `"error"` event.
  *
- * The read boundary in `use-chat.ts` parses the raw `errorTag` string through
+ * The read boundary in `state/sse-dispatch.ts` parses the raw `errorTag` string through
  * `PixiesErrorTagSchema`, so this function only ever receives a known
  * {@link PixiesErrorTag} or `undefined` (absent on the wire, or rejected by
  * the schema). The switch is exhaustive over the known tag union, so adding a

@@ -1,15 +1,14 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import type { Dispatch } from "react";
 import type { SSEEvent } from "@pixies/core";
-import { dispatchSseEvent } from "./use-chat.ts";
-import type { ChatAction } from "../state/chat-reducer.ts";
+import { dispatchSseEvent } from "./sse-dispatch.ts";
+import type { ChatAction } from "./chat-reducer.ts";
 
-function capture(): { dispatch: Dispatch<ChatAction>; actions: ChatAction[] } {
+function capture(): { dispatch: (action: ChatAction) => void; actions: ChatAction[] } {
 	const actions: ChatAction[] = [];
-	const dispatch = ((action: ChatAction) => {
+	const dispatch = (action: ChatAction) => {
 		actions.push(action);
-	}) as Dispatch<ChatAction>;
+	};
 	return { dispatch, actions };
 }
 
