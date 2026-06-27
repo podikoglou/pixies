@@ -2,6 +2,10 @@
 
 **Status:** Accepted — 2026-06-25
 
+## Revision — 2026-06-28
+
+The egress redaction mechanism this ADR describes — a denylist of sensitive keys (`url`, `query`) — was inverted to an **allowlist** in ADR-0012 (ship only known-safe keys, scrub the rest). The "redaction key set" convention obligation in Consequences below now lives as `DEFAULT_ALLOW_KEYS` in `packages/core/src/logging/posthog-logs-sink.ts`; see ADR-0012 for the current mechanism. The original text is left intact as the decision as taken.
+
 ## Context
 
 The server log stream needs to reach PostHog Logs so it can be analysed alongside product/error data and drive alerting. The current logger is Pino. The choice of logger is open: keep Pino, or migrate.
