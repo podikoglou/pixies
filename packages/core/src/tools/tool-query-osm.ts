@@ -1,9 +1,7 @@
-import { Result, matchErrorPartial } from "better-result";
+import { Result } from "better-result";
 import { Type } from "typebox";
 import type { OverpassClient, OverpassElement } from "../clients/overpass.ts";
-import { formatElement, getElementCoords } from "../clients/overpass.ts";
-import { ToolAbortedError } from "../errors.ts";
-import { OVERPASS_BUSY_MESSAGE } from "../clients/overpass.ts";
+import { formatElement, getElementCoords, OVERPASS_BUSY_MESSAGE } from "../clients/overpass.ts";
 import {
 	QueryOsmToolDetailsSchema,
 	type OverpassResultEntry,
@@ -12,6 +10,7 @@ import {
 import type { ToolProgress } from "./progress.ts";
 import { defineTool, parseSchema } from "./tool-module.ts";
 import { textResult, formatContentLines } from "./content.ts";
+import { throwIfAborted, forwardProgress, recoverBusyOrThrow } from "./control-flow.ts";
 
 const schema = Type.Object({
 	query: Type.String({
@@ -34,11 +33,11 @@ export const queryOsmModule = defineTool<
 	detailsSchema: QueryOsmToolDetailsSchema,
 	parse: parseSchema(QueryOsmToolDetailsSchema, (d) => ({ kind: "query_osm", entries: d.data })),
 	execute: async ({ overpass }, _toolCallId, params, signal, onUpdate) => {
-		if (signal?.aborted) throw new ToolAbortedError({ message: "Operation aborted" });
+		throwIfAborted(signal);
 		const result = await Result.gen(async function* () {
 			const response = yield* Result.await(
 				overpass.query(params.query, signal, {
-					onProgress: (progress) => onUpdate?.({ content: [], details: progress }),
+					onProgress: forwardProgress(onUpdate),
 				}),
 			);
 			const elements = response.elements ?? [];
@@ -60,22 +59,10 @@ export const queryOsmModule = defineTool<
 				details: { data },
 			});
 		});
-		if (Result.isOk(result)) return result.value;
-		// Overpass-busy is converted into a normal (non-error) result so the
-		// model does not retry; every other error re-throws so the agent marks
-		// the tool call `isError: true` exactly as before.
-		return matchErrorPartial(
-			result.error,
-			{
-				OverpassBusy: () => ({
-					...textResult(OVERPASS_BUSY_MESSAGE),
-					details: { busy: true },
-				}),
-			},
-			(err) => {
-				throw err;
-			},
-		);
+		return recoverBusyOrThrow(result, "OverpassBusy", {
+			...textResult(OVERPASS_BUSY_MESSAGE),
+			details: { busy: true },
+		});
 	},
 });
 
