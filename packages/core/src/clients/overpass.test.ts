@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { test, expect, mock } from "bun:test";
 import { Result } from "better-result";
+import { ParseError } from "typebox/value";
 import {
 	OverpassBusyError,
 	OverpassClient,
@@ -40,6 +41,50 @@ function makeOverpass(fetch: typeof globalThis.fetch, logger?: Logger) {
 		logger,
 	});
 }
+
+// ---- config validation at construction (#230) --------------------------------
+
+/** Minimal valid base config; individual tests add one bad knob. */
+function baseConfig() {
+	return {
+		baseUrl: "https://overpass.example.com/api/interpreter",
+		userAgent: "pixies-test",
+		fetch: (() =>
+			Promise.resolve(jsonResponse({ elements: [] }))) as unknown as typeof globalThis.fetch,
+	};
+}
+
+test("construction applies documented defaults when knobs are omitted (no undefined reaches p-queue)", async () => {
+	const fetchMock = mock(() =>
+		Promise.resolve(jsonResponse({ elements: [{ type: "node", id: 1, lat: 1, lon: 2 }] })),
+	) as unknown as typeof fetch;
+	// Omit every defaulted knob; the client must still construct with valid
+	// (defaulted) numbers rather than passing undefined into p-queue.
+	const client = new OverpassClient({
+		baseUrl: "https://overpass.example.com/api/interpreter",
+		userAgent: "pixies-test",
+		fetch: fetchMock,
+	});
+
+	const r = await client.query("[out:json];node(1);out;");
+
+	// A successful result proves every defaulted knob was a valid number —
+	// undefined concurrency/interval/timeout would misbehave or throw here.
+	expect(Result.isOk(r)).toBe(true);
+	expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test("construction rejects out-of-bounds config at the boundary (fails fast, not inside p-queue)", () => {
+	expect(() => new OverpassClient({ ...baseConfig(), concurrency: -5 })).toThrow(ParseError);
+	expect(() => new OverpassClient({ ...baseConfig(), concurrency: 0 })).toThrow(ParseError);
+	expect(() => new OverpassClient({ ...baseConfig(), intervalMs: 0 })).toThrow(ParseError);
+	expect(() => new OverpassClient({ ...baseConfig(), intervalCap: 0 })).toThrow(ParseError);
+	expect(() => new OverpassClient({ ...baseConfig(), timeoutMs: 0 })).toThrow(ParseError);
+});
+
+test("construction rejects a non-URL base URL at the boundary", () => {
+	expect(() => new OverpassClient({ ...baseConfig(), baseUrl: "not-a-url" })).toThrow(ParseError);
+});
 
 /** A fetch that returns a fresh controllable blocker for every call. */
 function blockingFetch(): {
