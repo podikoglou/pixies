@@ -54,9 +54,9 @@ Records DO carry: the message string, category, level, timestamp, and other stru
 
 ## Alerting (replaces the Discord transport)
 
-Previously a fire-and-forget Discord webhook sink forwarded **every** server `error`/`fatal` log line (`PIXIES_DISCORD_WEBHOOK_URL`, removed in #174). Noisy, unfiltered, and server-only. Alerting now lives in PostHog, which thresholds and dedupes and covers both server logs and client error tracking.
+Previously a fire-and-forget Discord webhook sink forwarded **every** server `error`/`fatal` log line (`PIXIES_DISCORD_WEBHOOK_URL`, now removed). Noisy, unfiltered, and server-only. Alerting now lives in PostHog, which thresholds and dedupes and covers both server logs and client error tracking.
 
-**Prerequisite:** server logs must reach PostHog Logs (`PIXIES_POSTHOG_API_KEY`, above) and client exceptions must reach Error Tracking (`VITE_POSTHOG_KEY`, #172). With neither, there is nothing to alert on.
+**Prerequisite:** server logs must reach PostHog Logs (`PIXIES_POSTHOG_API_KEY`, above) and client exceptions must reach Error Tracking (`VITE_POSTHOG_KEY`). With neither, there is nothing to alert on.
 
 **Destinations** are configured once in PostHog (project settings → alert destinations): Discord, Slack, Microsoft Teams, and HTTP webhook are supported, plus the account email. A Discord webhook URL can be used directly as a generic webhook destination.
 
