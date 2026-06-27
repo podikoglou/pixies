@@ -136,6 +136,17 @@ export interface CreateAgentOptions {
 }
 
 /**
+ * Runtime overrides both service-client factories accept alongside resolved
+ * config: an injectable `fetch` (for tests) and a `logger`. Shared across the
+ * Nominatim and Overpass factories since both bridge config → client the same
+ * way.
+ */
+interface ClientFactoryOverrides {
+	fetch?: typeof globalThis.fetch;
+	logger?: Logger;
+}
+
+/**
  * Resolved-config fields that configure a {@link NominatimClient}. Kept as a
  * named Pick so the factory's input surface is self-documenting and stays in
  * lockstep with the schema fields rather than a free-form partial.
@@ -160,7 +171,7 @@ type NominatimConfigFields = Pick<
  */
 export function createNominatimClient(
 	config: NominatimConfigFields,
-	opts: { fetch?: typeof globalThis.fetch; logger?: Logger } = {},
+	opts: ClientFactoryOverrides = {},
 ): NominatimClient {
 	return new NominatimClient({
 		baseUrl: config.nominatimUrl,
@@ -191,7 +202,7 @@ type OverpassConfigFields = Pick<
  */
 export function createOverpassClient(
 	config: OverpassConfigFields,
-	opts: { fetch?: typeof globalThis.fetch; logger?: Logger } = {},
+	opts: ClientFactoryOverrides = {},
 ): OverpassClient {
 	return new OverpassClient({
 		baseUrl: config.overpassUrl,

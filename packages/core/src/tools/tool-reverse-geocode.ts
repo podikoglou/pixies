@@ -62,8 +62,8 @@ export const reverseGeocodeModule = defineTool<
 			});
 		});
 		if (Result.isOk(result)) return result.value;
-		// OSM-busy → non-error result (do not retry); everything else re-throws
-		// so the agent marks the tool call `isError: true`.
+		// Nominatim-busy → non-error result (do not retry); everything else
+		// re-throws so the agent marks the tool call `isError: true`.
 		return matchErrorPartial(
 			result.error,
 			{
