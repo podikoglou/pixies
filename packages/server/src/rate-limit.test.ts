@@ -78,6 +78,29 @@ test("consume: each IP has an independent window", () => {
 	expect(limiter.consume("2.2.2.2", 0).allowed).toBe(false);
 });
 
+test("consume: denied warning never carries the client IP", () => {
+	// Privacy contract (#222): the IP must not leave the instance via
+	// PostHog Logs. It already keys the `rate limit exceeded` analytics event
+	// (distinct id = ip), so logging it here only duplicates it as a free-text
+	// property the sink does not redact. Pinned so a future fields edit can't
+	// silently reintroduce it.
+	const warning = mock((_msg?: string, _fields?: Record<string, unknown>) => {});
+	const logger = { warning } as unknown as Logger;
+	const limiter = makeLimiter({
+		maxRequests: 1,
+		windowMs: 1000,
+		trustProxy: false,
+		trustedProxyHops: 1,
+		logger,
+	});
+	limiter.consume("203.0.113.7", 0); // allowed
+	limiter.consume("203.0.113.7", 0); // denied → warning
+	expect(warning).toHaveBeenCalledTimes(1);
+	const [msg, fields] = warning.mock.calls[0]!;
+	expect(msg).toBe("rate limit denied");
+	expect(fields).not.toHaveProperty("ip");
+});
+
 test("consume: maxRequests <= 0 disables limiting", () => {
 	const limiter = makeLimiter({
 		maxRequests: 0,
