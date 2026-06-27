@@ -13,7 +13,7 @@ import { Value } from "typebox/value";
  * documented in `.env.example` / `docs/DOCKER.md`. The server defaults to the
  * EU host; the two are intentionally independent per region.
  */
-export const PostHogConfigSchema = Type.Object({
+const PostHogConfigSchema = Type.Object({
 	key: Type.Optional(
 		Type.String({
 			description:
@@ -39,19 +39,32 @@ export type ResolvedPostHogConfig =
 	| { enabled: true; key: string; host: string };
 
 /**
+ * Treat `undefined`/empty/whitespace-only as unset, mirroring the server's
+ * `env()` helper (`@pixies/core` agent.ts). This lets the schema apply the
+ * documented host default for an empty `VITE_POSTHOG_HOST` (e.g. an operator
+ * uncommenting the `.env.example` line without filling it in) instead of
+ * throwing at module load and bricking the SPA, and treats a whitespace-only
+ * key as the off-switch — same semantics the server applies to `PIXIES_*`.
+ */
+function nonEmpty(v: string | undefined): string | undefined {
+	return v && v.trim().length > 0 ? v : undefined;
+}
+
+/**
  * Parse gathered `VITE_POSTHOG_*` values into a resolved config.
  *
  * Pure — Vite's build-time substitution of `import.meta.env.VITE_*` happens at
  * the gather step (see `posthogConfig`), so this takes the already-read values.
- * `Value.Default` applies the documented host default; `Value.Parse` then
- * validates the host url format — so a malformed host fails here, at config
- * parse, rather than inside the PostHog SDK at runtime. Unlike Zod's `.parse()`,
- * `Value.Parse` does not apply defaults on its own, so both run in sequence.
+ * Empty/whitespace values normalize to unset (see `nonEmpty`); `Value.Default`
+ * then applies the documented host default; `Value.Parse` validates the host
+ * url format — so a malformed host fails here, at config parse, rather than
+ * inside the PostHog SDK at runtime. Unlike Zod's `.parse()`, `Value.Parse`
+ * does not apply defaults on its own, so both run in sequence.
  */
 export function resolvePostHogConfig(raw: { key?: string; host?: string }): ResolvedPostHogConfig {
 	const parsed = Value.Parse(
 		PostHogConfigSchema,
-		Value.Default(PostHogConfigSchema, { key: raw.key, host: raw.host }),
+		Value.Default(PostHogConfigSchema, { key: nonEmpty(raw.key), host: nonEmpty(raw.host) }),
 	);
 	if (!parsed.key) return { enabled: false };
 	return { enabled: true, key: parsed.key, host: parsed.host };
@@ -59,10 +72,10 @@ export function resolvePostHogConfig(raw: { key?: string; host?: string }): Reso
 
 /**
  * The single resolved PostHog config all consumers import. Gathered once at
- * module load — Vite inlines the `import.meta.env.VITE_*` reads at build time,
- * so the values (and thus the resolved object) are constant for the bundle's
- * lifetime. Resolving here, not at each consumer, keeps the off-switch decision
- * and the parsed/defaulted shape in one site.
+ * module load — Vite inlines the `import.meta.env.VITE_POSTHOG_*` reads at
+ * build time, so the values (and thus the resolved object) are constant for the
+ * bundle's lifetime. Resolving here, not at each consumer, keeps the off-switch
+ * decision and the parsed/defaulted shape in one site.
  */
 export const posthogConfig: ResolvedPostHogConfig = resolvePostHogConfig({
 	key: import.meta.env.VITE_POSTHOG_KEY,
