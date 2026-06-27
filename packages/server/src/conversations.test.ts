@@ -226,6 +226,49 @@ test("get() warns and starts empty when the persisted transcript is grossly corr
 	expect(logged?.[1]?.count).toBe(1);
 });
 
+test("get() warns once when a rehydrated assistant message lacks usage (ADR-0008)", async () => {
+	const warnSpy = mock((_msg?: string, _properties?: Record<string, unknown>) => {});
+	const mockLogger = { warning: warnSpy, error: mock(() => {}) } as unknown as Logger;
+	const db = createTestDb();
+	const store = new ConversationStore(baseConfig, db, makeFakeFactory(), mockLogger);
+	stores.push(store);
+
+	const id = "missing-usage-id";
+	// Well-shaped enough to pass PersistedTranscriptSchema (has `role`) but
+	// written by an older binary with no `usage` — passes the gross-corruption
+	// guard yet undercounts the token budget. Rehydration must signal it.
+	await db.insert(conversationsTable).values({
+		id,
+		transcript: [
+			{ role: "assistant", content: [{ type: "text", text: "hi" }] },
+		] as unknown as AgentMessage[],
+	});
+
+	const conv = await store.get(id);
+	expect(conv).toBeDefined();
+	// Missing usage counts as 0 tokens (matching the historical arithmetic).
+	expect(conv?.tokensUsed).toBe(0);
+
+	const logged = warnSpy.mock.calls.find(
+		(call) =>
+			call[0] ===
+				"rehydrated transcript has assistant messages missing usage; token budget undercounted" &&
+			call[1]?.conversationId === id,
+	);
+	expect(logged).toBeDefined();
+	expect(logged?.[1]?.missingUsage).toBe(1);
+
+	// Cache hit on the next read does NOT re-warn (the rehydrate path runs once).
+	await store.get(id);
+	expect(
+		warnSpy.mock.calls.filter(
+			(c) =>
+				c[0] ===
+				"rehydrated transcript has assistant messages missing usage; token budget undercounted",
+		).length,
+	).toBe(1);
+});
+
 test("get() reuses the miss-loaded conversation on the next read without rebuilding the agent", async () => {
 	const calls: FakeAgent[] = [];
 	const { store, db } = makeStore({ agentFactory: makeFakeFactory(calls) });
