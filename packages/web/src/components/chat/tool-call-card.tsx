@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatToolName } from "@/lib/format-tool-name";
 import type { TimelineItem } from "@/state/chat-reducer";
 import { JsonTree } from "./json-tree";
-import { formatTime } from "./assistant-message";
+import { formatTime } from "@/lib/format-time";
 import { StatusIcon } from "./status-icon";
 
 type ToolCallItem = Extract<TimelineItem, { kind: "tool-call" }>;
