@@ -1,4 +1,4 @@
-# ADR-0011: Allowlist PostHog Logs egress
+# ADR-0012: Allowlist PostHog Logs egress
 
 **Status:** Accepted — 2026-06-27
 
@@ -33,7 +33,7 @@ Invert the sink. Ship only an allowlist of known-safe property keys (`DEFAULT_AL
 
 - Privacy by construction: a future `logger.error(..., { err })` or `{ request }` cannot leak by default.
 - One fix closes #220, #221, and #222 instead of a per-field redaction per leak.
-- The allowlist is exhaustive over today's log properties, so no current telemetry is lost.
+- The allowlist is exhaustive over the property keys of every current `info`+ log site, so no current telemetry is lost. `debug`-only keys (e.g. queue instrumentation) are deliberately excluded — those records never reach the sink.
 
 **Negative:**
 
