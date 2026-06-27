@@ -126,7 +126,7 @@ export interface OverpassConfig {
 	 * preserve prior behavior; Overpass legitimately takes 10–60 s on a healthy
 	 * instance, so a too-tight value kills healthy slow queries. Configurable
 	 * (PIXIES_OVERPASS_TIMEOUT_MS) so the default can be revised from per-query
-	 * measurement (#226) once where healthy-slow ends and hung begins is known.
+	 * latency measurement once where healthy-slow ends and hung begins is known.
 	 */
 	timeoutMs?: number;
 }

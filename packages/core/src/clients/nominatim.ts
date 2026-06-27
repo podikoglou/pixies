@@ -119,7 +119,7 @@ export interface NominatimConfig {
 	 * Timeout for each Nominatim HTTP request in ms. Defaults to 60_000 to
 	 * preserve prior behavior; Nominatim is fast and 1 req/s-capped, so this is
 	 * a latency-budget hole when it hangs — configurable (PIXIES_NOMINATIM_TIMEOUT_MS)
-	 * so the default can be tightened from per-query measurement (#226).
+	 * so the default can be tightened from per-query latency measurement.
 	 */
 	timeoutMs?: number;
 }
