@@ -52,17 +52,17 @@ When enabled, `info`+ server log records are shipped to PostHog Logs over OTLP/H
 
 Records carry: the message string (a fixed template), category, level, timestamp, and the allowlisted structured properties — counts, durations, service names, conversation ids, and tags. They never carry query text, place names, client IPs, or raw error/stack text: those keys are not on the allowlist, so they are scrubbed to `"[redacted]"` at egress.
 
-## Alerting (replaces the Discord transport)
+## Alerting
 
-Previously a fire-and-forget Discord webhook sink forwarded **every** server `error`/`fatal` log line (`PIXIES_DISCORD_WEBHOOK_URL`, now removed). Noisy, unfiltered, and server-only. Alerting now lives in PostHog, which thresholds and dedupes and covers both server logs and client error tracking.
+PostHog thresholds and dedupes alerts across both server logs and client error tracking.
 
 **Prerequisite:** server logs must reach PostHog Logs (`PIXIES_POSTHOG_API_KEY`, above) and client exceptions must reach Error Tracking (`VITE_POSTHOG_KEY`). With neither, there is nothing to alert on.
 
 **Destinations** are configured once in PostHog (project settings → alert destinations): Discord, Slack, Microsoft Teams, and HTTP webhook are supported, plus the account email. A Discord webhook URL can be used directly as a generic webhook destination.
 
-**Alerts to enable** (each maps to one of the issue's three signal types):
+**Alerts to enable:**
 
-- **Rate thresholds / log volume (the direct replacement).** A PostHog **log alert** on the server log stream scoped to `error`/`fatal`-level records — "more than _N_ matching logs in _M_ minutes" (5–60 min windows). Uses an N-of-M evaluation so a single blip doesn't fire. This replaces what the old transport did, but thresholded instead of one-POST-per-error. Log alerts notify via Slack or webhook (use the Discord webhook URL as the webhook destination).
+- **Rate thresholds / log volume.** A PostHog **log alert** on the server log stream scoped to `error`/`fatal`-level records — "more than _N_ matching logs in _M_ minutes" (5–60 min windows). Uses an N-of-M evaluation so a single blip doesn't fire. Log alerts notify via Slack or webhook (use the Discord webhook URL as the webhook destination).
 - **New error types.** An **Error Tracking** alert on _issue created/reopened_ (client exceptions) → Discord/Slack/Teams/webhook. Each new grouping is a new error type.
 - **Error spikes.** **Spike detection** on exception volume → Discord/Slack/Teams/webhook.
 
