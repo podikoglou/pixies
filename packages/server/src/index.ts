@@ -4,7 +4,6 @@ import {
 	toClientTranscriptMessage,
 	Result,
 	matchError,
-	isTaggedError,
 	type ResolvedPixiesConfig,
 	type StreamPromptError,
 } from "@pixies/core";
@@ -16,15 +15,13 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 import path from "node:path";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { captureServerEvent } from "./analytics-events.ts";
 import { ConversationStore } from "./conversations.ts";
 import { translateAgentEvent } from "./events.ts";
+import { createPostHogAnalyticsClient, type PostHogAnalyticsClient } from "./posthog.ts";
+import { checkRateLimit, getClientIp, IpRateLimiter } from "./rate-limit.ts";
 import { SseWriter } from "./sse.ts";
-import { IpRateLimiter, checkRateLimit, getClientIp } from "./rate-limit.ts";
-import {
-	captureAnalytics,
-	createPostHogAnalyticsClient,
-	type PostHogAnalyticsClient,
-} from "./posthog.ts";
+import { StreamInstrumentation } from "./stream-instrumentation.ts";
 
 const WEB_DIST = process.env.PIXIES_WEB_DIST ?? path.resolve(import.meta.dir, "../../web/dist");
 const MIGRATIONS_FOLDER =
@@ -103,10 +100,16 @@ async function readMessage(req: Request): Promise<MessageResult> {
  * Pipe a store-owned agent stream into an SSE response.
  *
  * The store owns `inFlight`, the `agent.prompt()` call, and the `.finally()`
- * that clears state. This function owns only the HTTP concerns: building the
+ * that clears state. This function owns ONLY the HTTP concerns: building the
  * `SseWriter`, translating agent events to SSE, writing the terminal
- * `done`/`error` event, and forwarding client disconnect to
+ * `done`/`error` wire frame, and forwarding client disconnect to
  * `ConversationStore.abort`.
+ *
+ * Every NON-HTTP concern — TTFT timing, the first-output stamp, the
+ * `running → completed | aborted` lifecycle machine, and ALL analytics
+ * captures (first token / done / disconnect / error) — lives in the
+ * {@link StreamInstrumentation} seam, constructed below and tapped at each
+ * lifecycle point (see #210).
  *
  * @param onOpen   Optional preamble writer (e.g. `conversation_created`).
  * @param abortId  Conversation id to abort on client disconnect.
@@ -119,41 +122,14 @@ export function pipeAgentStream(
 	posthog?: PostHogAnalyticsClient,
 	onOpen?: (writer: SseWriter) => void,
 ): Response {
-	const startTime = Date.now();
-	// Stream lifecycle: `running` → `completed` (wrote `done`) or `aborted`
-	// (client went away). Modelled as one state, not separate booleans, so the
-	// impossible "completed && aborted" can't be represented.
-	let state: "running" | "completed" | "aborted" = "running";
-	// First user-facing output timestamp. Assistant text SSE events are
-	// deliberately suppressed on the wire (see translateAgentEvent), so the
-	// earliest sign of life is the first `tool_execution_start` frame — that's
-	// what `had_output` reports.
-	let firstOutputAt: number | undefined;
-	// TTFT: ms from stream start to the LLM's first user-facing TEXT token. The
-	// raw agent event is seen in the loop BEFORE translation, so this is
-	// measurable even though assistant text is suppressed on the wire. `thinking_*`
-	// variants are excluded (internal reasoning), but their elapsed time is still
-	// included since TTFT is measured from `startTime`.
-	let firstTokenMs: number | undefined;
-	// This `onClose` is the ONLY server-side path from "client went away" to
-	// `store.abort` (eviction/sweep/delete call `store.abort` directly, not
-	// through here). So the disconnect capture MUST live in this lambda. It only
-	// fires while `running` (a cancel after completion is a late close, not a
-	// disconnect). The server can't tell a user Stop from a passive disconnect
-	// (both cancel the stream), so this fires for both; the client `user_stop`
-	// event is the active-rejection subset on a deliberately-unlinked distinctId.
+	// Instrumentation seam owns all timing + analytics for this response.
+	const instr = new StreamInstrumentation(abortId, posthog, logger);
+	// The `onClose` lambda is the ONLY server-side path from "client went away"
+	// to a disconnect capture (eviction/sweep/delete call `store.abort`
+	// directly, not through here). `instr.disconnect()` no-ops once the stream
+	// has completed, so a late close after `done` can't double-count.
 	const writer = new SseWriter(() => {
-		if (state === "running") {
-			state = "aborted";
-			captureAnalytics(posthog, {
-				distinctId: abortId,
-				name: "agent stream disconnect",
-				properties: {
-					elapsed_ms: Date.now() - startTime,
-					had_output: firstOutputAt !== undefined,
-				},
-			});
-		}
+		instr.disconnect();
 		store.abort(abortId);
 	});
 	if (onOpen) onOpen(writer);
@@ -164,72 +140,36 @@ export function pipeAgentStream(
 				// Measure TTFT on the RAW event, before wire suppression drops
 				// assistant text. Fires mid-stream so even streams that are LATER
 				// aborted still contribute a TTFT measurement — measuring only at
-				// `done` would re-create the survivor-bias this is about.
-				if (
-					firstTokenMs === undefined &&
-					event.type === "message_update" &&
-					event.assistantMessageEvent.type === "text_delta"
-				) {
-					firstTokenMs = Date.now() - startTime;
-					captureAnalytics(posthog, {
-						distinctId: abortId,
-						name: "agent stream first token",
-						properties: { ttft_ms: firstTokenMs },
-					});
+				// `done` would re-create the survivor-bias this is about. The
+				// text_delta discrimination stays in this loop; the seam just
+				// records + captures once.
+				if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
+					instr.recordFirstTextToken();
 				}
 				for (const sse of translateAgentEvent(event)) {
 					// Text is suppressed on the wire, so the first tool-execution
 					// event is the first user-facing output.
-					if (firstOutputAt === undefined && sse.event === "tool_execution_start") {
-						firstOutputAt = Date.now();
-					}
+					if (sse.event === "tool_execution_start") instr.recordFirstOutput();
 					writer.write(sse.event, sse.data);
 				}
 			}
-			const durationMs = Date.now() - startTime;
-			// Byte-identical `done` frame (durationMs key/value).
-			writer.write("done", { durationMs });
-			// Only count genuinely-completed streams: a client abort cancels the
-			// response body, after which `writer.write` is a silent no-op
-			// (`SseWriter.controller` is undefined, so `controller?.enqueue` does
-			// nothing and does NOT throw), so execution still reaches here — the
-			// `state === "running"` guard excludes aborted streams (state was set
-			// to "aborted" in the onClose lambda).
-			if (state === "running") {
-				captureAnalytics(posthog, {
-					distinctId: abortId,
-					name: "agent stream done",
-					properties: {
-						duration_ms: durationMs,
-						...(firstTokenMs !== undefined ? { ttft_ms: firstTokenMs } : {}),
-					},
-				});
-			}
+			// `complete` captures `agent stream done` (guarded to running),
+			// transitions to completed, and returns the SAME duration the
+			// byte-identical `done` wire frame carries — computed once, not
+			// twice. Undefined means the stream was aborted (the response body
+			// is already torn down, so no `done` frame is wanted).
+			const durationMs = instr.complete();
+			if (durationMs !== undefined) writer.write("done", { durationMs });
 		} catch (err) {
-			const loggedErr = err instanceof Error ? err : new Error(String(err));
-			logger.error("agent stream error", { conversationId: abortId, err: loggedErr });
-			const tag = isTaggedError(err) ? err._tag : undefined;
-			// Privacy: capture the error TAG ONLY — never err.message or the Error object.
-			// Overpass/Nominatim errors embed OSM HTTP bodies and the searched place name
-			// in .message. Subject to change if we later add a sanitised message.
-			captureAnalytics(posthog, {
-				distinctId: abortId,
-				name: "agent stream error",
-				properties: tag !== undefined ? { error_tag: tag } : {},
-			});
-			// `isTaggedError` narrows to the loose `AnyTaggedError` shape (which
-			// omits `toJSON` from its type), but every TaggedError instance
-			// carries a safe `toJSON()` serializer at runtime.
-			const details = isTaggedError(err)
-				? ((err as unknown as { toJSON(): object }).toJSON() as Record<string, unknown>)
-				: undefined;
+			// `fail` logs, captures the error TAG ONLY (never err.message), and
+			// returns the wire-frame ingredients for the byte-identical `error`.
+			const { tag, message, details } = instr.fail(err);
 			writer.write("error", {
-				message: err instanceof Error ? err.message : String(err),
+				message,
 				...(tag !== undefined ? { errorTag: tag } : {}),
 				...(details !== undefined ? { details } : {}),
 			});
 		} finally {
-			if (state === "running") state = "completed";
 			writer.close();
 		}
 	})();
@@ -266,11 +206,7 @@ function captureRateLimitDenied(
 	ip: string | null,
 	path: string,
 ): void {
-	captureAnalytics(posthog, {
-		distinctId: ip ?? "unknown",
-		name: "rate limit exceeded",
-		properties: { path },
-	});
+	captureServerEvent(posthog, ip ?? "unknown", "rate limit exceeded", { path });
 }
 
 /**
@@ -285,10 +221,9 @@ function captureBudgetExceeded(
 ): void {
 	matchError(err, {
 		BudgetExceeded: (e) =>
-			captureAnalytics(posthog, {
-				distinctId: id,
-				name: "conversation budget exceeded",
-				properties: { tokens_used: e.used, token_budget: e.budget },
+			captureServerEvent(posthog, id, "conversation budget exceeded", {
+				tokens_used: e.used,
+				token_budget: e.budget,
 			}),
 		ConversationNotFound: () => {},
 		PromptConflict: () => {},
@@ -410,10 +345,8 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 						captureBudgetExceeded(posthog, id, result.error);
 						return rejectStream(result.error);
 					}
-					captureAnalytics(posthog, {
-						distinctId: id,
-						name: "conversation started",
-						properties: { message_length: parsed.message.length },
+					captureServerEvent(posthog, id, "conversation started", {
+						message_length: parsed.message.length,
 					});
 					return pipeAgentStream(store, result.value, id, logger, posthog, (w) =>
 						w.write("conversation_created", { id }),
@@ -437,10 +370,8 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 						captureBudgetExceeded(posthog, id, result.error);
 						return rejectStream(result.error);
 					}
-					captureAnalytics(posthog, {
-						distinctId: id,
-						name: "message sent",
-						properties: { message_length: parsed.message.length },
+					captureServerEvent(posthog, id, "message sent", {
+						message_length: parsed.message.length,
 					});
 					return pipeAgentStream(store, result.value, id, logger, posthog);
 				}),
@@ -459,7 +390,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 				DELETE: withRequestLogging(logger, (req) => {
 					const id = req.params.id;
 					const ok = store.delete(id);
-					if (ok) captureAnalytics(posthog, { distinctId: id, name: "conversation deleted" });
+					if (ok) captureServerEvent(posthog, id, "conversation deleted", {});
 					return ok
 						? new Response(null, { status: 204 })
 						: Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
