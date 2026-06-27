@@ -153,6 +153,35 @@ test("abort while running returns Err and the signal threaded to fetch is aborte
 	blocker.resolve(jsonResponse({ elements: [] }));
 });
 
+// ---- configurable timeoutMs --------------------------------------------------
+
+test("timeoutMs aborts a hanging request when the configured window elapses", async () => {
+	// A fetch that mimics real fetch: rejects with the signal's reason on abort.
+	const fetchMock = mock((_url: unknown, init: { signal?: AbortSignal }) => {
+		const sig = init.signal;
+		return new Promise<Response>((_resolve, reject) => {
+			const onAbort = () => reject(sig?.reason ?? new DOMException("Aborted", "AbortError"));
+			if (sig?.aborted) return onAbort();
+			sig?.addEventListener("abort", onAbort, { once: true });
+		});
+	}) as unknown as typeof fetch;
+	const client = new OverpassClient({
+		baseUrl: "https://overpass.example.com/api/interpreter",
+		userAgent: "pixies-test",
+		fetch: fetchMock,
+		timeoutMs: 30,
+	});
+
+	const start = Date.now();
+	const r = await client.query("[out:json];node(1);out;");
+	const elapsed = Date.now() - start;
+
+	// The 30ms override took effect (not the 60s default): the request failed
+	// within a second, proving the configured timeout fired.
+	expect(Result.isError(r)).toBe(true);
+	expect(elapsed).toBeLessThan(1000);
+});
+
 // ---- HTTP classification -----------------------------------------------------
 
 test("500 non-busy response returns Err(OverpassHttpError)", async () => {

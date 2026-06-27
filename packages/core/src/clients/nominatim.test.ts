@@ -106,6 +106,36 @@ test("abort while a request is running returns Err(ToolAbortedError)", async () 
 	hanging.resolve(jsonResponse([]));
 });
 
+// ---- configurable timeoutMs --------------------------------------------------
+
+test("timeoutMs aborts a hanging request when the configured window elapses", async () => {
+	// A fetch that mimics real fetch: rejects with the signal's reason on abort.
+	const fetchMock = mock((_url: unknown, init: { signal?: AbortSignal }) => {
+		const sig = init.signal;
+		return new Promise<Response>((_resolve, reject) => {
+			const onAbort = () => reject(sig?.reason ?? new DOMException("Aborted", "AbortError"));
+			if (sig?.aborted) return onAbort();
+			sig?.addEventListener("abort", onAbort, { once: true });
+		});
+	}) as unknown as typeof fetch;
+	const client = new NominatimClient({
+		baseUrl: "https://nominatim.example.com",
+		userAgent: "pixies-test",
+		fetch: fetchMock,
+		intervalMs: 40,
+		timeoutMs: 30,
+	});
+
+	const start = Date.now();
+	const r = await client.search("Berlin");
+	const elapsed = Date.now() - start;
+
+	// The 30ms override took effect (not the 60s default): the request failed
+	// within a second, proving the configured timeout fired.
+	expect(Result.isError(r)).toBe(true);
+	expect(elapsed).toBeLessThan(1000);
+});
+
 // ---- HTTP classification -----------------------------------------------------
 
 test("500 non-busy response returns Err(NominatimHttpError)", async () => {
