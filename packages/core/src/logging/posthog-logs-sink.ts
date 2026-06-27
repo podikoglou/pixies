@@ -61,7 +61,7 @@ const REDACTED = "[redacted]";
  * tag the analytics path captures as `error_tag` — and redact everything else.
  * Local stdout retains the full object via the console sink.
  */
-function sanitizeErr(value: unknown): unknown {
+function sanitizeErr(value: unknown) {
 	return isTaggedError(value) ? { _tag: value._tag } : REDACTED;
 }
 
