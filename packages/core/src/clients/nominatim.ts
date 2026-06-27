@@ -405,7 +405,7 @@ export function formatNominatimResult(r: NominatimResult): string {
 interface FetchNominatimOptions {
 	headers: Record<string, string>;
 	signal?: AbortSignal;
-	timeoutMs?: number;
+	timeoutMs: number;
 }
 
 async function fetchNominatimResponse(
@@ -413,7 +413,7 @@ async function fetchNominatimResponse(
 	fetchFn: typeof globalThis.fetch,
 	opts: FetchNominatimOptions,
 ): Promise<Response> {
-	const { signal, timeoutMs = 60_000, ...rest } = opts;
+	const { signal, timeoutMs, ...rest } = opts;
 	const merged = mergeSignals(signal, AbortSignal.timeout(timeoutMs));
 	try {
 		const res = await fetchFn(url, { ...rest, signal: merged });

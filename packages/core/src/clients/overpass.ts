@@ -126,7 +126,7 @@ export interface OverpassConfig {
 	 * preserve prior behavior; Overpass legitimately takes 10–60 s on a healthy
 	 * instance, so a too-tight value kills healthy slow queries. Configurable
 	 * (PIXIES_OVERPASS_TIMEOUT_MS) so the default can be revised from per-query
-	 * latency measurement once where healthy-slow ends and hung begins is known.
+	 * latency measurement once the boundary between healthy-slow and hung is known.
 	 */
 	timeoutMs?: number;
 }
@@ -316,7 +316,7 @@ interface FetchOverpassOptions {
 	headers: Record<string, string>;
 	body: string;
 	signal?: AbortSignal;
-	timeoutMs?: number;
+	timeoutMs: number;
 }
 
 async function fetchOverpassResponse(
@@ -324,7 +324,7 @@ async function fetchOverpassResponse(
 	fetchFn: typeof globalThis.fetch,
 	opts: FetchOverpassOptions,
 ): Promise<Response> {
-	const { signal, timeoutMs = 60_000, ...rest } = opts;
+	const { signal, timeoutMs, ...rest } = opts;
 	const merged = mergeSignals(signal, AbortSignal.timeout(timeoutMs));
 	try {
 		const res = await fetchFn(url, { ...rest, signal: merged });
