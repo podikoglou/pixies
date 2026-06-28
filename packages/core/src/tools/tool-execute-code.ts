@@ -1,12 +1,13 @@
+import { Result } from "better-result";
 import { Type } from "typebox";
 import { defineTool, parseSchema } from "./tool-module.ts";
 import { throwIfAborted } from "./control-flow.ts";
 import type { ToolProgress } from "./progress.ts";
 import type { DisplayData } from "./host-functions.ts";
+import type { CodeExecutionError } from "../errors.ts";
 
-export interface CodeExecutionResult {
+export interface CodeExecutionSuccess {
 	stdout: string;
-	isError: boolean;
 	displays: DisplayData[];
 }
 
@@ -18,7 +19,7 @@ export interface CodeExecutor {
 			onDisplay?: (data: DisplayData) => void;
 			onProgress?: (message: string) => void;
 		},
-	): Promise<CodeExecutionResult>;
+	): Promise<Result<CodeExecutionSuccess, CodeExecutionError>>;
 }
 
 export interface ExecuteCodeDetails {
@@ -58,16 +59,14 @@ export const executeCodeModule = defineTool<
 	execute: async (executor, _toolCallId, params, signal, onUpdate) => {
 		throwIfAborted(signal);
 		onUpdate?.({ content: [], details: { type: "running" } });
-		const { stdout, isError, displays } = await executor.execute(params.code, {
+		const result = await executor.execute(params.code, {
 			signal,
-			onDisplay: (data) => {
-				displays.push(data);
-			},
 			onProgress: () => {},
 		});
+		if (Result.isError(result)) throw result.error;
+		const { stdout, displays } = result.value;
 		return {
 			content: [{ type: "text" as const, text: stdout || "(no output)" }],
-			isError,
 			details: { stdout, displays },
 		};
 	},
