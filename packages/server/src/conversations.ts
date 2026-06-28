@@ -28,6 +28,7 @@ import { MontyExecutor } from "./sandbox/monty-executor.ts";
 interface Conversation {
 	readonly id: string;
 	readonly agent: Agent;
+	readonly executor: MontyExecutor;
 	lastActivity: number;
 	inFlight: boolean;
 	tokensUsed: number;
@@ -41,7 +42,6 @@ export class ConversationStore {
 	private readonly config: ResolvedPixiesConfig;
 	private readonly nominatim: NominatimClient;
 	private readonly overpass: OverpassClient;
-	private readonly executor: MontyExecutor;
 	private readonly db: DbClient;
 	private readonly maxSize: number;
 	private readonly agentFactory: (opts: CreateAgentOptions) => Agent;
@@ -63,20 +63,21 @@ export class ConversationStore {
 		// process-global, independent of conversation count.
 		this.nominatim = createNominatimClient(config, { logger: this.logger });
 		this.overpass = createOverpassClient(config, { logger: this.logger });
-		this.executor = new MontyExecutor({ nominatim: this.nominatim, overpass: this.overpass });
 		this.sweeper = setInterval(() => this.sweep(), SWEEP_INTERVAL_MS);
 	}
 
 	create(): string {
 		const id = uuidv7();
+		const executor = new MontyExecutor({ nominatim: this.nominatim, overpass: this.overpass });
 		const conv: Conversation = {
 			id,
 			agent: this.agentFactory({
 				config: this.config,
 				nominatim: this.nominatim,
 				overpass: this.overpass,
-				codeExecutor: this.executor,
+				codeExecutor: executor,
 			}),
+			executor,
 			lastActivity: Date.now(),
 			inFlight: false,
 			tokensUsed: 0,
@@ -138,14 +139,16 @@ export class ConversationStore {
 		if (rows.length === 0) return undefined;
 
 		const row = rows[0]!;
+		const executor = new MontyExecutor({ nominatim: this.nominatim, overpass: this.overpass });
 		conv = {
 			id,
 			agent: this.agentFactory({
 				config: this.config,
 				nominatim: this.nominatim,
 				overpass: this.overpass,
-				codeExecutor: this.executor,
+				codeExecutor: executor,
 			}),
+			executor,
 			lastActivity: Date.now(),
 			inFlight: false,
 			tokensUsed: 0,
