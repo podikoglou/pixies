@@ -1,50 +1,6 @@
 import { Type } from "typebox";
 import type { Static } from "typebox";
 
-export const GeocodeResultEntrySchema = Type.Object({
-	placeId: Type.Number(),
-	lat: Type.Number(),
-	lon: Type.Number(),
-	name: Type.String(),
-	displayName: Type.Optional(Type.String()),
-	class: Type.Optional(Type.String()),
-	type: Type.Optional(Type.String()),
-	osmType: Type.Optional(
-		Type.Union([Type.Literal("node"), Type.Literal("way"), Type.Literal("relation")]),
-	),
-	osmId: Type.Optional(Type.Number()),
-});
-export type GeocodeResultEntry = Static<typeof GeocodeResultEntrySchema>;
-
-export const OverpassResultEntrySchema = Type.Object({
-	type: Type.Union([Type.Literal("node"), Type.Literal("way"), Type.Literal("relation")]),
-	id: Type.Number(),
-	lat: Type.Optional(Type.Number()),
-	lon: Type.Optional(Type.Number()),
-	name: Type.Optional(Type.String()),
-	tags: Type.Optional(Type.Record(Type.String(), Type.String())),
-	geometryPoints: Type.Optional(Type.Number()),
-});
-export type OverpassResultEntry = Static<typeof OverpassResultEntrySchema>;
-
-export const GeocodeToolDetailsSchema = Type.Object({
-	data: Type.Array(GeocodeResultEntrySchema),
-	busy: Type.Optional(Type.Literal(true)),
-});
-export type GeocodeToolDetails = Static<typeof GeocodeToolDetailsSchema>;
-
-export const ReverseGeocodeToolDetailsSchema = Type.Object({
-	data: GeocodeResultEntrySchema,
-	busy: Type.Optional(Type.Literal(true)),
-});
-export type ReverseGeocodeToolDetails = Static<typeof ReverseGeocodeToolDetailsSchema>;
-
-export const QueryOsmToolDetailsSchema = Type.Object({
-	data: Type.Array(OverpassResultEntrySchema),
-	busy: Type.Optional(Type.Literal(true)),
-});
-export type QueryOsmToolDetails = Static<typeof QueryOsmToolDetailsSchema>;
-
 /**
  * Shared `tags` parameter schema used by both `find_features` and `filter`.
  * Same shape, same op enum — extracting it keeps the two tool surfaces
