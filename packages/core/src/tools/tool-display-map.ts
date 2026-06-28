@@ -120,7 +120,7 @@ Add elementIds to show a subset of a referenced result. The map IS the primary o
 	parameters: schema,
 	detailsSchema: DisplayMapToolDetailsSchema,
 	parse: parseSchema(DisplayMapToolDetailsSchema, (d) => ({ kind: "display_map", data: d.data })),
-	execute: async (ctx, _toolCallId, params, signal) => {
+	execute: async (ctx, toolCallId, params, signal) => {
 		throwIfAborted(signal);
 		// display_map does not write to the result store (per the design: it
 		// produces no element-bearing result). But it DOES register with the
@@ -135,7 +135,7 @@ Add elementIds to show a subset of a referenced result. The map IS the primary o
 		// (legacy query_osm / geocode results from a prior turn),
 		// `resolveRef` throws UnknownRefError — we swallow that and forward
 		// the ref string as-is, preserving the pre-experiment behaviour.
-		const reg = ctx.coordinator.register(_toolCallId);
+		const reg = ctx.coordinator.register(toolCallId);
 		try {
 			const source = detectSource(params);
 			if (source === null) {
@@ -155,7 +155,7 @@ Add elementIds to show a subset of a referenced result. The map IS the primary o
 			// (legacy path) — fall through and forward the ref verbatim.
 			const refId = params.queryRef ?? params.elementsRef ?? params.pairsRef;
 			if (refId) {
-				await resolveRef(ctx, _toolCallId, refId, signal).catch((e: unknown) => {
+				await resolveRef(ctx, toolCallId, refId, signal).catch((e: unknown) => {
 					if (e instanceof UnknownRefError) return;
 					throw e;
 				});
