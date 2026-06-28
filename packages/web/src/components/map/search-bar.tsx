@@ -1,6 +1,7 @@
 import { type FormEvent, type KeyboardEvent } from "react";
 import { PauseIcon, SendIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { IconCrossfade } from "@/components/ui/icon-crossfade";
 
@@ -14,7 +15,7 @@ interface SearchBarProps {
 
 /**
  * Single-line search bar that replaces the chat textarea in the map-centric UI.
- * Clears on submit, shows stop/ready state, no multi-line support.
+ * Clears on submit and shows stop/ready state via the submit button.
  */
 export function SearchBar({ value, onChange, onSubmit, isStreaming, onAbort }: SearchBarProps) {
 	const canSend = value.trim().length > 0 && !isStreaming;
@@ -35,15 +36,15 @@ export function SearchBar({ value, onChange, onSubmit, isStreaming, onAbort }: S
 		<div className="border-border bg-background/80 border-t backdrop-blur">
 			<form
 				onSubmit={handleSubmit}
-				className="mx-auto flex items-end gap-2 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3"
+				className="flex items-center gap-2 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3"
 			>
-				<input
+				<Input
 					value={value}
 					onChange={(e) => onChange(e.target.value)}
 					onKeyDown={onKeyDown}
 					placeholder="Search places…"
 					aria-label="Search places"
-					className="border-input bg-background ring-offset-background placeholder:text-muted-foreground flex h-11 w-full flex-1 rounded-xl border px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+					className="h-11 flex-1 rounded-xl"
 				/>
 				<Tooltip>
 					<TooltipTrigger

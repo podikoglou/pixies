@@ -12,7 +12,7 @@ import { SearchBar } from "./search-bar";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
-import type { MapPolyline as PolylineType } from "@/lib/resolve-map-markers";
+import type { Layer } from "@/state/map-reducer";
 
 // @ts-expect-error _getIconUrl is private in Leaflet types
 delete L.Icon.Default.prototype._getIconUrl;
@@ -106,15 +106,16 @@ export function MapView({ onConversationCreated }: MapViewProps = {}) {
 // ─── Internal map component ───────────────────────────────────────────────
 
 interface PersistentMapProps {
-	layers: {
-		markers: { lat: number; lon: number; label?: string }[];
-		polylines: PolylineType[];
-		bounds: { minlat: number; minlon: number; maxlat: number; maxlon: number } | null;
-	}[];
+	layers: Layer[];
 	activeLayerIndex: number;
 	analytics: ReturnType<typeof useAnalytics>;
 }
 
+/**
+ * Single Leaflet instance that persists for the lifetime of the parent
+ * {@link MapView}. Renders only the active layer and flies to its bounds;
+ * previous layers are hidden but remain in state for future toggling.
+ */
 function PersistentMap({ layers, activeLayerIndex, analytics }: PersistentMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const mapRef = useRef<L.Map | null>(null);

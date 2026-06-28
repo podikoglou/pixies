@@ -38,6 +38,7 @@ export interface MapState {
 	error: string | null;
 }
 
+/** Fresh map state — no conversation, no layers, world view. */
 export const initialMapState: MapState = {
 	conversationId: null,
 	layers: [],
@@ -47,6 +48,13 @@ export const initialMapState: MapState = {
 	error: null,
 };
 
+/**
+ * Actions that drive the map-centric state machine.
+ *
+ * Only events that change the map or its metadata are represented —
+ * streaming text, tool-start signals, and queue updates have no visual
+ * effect and are filtered at the dispatch layer.
+ */
 export type MapAction =
 	| { type: "SEND_MESSAGE"; text: string }
 	| { type: "CONVERSATION_CREATED"; id: string }
@@ -56,6 +64,14 @@ export type MapAction =
 	| { type: "LOAD_TRANSCRIPT"; conversationId: string; layers: Layer[] }
 	| { type: "RESET" };
 
+/**
+ * Pure reducer for the map-centric state model.
+ *
+ * SEND_MESSAGE stores the query text and begins streaming. TOOL_END creates a
+ * new layer from successful execute_code results that carry markers or polylines;
+ * errors and empty results are silently dropped so the map stays on the previous
+ * view. LOAD_TRANSCRIPT reconstructs state from a saved conversation.
+ */
 export function mapReducer(state: MapState, action: MapAction): MapState {
 	switch (action.type) {
 		case "SEND_MESSAGE":
