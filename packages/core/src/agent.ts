@@ -125,6 +125,7 @@ export interface CreateAgentOptions {
 	fetch?: typeof globalThis.fetch;
 	nominatim?: NominatimClient;
 	overpass?: OverpassClient;
+	/** Sandboxed Python executor (Monty) for the `execute_code` tool. Required — there is no built-in fallback. */
 	codeExecutor: CodeExecutor;
 }
 
