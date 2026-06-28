@@ -195,14 +195,6 @@ function buildComparisonPredicate(key: string, op: string, lit: Token): Predicat
 				return op === "=~" ? re.test(v) : !re.test(v);
 			};
 		}
-		case "IS":
-		case "IS NOT": {
-			const wantNull = op === "IS";
-			return (el) => {
-				const present = getTag(el, key) !== null;
-				return wantNull ? !present : present;
-			};
-		}
 		case "=":
 		case "!=": {
 			const want = literalAsString(lit);
