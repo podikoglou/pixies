@@ -10,6 +10,8 @@ You write code for a sandboxed Python interpreter (Monty). The functions listed 
 
 Do NOT write import statements. Do NOT use \`await\` — all functions are synchronous from the code's perspective. Do NOT define classes. Use plain functions, dicts, lists, and basic control flow (if/for/while).
 
+Variables persist across execute_code calls within the same conversation. You can reference variables from previous calls directly.
+
 ## Available functions
 
 - geocode(query) — Geocode a place name. Returns {id, name, lat, lon, type, display_name, bbox?, alternatives?} or None.
