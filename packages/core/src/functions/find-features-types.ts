@@ -1,4 +1,4 @@
-import type { TagClause } from "./schemas.ts";
+import type { TagClause } from "../tools/schemas.ts";
 
 // Re-export so the existing import sites (`./find-features-types`) keep
 // working after TagClause moved to schemas.ts as the single source of truth.

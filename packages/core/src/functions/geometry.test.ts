@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import { computeBounds, boundsAreaKm2, expandBounds } from "./stored-element.ts";
+import { computeBounds, boundsAreaKm2, expandBounds } from "./geometry.ts";
 
 test("computeBounds — null when no element has coordinates", () => {
 	expect(computeBounds([{}, {}])).toBeNull();

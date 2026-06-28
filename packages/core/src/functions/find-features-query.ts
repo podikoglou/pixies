@@ -1,4 +1,4 @@
-import { boundsAreaKm2, type Bounds } from "./stored-element.ts";
+import { boundsAreaKm2, type Bounds } from "./geometry.ts";
 import type { TagClause } from "./find-features-types.ts";
 
 /**

@@ -10,8 +10,8 @@ import {
 	validateOverpassQL,
 	type ResolvedArea,
 } from "./find-features-query.ts";
-import { expandBounds, computeBounds, type Bounds } from "./stored-element.ts";
-import { haversineMeters } from "./tool-spatial-join.ts";
+import { expandBounds, computeBounds, type Bounds } from "./geometry.ts";
+import { haversineMeters } from "./haversine.ts";
 import { compileWhere, applyTagsFilter, applySortBy } from "./filter-logic.ts";
 
 export interface HostContext {

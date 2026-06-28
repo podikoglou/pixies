@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import { haversineMeters } from "./tool-spatial-join.ts";
+import { haversineMeters } from "./haversine.ts";
 
 test("haversineMeters — zero distance for identical points", () => {
 	expect(haversineMeters(59.3, 18.1, 59.3, 18.1)).toBe(0);
