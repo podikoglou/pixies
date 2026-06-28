@@ -7,6 +7,8 @@ import { silentLogger, type Logger } from "./logging/index.ts";
 import { NominatimClient } from "./clients/nominatim.ts";
 import { OverpassClient } from "./clients/overpass.ts";
 import { createTools } from "./tools/index.ts";
+import { TurnCoordinator } from "./tools/dependency-graph.ts";
+import { ResultStore } from "./tools/result-store.ts";
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 
 export type { ResolvedPixiesConfig } from "./config-schema.ts";
@@ -233,7 +235,14 @@ export function createAgent(options: CreateAgentOptions): Agent {
 	// path. See ADR-0004.
 	const nominatim = options.nominatim ?? createNominatimClient(config, { fetch: options.fetch });
 	const overpass = options.overpass ?? createOverpassClient(config, { fetch: options.fetch });
-	const tools = createTools(nominatim, overpass);
+	// Per-conversation dependency layer (issue #244). The coordinator and
+	// store live one level above the framework's tool dispatch: ref-aware
+	// tools register with the coordinator at execute-entry and await
+	// upstream results via `resolveRef`. The store persists element-bearing
+	// results for cross-turn references.
+	const coordinator = new TurnCoordinator();
+	const store = new ResultStore();
+	const tools = createTools({ nominatim, overpass, coordinator, store });
 	return new Agent({
 		initialState: {
 			systemPrompt: SYSTEM_PROMPT,

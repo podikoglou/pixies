@@ -1,8 +1,13 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
 import { displayMapModule } from "./tool-display-map.ts";
+import { TurnCoordinator } from "./dependency-graph.ts";
+import { ResultStore } from "./result-store.ts";
 
-const tool = displayMapModule.build();
+const tool = displayMapModule.build({
+	coordinator: new TurnCoordinator(),
+	store: new ResultStore(),
+});
 
 async function execute(params: Parameters<typeof tool.execute>[1]) {
 	return tool.execute("test-call-id", params, undefined);
@@ -36,7 +41,7 @@ test("queryRef mode — returns empty markers, queryRef, and elementIds", async 
 	expect(result.details.data.queryRef).toBe("toolu_abc123");
 	expect(result.details.data.elementIds).toEqual(["node/123", "way/456"]);
 	expect(result.content[0]).toMatchObject({
-		text: "Displaying markers from query_osm call toolu_abc123 on map.",
+		text: "Displaying markers from query_osm / find_features call toolu_abc123 on map.",
 	});
 });
 
@@ -51,16 +56,32 @@ test("queryRef mode — forwards bounds", async () => {
 	expect(result.details.data.bounds).toEqual(bounds);
 });
 
-test("XOR guard — both markers and queryRef throws", async () => {
+test("elementsRef mode — forwards ref id", async () => {
+	const result = await execute({ elementsRef: "toolu_def" });
+	expect(result.details.data.elementsRef).toBe("toolu_def");
+	expect(result.content[0]).toMatchObject({
+		text: "Displaying elements from result toolu_def on map.",
+	});
+});
+
+test("pairsRef mode — forwards ref id", async () => {
+	const result = await execute({ pairsRef: "toolu_xyz" });
+	expect(result.details.data.pairsRef).toBe("toolu_xyz");
+	expect(result.content[0]).toMatchObject({
+		text: "Displaying spatial_join pairs from toolu_xyz on map (points + targets + connecting lines).",
+	});
+});
+
+test("XOR guard — markers + queryRef throws", async () => {
 	expect(execute({ markers: [{ lat: 1, lon: 2 }], queryRef: "toolu_abc" })).rejects.toThrow(
-		"not both",
+		"not multiple",
 	);
 });
 
-test("XOR guard — neither markers nor queryRef throws", async () => {
-	expect(execute({})).rejects.toThrow("Provide either");
+test("XOR guard — neither markers nor any ref throws", async () => {
+	expect(execute({})).rejects.toThrow("Provide one of");
 });
 
-test("XOR guard — elementIds alone (no queryRef, no markers) throws", async () => {
-	expect(execute({ elementIds: ["node/123"] })).rejects.toThrow("Provide either");
+test("XOR guard — elementIds alone (no ref, no markers) throws", async () => {
+	expect(execute({ elementIds: ["node/123"] })).rejects.toThrow("Provide one of");
 });
