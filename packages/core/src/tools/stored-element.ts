@@ -1,10 +1,40 @@
 import type { GeocodeResultEntry } from "./schemas.ts";
 import type { OverpassResultEntry, StoredElement } from "./schemas.ts";
+import type { OverpassElement } from "../clients/overpass.ts";
+import { getElementCoords } from "../clients/overpass.ts";
 
 // Re-export the canonical type so existing import sites (`./stored-element`)
 // keep working after the type moved to schemas.ts as the single source of
 // truth (issue #244, review H2).
 export type { StoredElement };
+
+/**
+ * Convert a raw {@link OverpassElement} (the client response shape) into the
+ * structured wire-entry form tools emit on `details.data`. Shared by
+ * `query_osm` and `find_features` so the two stay byte-identical — the
+ * alternative was two copies that silently drift.
+ *
+ * `name` is hoisted out of `tags` (mirroring the model-facing pipe format
+ * `formatElement` produces) so each piece of information appears once in
+ * the rendered tree.
+ */
+export function overpassElementToResultEntry(el: OverpassElement): OverpassResultEntry {
+	const coord = getElementCoords(el);
+	const otherTags: Record<string, string> = {};
+	if (el.tags) {
+		for (const [k, v] of Object.entries(el.tags)) {
+			if (k !== "name") otherTags[k] = v;
+		}
+	}
+	return {
+		type: el.type,
+		id: el.id,
+		...(coord ? { lat: coord.lat, lon: coord.lon } : {}),
+		...(el.tags?.name ? { name: el.tags.name } : {}),
+		...(Object.keys(otherTags).length > 0 ? { tags: otherTags } : {}),
+		...(el.geometry && el.geometry.length > 0 ? { geometryPoints: el.geometry.length } : {}),
+	};
+}
 
 /**
  * Helpers for the canonical {@link StoredElement} shape (defined as
@@ -80,7 +110,7 @@ export interface Bounds {
  * no element carries `lat`/`lon`. Used by `find_features` to resolve an
  * `area.queryRef` to a search bbox and by `display_map` to fit the view.
  */
-export function computeBounds(elements: readonly StoredElement[]): Bounds | null {
+export function computeBounds(elements: StoredElement[]): Bounds | null {
 	let minlat = Number.POSITIVE_INFINITY;
 	let minlon = Number.POSITIVE_INFINITY;
 	let maxlat = Number.NEGATIVE_INFINITY;

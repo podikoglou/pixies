@@ -1,12 +1,13 @@
 import { Result } from "better-result";
 import { Type } from "typebox";
-import type { OverpassClient, OverpassElement } from "../clients/overpass.ts";
-import { formatElement, getElementCoords, OVERPASS_BUSY_MESSAGE } from "../clients/overpass.ts";
+import type { OverpassClient } from "../clients/overpass.ts";
+import { formatElement, OVERPASS_BUSY_MESSAGE } from "../clients/overpass.ts";
 import {
 	QueryOsmToolDetailsSchema,
 	type OverpassResultEntry,
 	type QueryOsmToolDetails,
 } from "./schemas.ts";
+import { overpassElementToResultEntry } from "./stored-element.ts";
 import type { ToolProgress } from "./progress.ts";
 import { defineTool, parseSchema } from "./tool-module.ts";
 import { textResult, formatContentLines } from "./content.ts";
@@ -47,7 +48,7 @@ export const queryOsmModule = defineTool<
 					details: { data: [] },
 				});
 			}
-			const data = elements.map(overpassElementToData);
+			const data = elements.map(overpassElementToResultEntry);
 			const text = formatContentLines(
 				elements,
 				formatElement,
@@ -65,24 +66,3 @@ export const queryOsmModule = defineTool<
 		});
 	},
 });
-
-/**
- * Structured, lossless representation of an Overpass element for UI consumers.
- * Content-side counterpart to {@link formatElement}. `name` is hoisted to a
- * top-level field (mirroring {@link formatElement}) and excluded from `tags`
- * so each piece of information appears once in the rendered tree.
- */
-function overpassElementToData(el: OverpassElement): OverpassResultEntry {
-	const coord = getElementCoords(el);
-	const otherTags = el.tags
-		? Object.fromEntries(Object.entries(el.tags).filter(([k]) => k !== "name"))
-		: undefined;
-	return {
-		type: el.type,
-		id: el.id,
-		...(coord ? { lat: coord.lat, lon: coord.lon } : {}),
-		...(el.tags?.name ? { name: el.tags.name } : {}),
-		...(otherTags && Object.keys(otherTags).length > 0 ? { tags: otherTags } : {}),
-		...(el.geometry && el.geometry.length > 0 ? { geometryPoints: el.geometry.length } : {}),
-	};
-}
