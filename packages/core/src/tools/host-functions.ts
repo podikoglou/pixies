@@ -146,7 +146,7 @@ export async function findFeaturesHost(
 		return formatFeatures(features, limit, false, undefined);
 	}
 
-	const relaxed = await applyRelaxation(tryQuery, resolved.groups, area, params);
+	const relaxed = await applyRelaxation(tryQuery, resolved.groups, area);
 	if (relaxed.features.length > 0 || relaxed.exhausted) {
 		return formatFeatures(relaxed.features, limit, true, relaxed.note);
 	}
@@ -414,7 +414,6 @@ async function applyRelaxation(
 	tryQuery: (groups: TagClause[][], area: ResolvedArea) => Promise<Feature[]>,
 	groups: TagClause[][],
 	area: ResolvedArea,
-	_params: FindFeaturesParams,
 ): Promise<{ features: Feature[]; note?: string; exhausted: boolean }> {
 	if (area.kind === "around") {
 		const original = area.radius;
