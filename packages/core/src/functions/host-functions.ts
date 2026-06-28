@@ -65,7 +65,7 @@ export interface DisplayData {
 const DEFAULT_LIMIT = 200;
 const DEFAULT_MAX_PAIRS = 1000;
 
-/** Geocode a place name via Nominatim. Returns the top hit (with up to 4 alternatives) or null. */
+/** Geocode a place name via Nominatim. Returns the top hit (with up to 3 alternatives) or null. */
 export async function geocodeHost(ctx: HostContext, query: string): Promise<GeocodeResult | null> {
 	const result = await ctx.nominatim.search(query, { limit: 5 }, ctx.signal);
 	if (Result.isError(result)) {
@@ -451,7 +451,7 @@ function broadenTags(groups: TagClause[][]): TagClause[][] | null {
 	let changed = false;
 	const result = groups.map((group) =>
 		group.map((c) => {
-			if (c.op === "eq" && c.value) {
+			if ((c.op ?? "eq") === "eq" && c.value) {
 				changed = true;
 				return { ...c, op: "iregex" as const };
 			}
@@ -461,9 +461,9 @@ function broadenTags(groups: TagClause[][]): TagClause[][] | null {
 	return changed ? result : null;
 }
 
-/** Drop the most restrictive OR-groups (those with the most clauses). Keeps top half; returns null when there's ≤1 group. */
+/** Drop the most restrictive OR-groups (those with the most clauses). Keeps the broadest half; returns null when there's ≤1 group. */
 function dropMostRestrictive(groups: TagClause[][]): TagClause[][] | null {
 	if (groups.length <= 1) return null;
 	const sorted = [...groups].sort((a, b) => b.length - a.length);
-	return sorted.slice(0, Math.max(1, Math.ceil(sorted.length / 2)));
+	return sorted.slice(Math.ceil(sorted.length / 2));
 }
