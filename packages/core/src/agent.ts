@@ -1,6 +1,6 @@
-import { Agent } from "@earendil-works/pi-agent-core";
+import { Agent, type AfterToolCallContext } from "@earendil-works/pi-agent-core";
 import { getModels, getProviders } from "@earendil-works/pi-ai";
-import type { Api, KnownProvider, Model } from "@earendil-works/pi-ai";
+import type { Api, KnownProvider, Model, TextContent } from "@earendil-works/pi-ai";
 import { Value } from "typebox/value";
 import { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
 import { silentLogger, type Logger } from "./logging/index.ts";
@@ -217,11 +217,35 @@ export function createOverpassClient(
 	});
 }
 
+/** Python error types produced by incorrect LLM-written code (not API failures). */
+const CODING_ERROR_PATTERN = /^(Type|Syntax|Name|Key|Value|ModuleNotFound|Import)Error\b/m;
+
+function isCodingError(text: string): boolean {
+	return CODING_ERROR_PATTERN.test(text);
+}
+
+/**
+ * Prepend a retry directive to a coding error message so the LLM never gives
+ * up on its own code mistakes. "RuntimeError" is deliberately excluded — host
+ * functions surface API/rejection errors as RuntimeError, and retrying those
+ * would waste turns.
+ */
+function prependRetryDirective(errorText: string): TextContent[] {
+	const match = errorText.match(/^(\w+):/);
+	const errorType = match?.[1] ?? "error";
+	return [
+		{
+			type: "text",
+			text: `Your code produced a ${errorType}. Fix the issue and call execute_code again.\n\n${errorText}`,
+		},
+	];
+}
+
 export function createAgent(options: CreateAgentOptions): Agent {
 	const { config } = options;
 	const model = resolveModel(config.model);
 	const tools = createTools({ executor: options.codeExecutor });
-	return new Agent({
+	const agent = new Agent({
 		initialState: {
 			systemPrompt: SYSTEM_PROMPT,
 			model,
@@ -230,4 +254,13 @@ export function createAgent(options: CreateAgentOptions): Agent {
 		},
 		getApiKey: () => config.apiKey,
 	});
+
+	agent.afterToolCall = async (ctx: AfterToolCallContext) => {
+		if (!ctx.isError) return;
+		const textContent = ctx.result.content.map((c) => ("text" in c ? c.text : "")).join("\n");
+		if (!isCodingError(textContent)) return;
+		return { content: prependRetryDirective(textContent) };
+	};
+
+	return agent;
 }
