@@ -7,7 +7,26 @@ import {
 	type OverpassResultEntry,
 	type QueryOsmToolDetails,
 } from "./schemas.ts";
-import { overpassElementToResultEntry } from "./stored-element.ts";
+import { getElementCoords } from "../clients/overpass.ts";
+import type { OverpassElement } from "../clients/overpass.ts";
+
+function overpassElementToResultEntry(el: OverpassElement): OverpassResultEntry {
+	const coord = getElementCoords(el);
+	const otherTags: Record<string, string> = {};
+	if (el.tags) {
+		for (const [k, v] of Object.entries(el.tags)) {
+			if (k !== "name") otherTags[k] = v;
+		}
+	}
+	return {
+		type: el.type,
+		id: el.id,
+		...(coord ? { lat: coord.lat, lon: coord.lon } : {}),
+		...(el.tags?.name ? { name: el.tags.name } : {}),
+		...(Object.keys(otherTags).length > 0 ? { tags: otherTags } : {}),
+		...(el.geometry && el.geometry.length > 0 ? { geometryPoints: el.geometry.length } : {}),
+	};
+}
 import type { ToolProgress } from "./progress.ts";
 import { defineTool, parseSchema } from "./tool-module.ts";
 import { textResult, formatContentLines } from "./content.ts";
