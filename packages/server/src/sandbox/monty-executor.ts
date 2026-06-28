@@ -39,10 +39,23 @@ const DEFAULT_LIMITS: ResourceLimits = {
 	maxRecursionDepth: 100,
 };
 
+/**
+ * Per-conversation Monty executor with variable persistence.
+ *
+ * v0.0.18 has no REPL-with-external-functions API (`MontySession.feedRun`
+ * exists on main but is unpublished). State persistence is achieved by
+ * prepending previous code snippets so variables exist in scope, with
+ * external function call results cached so replay is instant (no network).
+ *
+ * A `__pixies_replay_end__()` marker is injected between replayed and new
+ * code to toggle stdout suppression and cache lookups.
+ */
 export class MontyExecutor implements CodeExecutor {
 	private readonly nominatim: NominatimClient;
 	private readonly overpass: OverpassClient;
 	private readonly limits: ResourceLimits;
+	private readonly codeHistory: string[] = [];
+	private readonly callCache = new Map<string, unknown>();
 
 	constructor(opts: MontyExecutorOptions) {
 		this.nominatim = opts.nominatim;
@@ -58,6 +71,12 @@ export class MontyExecutor implements CodeExecutor {
 			onProgress?: (message: string) => void;
 		},
 	): Promise<Result<CodeExecutionSuccess, CodeExecutionError>> {
+		const isFirstCall = this.codeHistory.length === 0;
+		const fullCode = isFirstCall
+			? code
+			: `${this.codeHistory.join("\n")}\n__pixies_replay_end__()\n${code}`;
+
+		const state = { isReplaying: !isFirstCall };
 		const stdoutParts: string[] = [];
 		const displays: DisplayData[] = [];
 
@@ -68,13 +87,13 @@ export class MontyExecutor implements CodeExecutor {
 		};
 
 		const printCallback = (_stream: string, text: string) => {
-			stdoutParts.push(text);
+			if (!state.isReplaying) stdoutParts.push(text);
 		};
 
 		const externalFunctions = this.buildExternalFunctions(
 			ctx,
 			(text) => {
-				stdoutParts.push(text);
+				if (!state.isReplaying) stdoutParts.push(text);
 			},
 			(data) => {
 				displays.push(data);
@@ -83,12 +102,16 @@ export class MontyExecutor implements CodeExecutor {
 		);
 
 		try {
-			const monty = new Monty(code, { scriptName: "pixies.py" });
+			const monty = new Monty(fullCode, { scriptName: "pixies.py" });
 			await runMontyLoop(monty, {
 				externalFunctions,
 				limits: this.limits,
 				printCallback,
+				callCache: this.callCache,
+				state,
 			});
+
+			this.codeHistory.push(code);
 			return Result.ok({
 				stdout: stdoutParts.join(""),
 				displays,
@@ -222,7 +245,9 @@ export class MontyExecutor implements CodeExecutor {
  * "Invalid exception type: 'MontyRuntimeError'" message.
  *
  * This loop keeps `resume()` outside the external-function try-catch, so
- * resume errors propagate directly.
+ * resume errors propagate directly. It also handles replay caching: during
+ * replay, cached results are returned instantly without calling the real
+ * function, and `display()` / `__pixies_replay_end__()` are handled specially.
  */
 async function runMontyLoop(
 	monty: Monty,
@@ -230,6 +255,8 @@ async function runMontyLoop(
 		externalFunctions: Record<string, (...args: unknown[]) => unknown>;
 		limits?: ResourceLimits;
 		printCallback?: (stream: string, text: string) => void;
+		callCache: Map<string, unknown>;
+		state: { isReplaying: boolean };
 	},
 ): Promise<void> {
 	let progress: MontySnapshot | MontyNameLookup | MontyComplete = monty.start({
@@ -245,6 +272,24 @@ async function runMontyLoop(
 		}
 
 		const snapshot = progress as MontySnapshot;
+
+		if (snapshot.functionName === "__pixies_replay_end__") {
+			opts.state.isReplaying = false;
+			progress = snapshot.resume({ returnValue: null });
+			continue;
+		}
+
+		if (opts.state.isReplaying && snapshot.functionName === "display") {
+			progress = snapshot.resume({ returnValue: null });
+			continue;
+		}
+
+		const cacheKey = JSON.stringify([snapshot.functionName, snapshot.args, snapshot.kwargs]);
+		if (opts.state.isReplaying && opts.callCache.has(cacheKey)) {
+			progress = snapshot.resume({ returnValue: opts.callCache.get(cacheKey) });
+			continue;
+		}
+
 		const fn = opts.externalFunctions[snapshot.functionName];
 		if (!fn) {
 			progress = snapshot.resume({
@@ -272,6 +317,7 @@ async function runMontyLoop(
 			continue;
 		}
 
+		opts.callCache.set(cacheKey, result);
 		progress = snapshot.resume({ returnValue: result });
 	}
 }
