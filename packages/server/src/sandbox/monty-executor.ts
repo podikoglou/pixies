@@ -96,6 +96,7 @@ export class MontyExecutor implements CodeExecutor {
 				if (!state.isReplaying) stdoutParts.push(text);
 			},
 			(data) => {
+				if (state.isReplaying) return;
 				displays.push(data);
 				options.onDisplay?.(data);
 			},
@@ -139,6 +140,11 @@ export class MontyExecutor implements CodeExecutor {
 				const query = String(args[0] ?? "");
 				const result = await geocodeHost(ctx, query);
 				print(formatGeocodeSummary(query, result));
+				if (result) {
+					onDisplay({
+						markers: [{ lat: result.lat, lon: result.lon, label: result.name ?? query }],
+					});
+				}
 				return result;
 			},
 

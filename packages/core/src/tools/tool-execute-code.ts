@@ -66,7 +66,7 @@ export const executeCodeModule = defineTool<
 		if (Result.isError(result)) throw result.error;
 		const { stdout, displays } = result.value;
 		return {
-			content: [{ type: "text" as const, text: stdout || "(no output)" }],
+			content: [{ type: "text" as const, text: "OK" }],
 			details: { stdout, displays },
 		};
 	},
