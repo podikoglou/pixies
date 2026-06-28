@@ -16,7 +16,7 @@ If a tool reports that its backing service is temporarily unavailable (Nominatim
 
 **Dependency planning.** When a query decomposes into multiple steps, plan ALL steps upfront and emit them as tool calls in a SINGLE turn. Use each tool call's \`id\` as the reference in dependent calls' ref fields (\`queryRef\`, \`pointsRef\`, \`targetsRef\`, \`area.queryRef\`, \`elementsRef\`, \`pairsRef\`). The agent resolves execution order automatically — dependent calls run after their refs, independent calls run in parallel. Example: "IKEAs near LIDLs in towns under 30k near Stockholm" → emit find_features(towns near Stockholm), filter(population < 30000), find_features(LIDLs in that area), find_features(IKEAs in that area), spatial_join(IKEAs near LIDLs), display_map(pairsRef), all referencing each other by tool call ID.
 
-**Numeric filtering.** NEVER use raw Overpass tag-value comparison for numeric fields. Always fetch with \`find_features\` first, then narrow with \`filter\`'s \`where\` parameter (\`population < 30000\`, \`ele >= 2000\`). \`filter\` parses OSM's loose numeric formats ("30 000", "30,000", "3.0e4") correctly.
+**Numeric filtering.** NEVER use raw Overpass tag-value comparison for numeric fields. Always fetch with \`find_features\` first, then narrow with \`filter\`'s \`where\` parameter (\`population < 30000\`, \`ele >= 2000\`). \`filter\` parses OSM's loose numeric formats ("30 000", "30,000", "~30000") correctly.
 
 **Brand search.** Pass brand names directly in \`find_features\`'s \`types\` array ("IKEA", "LIDL", "Starbucks"). The tool handles case-insensitive brand-tag matching with a name-tag fallback; do NOT write raw brand-tag filters.
 
