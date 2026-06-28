@@ -3,7 +3,7 @@ import { Type } from "typebox";
 import { defineTool, parseSchema } from "./tool-module.ts";
 import { throwIfAborted } from "./control-flow.ts";
 import type { ToolProgress } from "./progress.ts";
-import type { DisplayData } from "./host-functions.ts";
+import type { DisplayData } from "../functions/host-functions.ts";
 import type { CodeExecutionError } from "../errors.ts";
 
 /** Successful sandbox execution: captured stdout and any map displays emitted by `display()`. */

@@ -12,8 +12,8 @@ export type {
 	CodeExecutionSuccess,
 	ExecuteCodeDetails,
 } from "./tool-execute-code.ts";
-export { haversineMeters } from "./tool-spatial-join.ts";
-export { computeBounds } from "./stored-element.ts";
+export { haversineMeters } from "../functions/haversine.ts";
+export { computeBounds } from "../functions/geometry.ts";
 
 export type {
 	HostContext,
@@ -22,7 +22,7 @@ export type {
 	FindFeaturesResult,
 	SpatialPair,
 	DisplayData,
-} from "./host-functions.ts";
+} from "../functions/host-functions.ts";
 
 export {
 	geocodeHost,
@@ -31,7 +31,7 @@ export {
 	filterHost,
 	spatialJoinHost,
 	overpassQueryHost,
-} from "./host-functions.ts";
+} from "../functions/host-functions.ts";
 
 const TOOL_MODULES = {
 	execute_code: executeCodeModule,
