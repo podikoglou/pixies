@@ -1,3 +1,9 @@
+import type { TagClause } from "./schemas.ts";
+
+// Re-export so the existing import sites (`./find-features-types`) keep
+// working after TagClause moved to schemas.ts as the single source of truth.
+export type { TagClause };
+
 /**
  * Human-readable feature type → OSM tag clauses. The dictionary is the
  * model-facing abstraction that lets `find_features` accept "restaurant" /
@@ -12,22 +18,7 @@
  * `geocode-entry.ts` for the same reason.
  */
 
-/** A single OSM tag test, isomorphic to one Overpass bracket clause. */
-export interface TagClause {
-	key: string;
-	value?: string;
-	/**
-	 * Defaults to `"eq"`. `"iregex"` is the case-insensitive regex (Overpass
-	 * `~,"i"`); `"regex"` is case-sensitive; `"exists"` tests key presence.
-	 */
-	op?: "eq" | "neq" | "regex" | "iregex" | "exists" | "notexists";
-}
-
-/**
- * A resolved type — a list of OR-groups. Each group is an AND of clauses;
- * groups are OR'd. Empty list means "no dictionary match" (the caller
- * falls back to a name regex).
- */
+/** A resolved type — a list of OR-groups; each group is an AND of clauses. */
 export type ResolvedType = TagClause[][];
 
 const amenity = (value: string): TagClause[] => [{ key: "amenity", value }];
@@ -119,7 +110,7 @@ export const TYPE_DICTIONARY: Record<string, ResolvedType> = {
 	park: [leisure("park")],
 	playground: [leisure("playground")],
 	swimming_pool: [leisure("swimming_pool")],
-	gym: [leisure("fitness_centre"), amenity("gym")],
+	gym: [leisure("fitness_centre"), leisure("sports_centre")],
 	fitness_centre: [leisure("fitness_centre")],
 	sports_centre: [leisure("sports_centre")],
 	cinema: [amenity("cinema")],

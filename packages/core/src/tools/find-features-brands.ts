@@ -40,7 +40,10 @@ const AMENITY = (value: string): TagClause[] => [{ key: "amenity", value }];
 
 /** Known-brand dictionary; keys are lowercased brand names. */
 export const BRAND_DICTIONARY: Record<string, BrandEntry> = {
-	ikea: { required: BRAND_REQUIRED("ikea"), optional: [SHOP("furniture"), SHOP("supermarket")] },
+	ikea: {
+		required: BRAND_REQUIRED("ikea"),
+		optional: [SHOP("furniture"), SHOP("department_store")],
+	},
 	lidl: { required: BRAND_REQUIRED("lidl"), optional: [SHOP("supermarket"), SHOP("convenience")] },
 	aldi: { required: BRAND_REQUIRED("aldi"), optional: [SHOP("supermarket")] },
 	rewe: { required: BRAND_REQUIRED("rewe"), optional: [SHOP("supermarket")] },

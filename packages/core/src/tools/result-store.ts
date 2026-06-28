@@ -59,12 +59,12 @@ export class ResultStore {
 		return this.cache.has(toolCallId);
 	}
 
-	/** Drop a stored result (unused outside tests, but the contract is symmetric). */
+	/** Drop a stored result by tool call ID. */
 	delete(toolCallId: string): void {
 		this.cache.delete(toolCallId);
 	}
 
-	/** Current entry count (unused outside tests). */
+	/** Current entry count. */
 	get size(): number {
 		return this.cache.size;
 	}

@@ -4,11 +4,12 @@ import type { Static } from "typebox";
 import type { NominatimClient, NominatimResult } from "../clients/nominatim.ts";
 import { NOMINATIM_BUSY_MESSAGE } from "../clients/nominatim.ts";
 import type { OverpassClient, OverpassElement } from "../clients/overpass.ts";
-import { formatElement, getElementCoords, OVERPASS_BUSY_MESSAGE } from "../clients/overpass.ts";
+import { formatElement, OVERPASS_BUSY_MESSAGE } from "../clients/overpass.ts";
 import {
 	FindFeaturesToolDetailsSchema,
 	type FindFeaturesToolDetails,
 	type OverpassResultEntry,
+	TagClauseSchema,
 } from "./schemas.ts";
 import type { ToolProgress } from "./progress.ts";
 import { defineTool, parseSchema } from "./tool-module.ts";
@@ -23,6 +24,7 @@ import {
 } from "./find-features-query.ts";
 import {
 	overpassEntryToStored,
+	overpassElementToResultEntry,
 	expandBounds,
 	computeBounds,
 	type Bounds,
@@ -39,28 +41,9 @@ const boundsSchema = Type.Object({
 	maxlon: Type.Number(),
 });
 
-const tagClauseSchema = Type.Object({
-	key: Type.String({ description: "OSM tag key, e.g. 'amenity' or 'population'." }),
-	value: Type.Optional(
-		Type.String({ description: "Tag value (required unless op is 'exists'/'notexists')." }),
-	),
-	op: Type.Optional(
-		Type.Union(
-			[
-				Type.Literal("eq"),
-				Type.Literal("neq"),
-				Type.Literal("regex"),
-				Type.Literal("iregex"),
-				Type.Literal("exists"),
-				Type.Literal("notexists"),
-			],
-			{
-				description:
-					"Comparison operator. Default 'eq'. eq=exact, neq=not equal, regex=case-sensitive, iregex=case-insensitive, exists=key present, notexists=key absent.",
-			},
-		),
-	),
-});
+// tagClauseSchema is shared with filter via schemas.ts (TagClauseSchema) —
+// keep the two surfaces byte-identical so the model can reuse expressions.
+const tagClauseSchema = TagClauseSchema;
 
 const schema = Type.Object({
 	area: Type.Object({
@@ -317,21 +300,7 @@ function toEntries(elements: OverpassElement[]): {
 	const data: OverpassResultEntry[] = [];
 	const stored: StoredElement[] = [];
 	for (const el of elements) {
-		const coord = getElementCoords(el);
-		const otherTags: Record<string, string> = {};
-		if (el.tags) {
-			for (const [k, v] of Object.entries(el.tags)) {
-				if (k !== "name") otherTags[k] = v;
-			}
-		}
-		const entry: OverpassResultEntry = {
-			type: el.type,
-			id: el.id,
-			...(coord ? { lat: coord.lat, lon: coord.lon } : {}),
-			...(el.tags?.name ? { name: el.tags.name } : {}),
-			...(Object.keys(otherTags).length > 0 ? { tags: otherTags } : {}),
-			...(el.geometry && el.geometry.length > 0 ? { geometryPoints: el.geometry.length } : {}),
-		};
+		const entry = overpassElementToResultEntry(el);
 		data.push(entry);
 		stored.push(overpassEntryToStored(entry));
 	}

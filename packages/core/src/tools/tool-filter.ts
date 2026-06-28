@@ -7,24 +7,11 @@ import type { StoredResult } from "./result-store.ts";
 import type { StoredElement } from "./stored-element.ts";
 import { computeBounds } from "./stored-element.ts";
 import type { ToolProgress } from "./progress.ts";
-import { FilterToolDetailsSchema, type FilterToolDetails } from "./schemas.ts";
+import { FilterToolDetailsSchema, type FilterToolDetails, TagClauseSchema } from "./schemas.ts";
 import { throwIfAborted } from "./control-flow.ts";
 import { textResult, formatContentLines } from "./content.ts";
 
-const tagClauseSchema = Type.Object({
-	key: Type.String(),
-	value: Type.Optional(Type.String()),
-	op: Type.Optional(
-		Type.Union([
-			Type.Literal("eq"),
-			Type.Literal("neq"),
-			Type.Literal("regex"),
-			Type.Literal("iregex"),
-			Type.Literal("exists"),
-			Type.Literal("notexists"),
-		]),
-	),
-});
+const tagClauseSchema = TagClauseSchema;
 
 const schema = Type.Object({
 	queryRef: Type.String({
@@ -476,6 +463,10 @@ function applyTagsFilter(
  * Apply the `sortBy` parameter. `-key` is descending; bare `key` is ascending.
  * Elements missing the tag sort after elements that have it; numeric-aware
  * when both sides parse as numbers (so `-population` doesn't string-sort).
+ *
+ * String comparison uses the `"en"` locale with `numeric: true` so the sort
+ * is deterministic across server deployments (the default `localeCompare`
+ * honours the runtime's $LC_* env and silently differs across machines).
  */
 function applySortBy(elements: StoredElement[], sortBy: string): StoredElement[] {
 	const desc = sortBy.startsWith("-");
@@ -490,7 +481,8 @@ function applySortBy(elements: StoredElement[], sortBy: string): StoredElement[]
 		const an = parseOsmNumber(av);
 		const bn = parseOsmNumber(bv);
 		if (an !== null && bn !== null) return desc ? bn - an : an - bn;
-		return desc ? bv.localeCompare(av) : av.localeCompare(bv);
+		const cmp = av.localeCompare(bv, "en", { numeric: true });
+		return desc ? -cmp : cmp;
 	});
 	return sorted;
 }
