@@ -50,6 +50,8 @@ export {
 	FindFeaturesToolDetailsSchema,
 	FilterToolDetailsSchema,
 	SpatialJoinToolDetailsSchema,
+	SpatialPairSchema,
+	StoredElementSchema,
 } from "./schemas.ts";
 export type {
 	GeocodeResultEntry,
@@ -62,6 +64,8 @@ export type {
 	FindFeaturesToolDetails,
 	FilterToolDetails,
 	SpatialJoinToolDetails,
+	SpatialPair,
+	StoredElement,
 } from "./schemas.ts";
 
 /** Inputs to {@link createTools} — the two OSM clients plus the per-conversation dependency layer. */

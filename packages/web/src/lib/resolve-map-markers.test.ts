@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
 import type { OverpassResultEntry } from "@pixies/core";
-import { resolveMapMarkers } from "./resolve-map-markers.ts";
+import { resolveMapMarkers, resolveMapPairs } from "./resolve-map-markers.ts";
 import type { TimelineItem } from "@/state/chat-reducer.ts";
 
 function osmItem(toolCallId: string, data: OverpassResultEntry[]): TimelineItem {
@@ -49,19 +49,19 @@ test("unnamed entries have no label key", () => {
 	expect("label" in unnamed!).toBe(false);
 });
 
-test("queryRef not found and no query_osm to fall back on → null", () => {
-	// A non-query_osm tool call and a user message: nothing to fall back to,
-	// so a non-matching queryRef must still return null.
+test("queryRef not found and no element-bearing tool to fall back on → null", () => {
+	// A display_map tool call (no element data) and a user message: nothing
+	// to fall back to, so a non-matching queryRef must still return null.
 	const items: TimelineItem[] = [
 		{
 			kind: "tool-call",
 			toolCallId: "call-1",
-			toolName: "geocode",
+			toolName: "display_map",
 			args: {},
 			status: "done",
 			queued: false,
 			resultText: null,
-			result: { kind: "geocode", entries: [] },
+			result: { kind: "display_map", data: { markers: [] } },
 		},
 		{ kind: "user-message", text: "hi" },
 	];
@@ -69,21 +69,41 @@ test("queryRef not found and no query_osm to fall back on → null", () => {
 	expect(result).toBeNull();
 });
 
-test("referenced item has non-query_osm result → null", () => {
+test("referenced item has non-element-bearing result → null", () => {
 	const items: TimelineItem[] = [
 		{
 			kind: "tool-call",
 			toolCallId: "call-1",
+			toolName: "display_map",
+			args: {},
+			status: "done",
+			queued: false,
+			resultText: null,
+			result: { kind: "display_map", data: { markers: [] } },
+		},
+	];
+	const result = resolveMapMarkers("call-1", undefined, items);
+	expect(result).toBeNull();
+});
+
+test("geocode result is element-bearing — ref resolves to its entries", () => {
+	const items: TimelineItem[] = [
+		{
+			kind: "tool-call",
+			toolCallId: "call-geo",
 			toolName: "geocode",
 			args: {},
 			status: "done",
 			queued: false,
 			resultText: null,
-			result: { kind: "geocode", entries: [] },
+			result: {
+				kind: "geocode",
+				entries: [{ placeId: 1, lat: 1, lon: 2, name: "Somewhere" }],
+			},
 		},
 	];
-	const result = resolveMapMarkers("call-1", undefined, items);
-	expect(result).toBeNull();
+	const result = resolveMapMarkers("call-geo", undefined, items);
+	expect(result).toEqual([{ lat: 1, lon: 2, label: "Somewhere" }]);
 });
 
 test("elementIds filter — keeps only matching type/id entries", () => {
@@ -212,4 +232,109 @@ test("fallback — multiple query_osm calls picks the nearest preceding one", ()
 test("fallback — empty items array → null", () => {
 	const result = resolveMapMarkers("hallucinated-id", undefined, [], 0);
 	expect(result).toBeNull();
+});
+
+// --- New element-bearing tools (issue #244) ---
+
+function findFeaturesItem(toolCallId: string, entries: OverpassResultEntry[]): TimelineItem {
+	return {
+		kind: "tool-call",
+		toolCallId,
+		toolName: "find_features",
+		args: {},
+		status: "done",
+		queued: false,
+		resultText: null,
+		result: { kind: "find_features", entries },
+	};
+}
+
+function filterItem(
+	toolCallId: string,
+	entries: { id: string; lat?: number; lon?: number; name?: string }[],
+): TimelineItem {
+	return {
+		kind: "tool-call",
+		toolCallId,
+		toolName: "filter",
+		args: {},
+		status: "done",
+		queued: false,
+		resultText: null,
+		result: { kind: "filter", entries },
+	};
+}
+
+test("find_features result is element-bearing — resolves markers like query_osm", () => {
+	const items = [findFeaturesItem("ff-1", SAMPLE_ENTRIES)];
+	const result = resolveMapMarkers("ff-1", undefined, items);
+	expect(result).toHaveLength(3);
+	expect(result![0]).toEqual({ lat: 59.3, lon: 18.1, label: "Cafe A" });
+});
+
+test("filter result is element-bearing — resolves markers and deduplicates by id", () => {
+	const items = [
+		filterItem("f-1", [
+			{ id: "node/1", lat: 1, lon: 1, name: "a" },
+			{ id: "node/1", lat: 1, lon: 1, name: "a duplicate" },
+			{ id: "node/2", lat: 2, lon: 2 },
+		]),
+	];
+	const result = resolveMapMarkers("f-1", undefined, items);
+	expect(result).toHaveLength(2);
+});
+
+test("find_features elementIds filter — matches on '<type>/<id>' form", () => {
+	const items = [findFeaturesItem("ff-1", SAMPLE_ENTRIES)];
+	const result = resolveMapMarkers("ff-1", ["node/100", "node/300"], items);
+	expect(result).toHaveLength(2);
+});
+
+// --- pairsRef / spatial_join resolution ---
+
+function spatialJoinItem(
+	toolCallId: string,
+	pairs: {
+		point: { id: string; lat: number; lon: number; name?: string };
+		target: { id: string; lat: number; lon: number; name?: string };
+		distance: number;
+	}[],
+): TimelineItem {
+	return {
+		kind: "tool-call",
+		toolCallId,
+		toolName: "spatial_join",
+		args: {},
+		status: "done",
+		queued: false,
+		resultText: null,
+		result: { kind: "spatial_join", pairs },
+	};
+}
+
+test("resolveMapPairs — markers + polylines from a spatial_join result", () => {
+	const items = [
+		spatialJoinItem("sj-1", [
+			{
+				point: { id: "L1", lat: 0, lon: 0, name: "LIDL" },
+				target: { id: "I1", lat: 0.01, lon: 0.01, name: "IKEA" },
+				distance: 1500,
+			},
+			{
+				point: { id: "L2", lat: 1, lon: 1 },
+				target: { id: "I1", lat: 1.01, lon: 1.01 },
+				distance: 1500,
+			},
+		]),
+	];
+	const resolved = resolveMapPairs("sj-1", items);
+	expect(resolved).not.toBeNull();
+	// 2 unique points + 1 unique target (I1 reused) = 3 markers; 2 polylines.
+	expect(resolved!.markers).toHaveLength(3);
+	expect(resolved!.polylines).toHaveLength(2);
+});
+
+test("resolveMapPairs — null when the ref targets a non-spatial_join result", () => {
+	const items = [osmItem("osm-1", SAMPLE_ENTRIES)];
+	expect(resolveMapPairs("osm-1", items)).toBeNull();
 });

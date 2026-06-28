@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import type { ChatState, TimelineItem } from "@/state/chat-reducer";
 import type { DisplayMapData } from "@pixies/core";
-import { resolveMapMarkers } from "@/lib/resolve-map-markers";
+import { resolveMapMarkers, resolveMapPairs } from "@/lib/resolve-map-markers";
 import { ToolCallCard } from "./tool-call-card";
 import { MapWidget } from "./map-widget";
 import { UserMessage } from "./user-message";
@@ -11,18 +11,31 @@ interface ChatTimelineProps {
 	state: ChatState;
 }
 
+const EMPTY_MAP_PLACEHOLDER = (
+	<div className="text-muted-foreground flex h-[400px] w-full items-center justify-center rounded-md border text-sm">
+		No results found for this query.
+	</div>
+);
+
 function renderDisplayMap(data: DisplayMapData, items: TimelineItem[], currentIndex: number) {
-	if (data.queryRef) {
-		const markers = resolveMapMarkers(data.queryRef, data.elementIds, items, currentIndex);
-		if (markers === null || markers.length === 0) {
-			return (
-				<div className="text-muted-foreground flex h-[400px] w-full items-center justify-center rounded-md border text-sm">
-					No results found for this query.
-				</div>
-			);
-		}
+	// pairsRef (spatial_join) — markers + connecting polylines.
+	if (data.pairsRef) {
+		const resolved = resolveMapPairs(data.pairsRef, items, currentIndex);
+		if (!resolved || resolved.markers.length === 0) return EMPTY_MAP_PLACEHOLDER;
+		return (
+			<MapWidget markers={resolved.markers} polylines={resolved.polylines} bounds={data.bounds} />
+		);
+	}
+
+	// queryRef / elementsRef — markers from any element-bearing result.
+	const ref = data.queryRef ?? data.elementsRef;
+	if (ref) {
+		const markers = resolveMapMarkers(ref, data.elementIds, items, currentIndex);
+		if (markers === null || markers.length === 0) return EMPTY_MAP_PLACEHOLDER;
 		return <MapWidget markers={markers} bounds={data.bounds} />;
 	}
+
+	// Inline markers (hand-picked points).
 	return <MapWidget markers={data.markers} bounds={data.bounds} />;
 }
 
