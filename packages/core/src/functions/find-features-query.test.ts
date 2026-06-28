@@ -43,7 +43,7 @@ test("generateOverpassQuery — emits node+way per OR-group, wrapped in a union"
 		area: bbox,
 		limit: 100,
 	});
-	expect(q).toContain("[out:json][timeout:30];");
+	expect(q).toContain("[out:json][timeout:5];");
 	expect(q).toContain('node["amenity"="restaurant"](59,17,60,19);');
 	expect(q).toContain('way["amenity"="restaurant"](59,17,60,19);');
 	expect(q).toContain("out center 100;");

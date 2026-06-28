@@ -22,11 +22,9 @@ export type ResolvedArea =
 export const MAX_BBOX_AREA_KM2 = 25_000;
 
 /**
- * Hard timeout (seconds) baked into every generated query. Below Overpass's
- * own server-side cap (currently 180s on the public instance) so a runaway
- * query returns to the agent as a remark rather than hanging the request.
+ * Hard timeout (seconds) baked into every generated query.
  */
-export const OVERPASS_TIMEOUT_SECONDS = 30;
+export const OVERPASS_TIMEOUT_SECONDS = 5;
 
 /** Render a single tag clause as an Overpass bracket expression. */
 export function buildTagClause(c: TagClause): string {
