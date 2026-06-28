@@ -422,10 +422,10 @@ function formatFindFeaturesSummary(
 		.map((f) => f.name ?? f.id)
 		.join(", ");
 	const relaxed = result.relaxed ? (result.note ? ` [${result.note}]` : " [relaxed]") : "";
-	return `find_features(types=[${typesDesc}], ${areaDesc}) → ${result.count} feature(s)${truncated_suffix(result)}${relaxed}\n${shown > 0 ? `  top: ${names}\n` : ""}`;
+	return `find_features(types=[${typesDesc}], ${areaDesc}) → ${result.count} feature(s)${truncatedSuffix(result)}${relaxed}\n${shown > 0 ? `  top: ${names}\n` : ""}`;
 }
 
-function truncated_suffix(result: FindFeaturesResult): string {
+function truncatedSuffix(result: FindFeaturesResult): string {
 	return result.truncated ? ` (showing ${result.features.length})` : "";
 }
 
