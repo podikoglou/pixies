@@ -17,6 +17,7 @@ Monorepo with three packages:
 | [docs/api/sse.md](docs/api/sse.md) | the conversation + SSE wire protocol |
 | [docs/errors.md](docs/errors.md) | the error taxonomy, wire invariant, and tag schema |
 | [docs/posthog-privacy.md](docs/posthog-privacy.md) | what telemetry is collected and how to disable it |
+| [docs/posthog-dashboards.md](docs/posthog-dashboards.md) | the PostHog dashboards and alerts runbook for agent-loop observability |
 | [docs/DOCKER.md](docs/DOCKER.md) | deployment, env vars, and token-budget semantics |
 | [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | code conventions |
 | [docs/adr/](docs/adr/) | architecture decision records |
