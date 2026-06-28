@@ -1,4 +1,5 @@
 import { Agent, type AfterToolCallContext } from "@earendil-works/pi-agent-core";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { getModels, getProviders } from "@earendil-works/pi-ai";
 import type { Api, KnownProvider, Model, TextContent } from "@earendil-works/pi-ai";
 import { Value } from "typebox/value";
@@ -217,18 +218,21 @@ export function createOverpassClient(
 	});
 }
 
-/** Python error types produced by incorrect LLM-written code (not API failures). */
+/** Python error types produced by incorrect LLM-written code. */
 const CODING_ERROR_PATTERN = /^(Type|Syntax|Name|Key|Value|ModuleNotFound|Import)Error\b/m;
 
-function isCodingError(text: string): boolean {
-	return CODING_ERROR_PATTERN.test(text);
+/** RuntimeError sub-patterns that indicate the LLM wrote a bad query, not a service outage. */
+const QUERY_ERROR_PATTERN =
+	/\b(Invalid Overpass query|bounding box area.*exceeds safe limit|area must specify one of)\b/;
+
+function isRetryableError(text: string): boolean {
+	return CODING_ERROR_PATTERN.test(text) || QUERY_ERROR_PATTERN.test(text);
 }
 
 /**
- * Prepend a retry directive to a coding error message so the LLM never gives
- * up on its own code mistakes. "RuntimeError" is deliberately excluded — host
- * functions surface API/rejection errors as RuntimeError, and retrying those
- * would waste turns.
+ * Prepend a retry directive so the LLM never gives up on its own mistakes.
+ * Includes RuntimeError sub-patterns for query-construction errors (e.g.
+ * bounding-box too large) that the LLM can fix by narrowing its search.
  */
 function prependRetryDirective(errorText: string): TextContent[] {
 	const match = errorText.match(/^(\w+):/);
@@ -255,12 +259,39 @@ export function createAgent(options: CreateAgentOptions): Agent {
 		getApiKey: () => config.apiKey,
 	});
 
+	let lastToolWasError = false;
+
 	agent.afterToolCall = async (ctx: AfterToolCallContext) => {
-		if (!ctx.isError) return;
+		if (!ctx.isError) {
+			lastToolWasError = false;
+			return;
+		}
+		lastToolWasError = true;
 		const textContent = ctx.result.content.map((c) => ("text" in c ? c.text : "")).join("\n");
-		if (!isCodingError(textContent)) return;
-		return { content: prependRetryDirective(textContent) };
+		if (isRetryableError(textContent)) {
+			return { content: prependRetryDirective(textContent) };
+		}
 	};
+
+	agent.subscribe((event: AgentEvent) => {
+		if (event.type === "turn_end" && lastToolWasError) {
+			const msg = event.message;
+			const content = msg.role === "assistant" ? msg.content : undefined;
+			const toolCalls = content?.filter((c: { type: string }) => c.type === "toolCall");
+			if (!toolCalls || toolCalls.length === 0) {
+				agent.steer({
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "You got an error. Retry with a different approach — narrow the area, fix arguments, or simplify the query.",
+						},
+					],
+					timestamp: Date.now(),
+				});
+			}
+		}
+	});
 
 	return agent;
 }
