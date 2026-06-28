@@ -77,8 +77,6 @@ completing, so the client's ref resolution does not race.
 
 - No framework fork. The experiment lives entirely in `@pixies/core` and
   degrades gracefully if reverted.
-- Backward-compatible. The framework's dispatch semantics are untouched;
-  simple queries behave identically.
 - The coordinator is per-conversation (constructed in `createAgent`,
   injected via tool context), so conversations do not interfere.
 
@@ -92,10 +90,35 @@ completing, so the client's ref resolution does not race.
   even for tools that will quiesce awaiting a ref. The UI shows them as
   "running" before they truly are; a future `execution_plan` SSE event
   would close the gap.
-- The coordinator's `done(null)` contract for upstream failure means
-  downstream tools surface `UpstreamFailedError` rather than the
-  upstream's specific error tag. The model sees the cause text but not
-  the typed tag.
+- **Mixing `executionMode: "sequential"` tools with ref-aware tools in
+  the same batch breaks ref resolution.** `geocode` and `reverse_geocode`
+  are `sequential` (Nominatim's 1 req/s policy). The framework forces the
+  *whole batch* sequential when any tool opts in; in that mode, by the
+  time tool B's `execute` is called, tool A may already have settled and
+  been cleaned up via `queueMicrotask`, so B's `awaitResult(A)` throws
+  `UnknownRefError`. The system prompt does not currently forbid this
+  mix; the failure mode is a tool error the model can recover from next
+  turn, but it's not graceful. A future revision should either extend
+  the coordinator to survive cross-mode batches, or harden the system
+  prompt against emitting `geocode` and a ref-aware tool in the same
+  assistant turn.
+- **The system prompt change is NOT backward-compatible for simple
+  queries.** The new prompt says "Prefer `find_features` over
+  `query_osm`", which redirects every data-fetch query through the new
+  tool. `find_features`'s type/brand dictionary has different recall
+  characteristics than raw `query_osm`: unknown types fall back to a
+  name iregex that may match more or less than the model expects. The
+  experiment is structured to surface exactly this regression — if
+  simple-query accuracy drops, the prompt paragraph is reverted and
+  `find_features` becomes opt-in (only when the query decomposes). No
+  automated eval pins the simple-query baseline; the experiment relies
+  on dogfooding against the showcase queries plus ad-hoc simple-query
+  checks before merge.
+- The framework's "synchronous prefix of every `execute` runs in source
+  order before any await settles" assumption is load-bearing and
+  version-pinned to `@earendil-works/pi-agent-core` 0.79.3. A future
+  framework version that interleaves dispatch differently would silently
+  break intra-turn ref resolution.
 
 ## Alternatives considered
 

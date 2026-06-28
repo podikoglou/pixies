@@ -285,16 +285,25 @@ function literalAsNumber(t: Token): number | null {
  * Normalise an OSM numeric tag value. Handles the formats the OSM community
  * actually uses for population/elevation/capacity: `"30 000"` (space
  * thousands), `"30,000"` (comma thousands), `"~30000"` / `"c. 30000"`
- * (approximate), `"3.0e4"` (scientific). Returns null for non-numeric.
+ * (approximate). Returns null for non-numeric.
+ *
+ * Rejects inputs that `Number()` would accept but the OSM data model never
+ * intends: hex (`"0x10"`), numeric separators (`"1_000"`), bare signs, and
+ * scientific notation (which doesn't appear in real OSM tags and surprises
+ * users when it silently matches). The strict pattern is: optional `~`/`≈`/
+ * `c.` prefix, optional sign, digits with optional thousands separators
+ * (space or comma) and an optional decimal component.
  */
 function parseOsmNumber(raw: string | null): number | null {
 	if (raw === null) return null;
+	const acceptable = /^\s*[~≈]?\s*(?:c\.\s*)?-?\d{1,3}(?:[ ,]?\d{3})*(?:\.\d+)?\s*$/;
+	if (!acceptable.test(raw)) return null;
 	const cleaned = raw
 		.replace(/[\s,]/g, "")
 		.replace(/^[~≈]?/, "")
 		.replace(/^c\./i, "");
 	const n = Number(cleaned);
-	return Number.isFinite(n) && cleaned.length > 0 && /\d/.test(cleaned) ? n : null;
+	return Number.isFinite(n) ? n : null;
 }
 
 /** Escape regex metacharacters in a literal string for `new RegExp`. */
@@ -522,6 +531,7 @@ Required: queryRef (a prior find_features / filter / spatial_join / geocode tool
 		throwIfAborted(signal);
 		const reg = ctx.coordinator.register(toolCallId);
 		let stored: StoredResult | null = null;
+		let pendingCause: unknown;
 		try {
 			const upstream = await resolveRef(ctx, toolCallId, params.queryRef, signal);
 			let elements: StoredElement[] = upstream.elements;
@@ -571,8 +581,11 @@ Required: queryRef (a prior find_features / filter / spatial_join / geocode tool
 					},
 				},
 			};
+		} catch (e) {
+			pendingCause = e;
+			throw e;
 		} finally {
-			reg.done(stored);
+			reg.done(stored, stored ? undefined : pendingCause);
 		}
 	},
 });

@@ -151,3 +151,69 @@ test("distinct — deduplicates by element ID", async () => {
 	if (!("details" in r) || !("filterStats" in r.details)) throw new Error("unexpected shape");
 	expect(r.details.data).toHaveLength(2);
 });
+
+// --- End-to-end intra-turn dependency (issue #244, review H7) ---
+// Exercises the load-bearing path: filter.execute → resolveRef →
+// coordinator.awaitResult → upstream.done. Other tests pre-populate the
+// store; this one proves filter actually awaits an in-flight upstream.
+
+test("intra-turn ref — filter awaits an in-flight upstream and resolves when it lands", async () => {
+	const coordinator = new TurnCoordinator();
+	const store = new ResultStore();
+	const tool = filterModule.build({ coordinator, store });
+
+	// Register an upstream but don't settle it yet.
+	const upstreamReg = coordinator.register("upstream");
+	const upstreamElements: StoredElement[] = [
+		{ id: "node/1", lat: 0, lon: 0, tags: { population: "5,000" } },
+		{ id: "node/2", lat: 0, lon: 0, tags: { population: "50,000" } },
+	];
+
+	// Kick off filter; it should pending on the upstream's result.
+	const filterPromise = tool.execute(
+		"tc_filter",
+		{ queryRef: "upstream", where: "population < 30000" },
+		undefined,
+	);
+	// Let filter's synchronous prefix run and reach `awaitResult`.
+	await Promise.resolve();
+	await Promise.resolve();
+
+	// Settle the upstream with a real StoredResult.
+	upstreamReg.done({
+		toolCallId: "upstream",
+		toolName: "find_features",
+		timestamp: 0,
+		elements: upstreamElements,
+	});
+
+	const r = await filterPromise;
+	if (!("details" in r) || !("filterStats" in r.details)) throw new Error("unexpected shape");
+	expect(r.details.data.map((e) => e.id)).toEqual(["node/1"]);
+});
+
+test("intra-turn ref — UpstreamFailedError with the real cause when upstream fails", async () => {
+	const coordinator = new TurnCoordinator();
+	const store = new ResultStore();
+	const tool = filterModule.build({ coordinator, store });
+
+	const upstreamReg = coordinator.register("upstream");
+	const filterPromise = tool.execute(
+		"tc_filter",
+		{ queryRef: "upstream", where: "population < 30000" },
+		undefined,
+	);
+	await Promise.resolve();
+	await Promise.resolve();
+
+	// Upstream fails with a tagged error.
+	const upstreamErr = new (class extends Error {
+		readonly _tag = "OverpassBusy";
+	})("overpass overloaded");
+	upstreamReg.done(null, upstreamErr);
+
+	// filter's execute re-throws UpstreamFailedError with the cause threaded
+	// through the coordinator — the framework would mark this as isError=true
+	// and surface the text to the model.
+	await expect(filterPromise).rejects.toThrow(/overpass overloaded/);
+});

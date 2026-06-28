@@ -15,18 +15,40 @@ export interface MapPolyline {
 }
 
 /**
- * Normalise any element-bearing tool result into a list of `{lat, lon, label?}`
- * markers. Returns `null` when the result kind carries no element data
- * (`display_map`, `query_osm` raw payload, `empty`, `find_features_busy`).
- *
- * Centralises the per-kind projection so the resolver and any future
- * consumer share one shape.
+ * A marker plus the source element's stable identity. The identity is
+ * threaded through so `elementIds` filtering matches the source element
+ * (NOT by marker-array position — no-coords entries are filtered out before
+ * markers, so positional matching would silently reference the wrong source
+ * element when interspersed).
  */
-function resultToMarkers(result: ToolResult): MapMarker[] | null {
+interface MarkerWithSource {
+	lat: number;
+	lon: number;
+	label?: string;
+	sourceId: string;
+}
+
+/**
+ * Normalise any element-bearing tool result into a list of markers carrying
+ * the source element's identity. Returns `null` when the result kind carries
+ * no element data (`display_map`, `query_osm` raw payload, `empty`,
+ * `find_features_busy`).
+ */
+function resultToMarkers(result: ToolResult): MarkerWithSource[] | null {
 	switch (result.kind) {
 		case "query_osm":
 		case "find_features":
-			return overpassEntriesToMarkers(result.entries);
+			return result.entries
+				.filter(
+					(e): e is OverpassResultEntry & { lat: number; lon: number } =>
+						e.lat != null && e.lon != null,
+				)
+				.map((e) => ({
+					lat: e.lat,
+					lon: e.lon,
+					sourceId: `${e.type}/${e.id}`,
+					...(e.name ? { label: e.name } : {}),
+				}));
 		case "filter":
 			return storedElementsToMarkers(result.entries);
 		case "spatial_join":
@@ -35,6 +57,8 @@ function resultToMarkers(result: ToolResult): MapMarker[] | null {
 			return result.entries.map((e) => ({
 				lat: e.lat,
 				lon: e.lon,
+				sourceId:
+					e.osmType && e.osmId !== undefined ? `${e.osmType}/${e.osmId}` : `place/${e.placeId}`,
 				...(e.name ? { label: e.name } : {}),
 			}));
 		case "reverse_geocode":
@@ -42,6 +66,10 @@ function resultToMarkers(result: ToolResult): MapMarker[] | null {
 				{
 					lat: result.entry.lat,
 					lon: result.entry.lon,
+					sourceId:
+						result.entry.osmType && result.entry.osmId !== undefined
+							? `${result.entry.osmType}/${result.entry.osmId}`
+							: `place/${result.entry.placeId}`,
 					...(result.entry.name ? { label: result.entry.name } : {}),
 				},
 			];
@@ -78,24 +106,20 @@ function resultToPairs(
 	return { markers, polylines };
 }
 
-function overpassEntriesToMarkers(entries: OverpassResultEntry[]): MapMarker[] {
-	return entries
-		.filter(
-			(e): e is OverpassResultEntry & { lat: number; lon: number } =>
-				e.lat != null && e.lon != null,
-		)
-		.map((e) => ({ lat: e.lat, lon: e.lon, ...(e.name ? { label: e.name } : {}) }));
-}
-
-function storedElementsToMarkers(entries: StoredElement[]): MapMarker[] {
+function storedElementsToMarkers(entries: StoredElement[]): MarkerWithSource[] {
 	const seen = new Set<string>();
-	const out: MapMarker[] = [];
+	const out: MarkerWithSource[] = [];
 	for (const el of entries) {
 		if (el.lat === undefined || el.lon === undefined) continue;
 		if (seen.has(el.id)) continue;
 		seen.add(el.id);
-		const m = storedElementToMarker(el);
-		if (m) out.push(m);
+		if (el.lat === undefined || el.lon === undefined) continue;
+		out.push({
+			lat: el.lat,
+			lon: el.lon,
+			sourceId: el.id,
+			...(el.name ? { label: el.name } : {}),
+		});
 	}
 	return out;
 }
@@ -103,6 +127,11 @@ function storedElementsToMarkers(entries: StoredElement[]): MapMarker[] {
 function storedElementToMarker(el: StoredElement): MapMarker | null {
 	if (el.lat === undefined || el.lon === undefined) return null;
 	return { lat: el.lat, lon: el.lon, ...(el.name ? { label: el.name } : {}) };
+}
+
+/** Strip the `sourceId` field to produce the public {@link MapMarker} shape. */
+function toPublicMarkers(ms: MarkerWithSource[]): MapMarker[] {
+	return ms.map(({ lat, lon, label }) => ({ lat, lon, ...(label ? { label } : {}) }));
 }
 
 /**
@@ -119,7 +148,6 @@ function findRelevantItem(
 		(it): it is Extract<TimelineItem, { kind: "tool-call" }> =>
 			it.kind === "tool-call" && it.toolCallId === ref,
 	);
-	// Reject items whose result has no element data (e.g. another display_map).
 	if (item && resultToMarkers(item.result) === null && resultToPairs(item.result) === null) {
 		item = undefined;
 	}
@@ -142,8 +170,8 @@ function findRelevantItem(
  * timeline for the referenced tool call. Returns `null` when the ref does
  * not match any element-bearing result.
  *
- * When `elementIds` is provided, filters to that subset (matched against the
- * `id` field on stored elements, or `<type>/<id>` for raw query_osm entries).
+ * When `elementIds` is provided, filters to that subset, matched against the
+ * source element's stable identity (NOT positional index).
  */
 export function resolveMapMarkers(
 	ref: string,
@@ -153,26 +181,14 @@ export function resolveMapMarkers(
 ): MapMarker[] | null {
 	const item = findRelevantItem(ref, items, currentIndex);
 	if (!item) return null;
-	let markers = resultToMarkers(item.result);
-	if (markers === null) return null;
+	const withSource = resultToMarkers(item.result);
+	if (withSource === null) return null;
 
-	if (elementIds) {
-		const idSet = new Set(elementIds);
-		// For OverpassResultEntry-shaped results, the element identity is
-		// `<type>/<id>`; for StoredElement-shaped results it's `el.id` directly.
-		markers = markers.filter((_, i) => {
-			if (item.result.kind === "query_osm" || item.result.kind === "find_features") {
-				const e = item.result.entries[i]!;
-				return idSet.has(`${e.type}/${e.id}`);
-			}
-			if (item.result.kind === "filter") {
-				return idSet.has(item.result.entries[i]!.id);
-			}
-			return true;
-		});
-	}
+	const filtered = elementIds
+		? withSource.filter((m) => new Set(elementIds).has(m.sourceId))
+		: withSource;
 
-	return markers;
+	return toPublicMarkers(filtered);
 }
 
 /**
