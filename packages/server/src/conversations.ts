@@ -23,6 +23,7 @@ import {
 } from "@pixies/core";
 import { conversations as conversationsTable, type DbClient } from "@pixies/core/db";
 import { silentLogger, type Logger } from "@pixies/core/logging";
+import { MontyExecutor } from "./sandbox/monty-executor.ts";
 
 interface Conversation {
 	readonly id: string;
@@ -35,15 +36,16 @@ interface Conversation {
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 export class ConversationStore {
-	private map = new Map<string, Conversation>();
-	private sweeper: ReturnType<typeof setInterval>;
-	private config: ResolvedPixiesConfig;
-	private nominatim: NominatimClient;
-	private overpass: OverpassClient;
-	private db: DbClient;
-	private maxSize: number;
-	private agentFactory: (opts: CreateAgentOptions) => Agent;
-	private logger: Logger;
+	private readonly map = new Map<string, Conversation>();
+	private readonly sweeper: ReturnType<typeof setInterval>;
+	private readonly config: ResolvedPixiesConfig;
+	private readonly nominatim: NominatimClient;
+	private readonly overpass: OverpassClient;
+	private readonly executor: MontyExecutor;
+	private readonly db: DbClient;
+	private readonly maxSize: number;
+	private readonly agentFactory: (opts: CreateAgentOptions) => Agent;
+	private readonly logger: Logger;
 
 	constructor(
 		config: ResolvedPixiesConfig,
@@ -61,6 +63,7 @@ export class ConversationStore {
 		// process-global, independent of conversation count.
 		this.nominatim = createNominatimClient(config, { logger: this.logger });
 		this.overpass = createOverpassClient(config, { logger: this.logger });
+		this.executor = new MontyExecutor({ nominatim: this.nominatim, overpass: this.overpass });
 		this.sweeper = setInterval(() => this.sweep(), SWEEP_INTERVAL_MS);
 	}
 
@@ -72,6 +75,7 @@ export class ConversationStore {
 				config: this.config,
 				nominatim: this.nominatim,
 				overpass: this.overpass,
+				codeExecutor: this.executor,
 			}),
 			lastActivity: Date.now(),
 			inFlight: false,
@@ -140,6 +144,7 @@ export class ConversationStore {
 				config: this.config,
 				nominatim: this.nominatim,
 				overpass: this.overpass,
+				codeExecutor: this.executor,
 			}),
 			lastActivity: Date.now(),
 			inFlight: false,

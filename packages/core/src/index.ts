@@ -14,7 +14,6 @@ export {
 } from "./clients/overpass.ts";
 export {
 	ToolAbortedError,
-	DisplayMapValidationError,
 	ConversationNotFoundError,
 	PromptConflictError,
 	BudgetExceededError,
@@ -67,50 +66,23 @@ export {
 	createTools,
 	ToolProgressSchema,
 	isToolProgress,
-	GeocodeResultEntrySchema,
-	OverpassResultEntrySchema,
-	GeocodeToolDetailsSchema,
-	ReverseGeocodeToolDetailsSchema,
-	QueryOsmToolDetailsSchema,
-	DisplayMapDataSchema,
-	DisplayMapToolDetailsSchema,
-	FindFeaturesToolDetailsSchema,
-	FilterToolDetailsSchema,
-	SpatialJoinToolDetailsSchema,
-	SpatialPairSchema,
-	StoredElementSchema,
 	parseToolResult,
 	isBusyResult,
 	toolResultCount,
 } from "./tools/index.ts";
 export type {
-	GeocodeToolDetails,
-	ReverseGeocodeToolDetails,
-	QueryOsmToolDetails,
-	DisplayMapData,
-	DisplayMapToolDetails,
-	FindFeaturesToolDetails,
-	FilterToolDetails,
-	SpatialJoinToolDetails,
-	SpatialPair,
-	StoredElement,
+	CodeExecutor,
+	CodeExecutionResult,
+	ExecuteCodeDetails,
 	ToolProgress,
 	ToolResult,
-	GeocodeResultEntry,
-	OverpassResultEntry,
+	HostContext,
+	Feature,
+	GeocodeResult,
+	FindFeaturesResult,
+	SpatialPair,
+	DisplayData,
 } from "./tools/index.ts";
-// Dependency-layer (issue #244) — exported for adapters that build tools directly.
-export { TurnCoordinator, resolveRef } from "./tools/dependency-graph.ts";
-export type { DependencyContext, DependencyError } from "./tools/dependency-graph.ts";
-export { ResultStore } from "./tools/result-store.ts";
-export type { StoredResult } from "./tools/result-store.ts";
-export {
-	overpassEntryToStored,
-	geocodeEntryToStored,
-	computeBounds,
-	boundsAreaKm2,
-	expandBounds,
-} from "./tools/stored-element.ts";
 export {
 	ConversationTranscriptSchema,
 	isConversationTranscript,

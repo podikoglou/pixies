@@ -39,7 +39,7 @@ test("tool_execution_start does not fire callback and dispatches TOOL_START", ()
 	const { dispatch, actions } = capture();
 	const evt: SSEEvent = {
 		event: "tool_execution_start",
-		data: { toolCallId: "tc-1", toolName: "query_osm", args: { q: "*" } },
+		data: { toolCallId: "tc-1", toolName: "execute_code", args: { code: "print(1)" } },
 	};
 
 	dispatchSseEvent(evt, dispatch, () => {
@@ -47,7 +47,12 @@ test("tool_execution_start does not fire callback and dispatches TOOL_START", ()
 	});
 
 	expect(actions).toEqual([
-		{ type: "TOOL_START", toolCallId: "tc-1", toolName: "query_osm", args: { q: "*" } },
+		{
+			type: "TOOL_START",
+			toolCallId: "tc-1",
+			toolName: "execute_code",
+			args: { code: "print(1)" },
+		},
 	]);
 });
 
