@@ -48,8 +48,21 @@ interface PendingEntry {
 	promise: Promise<StoredResult | null>;
 	/** Whether `done()` has been called; defends against double-resolution. */
 	settled: boolean;
-	/** The error tag the upstream surfaced, if any (for {@link UpstreamFailedError}). */
-	upstreamErrorTag?: string;
+	/** The cause the upstream surfaced when it failed (for {@link UpstreamFailedError}). */
+	upstreamCause?: { tag: string; message: string };
+}
+
+/**
+ * Reduce any thrown value to a `{ tag, message }` cause. `TaggedError` classes
+ * carry their `_tag`; bare errors get the generic `"Error"` tag. Used by
+ * {@link TurnCoordinator.register}'s `done(null, error)` so downstream waiters
+ * see the real upstream failure mode rather than a placeholder.
+ */
+function errorToCause(e: unknown): { tag: string; message: string } {
+	if (e instanceof Error && "_tag" in e && typeof (e as { _tag: unknown })._tag === "string") {
+		return { tag: (e as { _tag: string })._tag, message: e.message };
+	}
+	return { tag: "Error", message: e instanceof Error ? e.message : String(e) };
 }
 
 /**
@@ -87,7 +100,7 @@ export class TurnCoordinator {
 	 * resumes — JS runs the synchronous prefix of each `execute` in source
 	 * order before the first microtask settles.
 	 */
-	register(toolCallId: string): { done: (result: StoredResult | null) => void } {
+	register(toolCallId: string): { done: (result: StoredResult | null, error?: unknown) => void } {
 		if (this.inFlight.has(toolCallId)) {
 			// Re-registration in the same turn should not happen — IDs are
 			// unique per assistant message. Defend against it cheaply by
@@ -102,10 +115,17 @@ export class TurnCoordinator {
 		const entry: PendingEntry = { resolve, promise, settled: false };
 		this.inFlight.set(toolCallId, entry);
 		return {
-			done: (result) => {
+			/**
+			 * Settle the registration. Pass the StoredResult on success; on
+			 * failure, pass `null` and the thrown value — the coordinator
+			 * extracts its `_tag`/message so dependent tools see a typed
+			 * {@link UpstreamFailedError} with the real cause rather than a
+			 * generic "failed or was aborted".
+			 */
+			done: (result, error) => {
 				if (entry.settled) return;
 				entry.settled = true;
-				if (result === null) entry.upstreamErrorTag = "UpstreamFailed";
+				if (result === null && error !== undefined) entry.upstreamCause = errorToCause(error);
 				entry.resolve(result);
 				// In-flight entry stays until the next microtask so waiters that
 				// race-register can still resolve; cleanup is best-effort.
@@ -168,8 +188,14 @@ export class TurnCoordinator {
 				throw new UpstreamFailedError({
 					toolCallId: dependentId,
 					refId,
-					upstreamErrorTag: entry.upstreamErrorTag,
-					message: `Tool call ${dependentId} depends on ${refId}, which failed or was aborted.`,
+					...(entry.upstreamCause
+						? {
+								upstreamErrorTag: entry.upstreamCause.tag,
+								message: `Tool call ${dependentId} depends on ${refId}, which failed: ${entry.upstreamCause.message}`,
+							}
+						: {
+								message: `Tool call ${dependentId} depends on ${refId}, which failed or was aborted.`,
+							}),
 				});
 			}
 			return result;
@@ -205,13 +231,11 @@ export class TurnCoordinator {
 
 /**
  * Race a promise against an abort signal. Resolves with `T` when the promise
- * resolves; rejects with the signal's reason (wrapped as a
- * {@link TaggedError}-friendly `Error`) when the signal aborts first.
+ * resolves; rejects when the signal aborts first.
  *
- * Used by {@link TurnCoordinator.awaitResult} so an aborted turn wakes every
- * dependent tool — the framework aborts the agent-level signal, which flows
- * into each tool's `execute`, which would otherwise hang on a coordinator
- * promise that never settles because the upstream was also aborted mid-flight.
+ * The abort listener is removed explicitly in the `finally` — `{ once: true }`
+ * alone would NOT remove it on a successful race (the event never fires),
+ * leaking one listener per call into the conversation-level signal.
  */
 async function raceWithAbort<T>(
 	promise: Promise<T>,
@@ -220,16 +244,16 @@ async function raceWithAbort<T>(
 ): Promise<T> {
 	if (!signal) return promise;
 	if (signal.aborted) throw new Error(`Tool call ${dependentId} aborted while awaiting upstream.`);
-	// `Promise.race` is sufficient: the abort listener removes itself on
-	// settle, and the upstream promise is owned by the coordinator (no leak).
-	return Promise.race<T>([
-		promise,
-		new Promise<T>((_, reject) => {
-			const onAbort = () => {
-				signal.removeEventListener("abort", onAbort);
-				reject(new Error(`Tool call ${dependentId} aborted while awaiting upstream.`));
-			};
-			signal.addEventListener("abort", onAbort, { once: true });
-		}),
-	]);
+	let onAbort: (() => void) | undefined;
+	const abortPromise = new Promise<T>((_, reject) => {
+		onAbort = () => reject(new Error(`Tool call ${dependentId} aborted while awaiting upstream.`));
+		signal.addEventListener("abort", onAbort, { once: true });
+	});
+	try {
+		return await Promise.race<T>([promise, abortPromise]);
+	} finally {
+		// Always remove — covers both the abort-fires path and the success path
+		// where the listener would otherwise leak.
+		if (onAbort) signal.removeEventListener("abort", onAbort);
+	}
 }

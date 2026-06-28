@@ -175,7 +175,10 @@ function resolveGroups(
 			resolvedKinds.push({ input: trimmed, kind: "type" });
 			continue;
 		}
-		groups.push([{ key: "name", value: trimmed, op: "iregex" }, ...explicitTagClauses]);
+		groups.push([
+			{ key: "name", value: escapeRegexForOverpass(trimmed), op: "iregex" },
+			...explicitTagClauses,
+		]);
 		resolvedKinds.push({ input: trimmed, kind: "name" });
 	}
 
@@ -185,6 +188,16 @@ function resolveGroups(
 
 	if (groups.length === 0) return null;
 	return { groups, resolvedKinds };
+}
+
+/**
+ * Escape regex metacharacters in a model-supplied type string before it's
+ * used as the body of an Overpass iregex clause. The model can pass arbitrary
+ * `types` strings; without escaping, `"foo(bar"` produces an invalid regex
+ * that Overpass rejects with a generic remark.
+ */
+function escapeRegexForOverpass(s: string): string {
+	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**
@@ -350,8 +363,9 @@ Numeric comparisons (population < 30000, ele > 1000) are NOT reliable in Overpas
 		throwIfAborted(signal);
 		const reg = ctx.coordinator.register(toolCallId);
 		// Set on the success path; the finally resolves waiters with it (or
-		// null on busy/error). `done` is idempotent — safe to call after return.
+		// null + the thrown error on failure). `done` is idempotent.
 		let stored: StoredResult | null = null;
+		let pendingCause: unknown;
 		try {
 			const resolved = resolveGroups(params.types, params.tags);
 			if (!resolved) {
@@ -417,9 +431,11 @@ Numeric comparisons (population < 30000, ele > 1000) are NOT reliable in Overpas
 			if (e instanceof BusyMarker) {
 				return { ...textResult(NOMINATIM_BUSY_MESSAGE), details: { data: [], busy: true } };
 			}
+			// Re-throw; the finally forwards the cause to downstream waiters.
+			pendingCause = e;
 			throw e;
 		} finally {
-			reg.done(stored);
+			reg.done(stored, stored ? undefined : pendingCause);
 		}
 	},
 });

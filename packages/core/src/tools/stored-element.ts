@@ -1,28 +1,23 @@
 import type { GeocodeResultEntry } from "./schemas.ts";
-import type { OverpassResultEntry } from "./schemas.ts";
+import type { OverpassResultEntry, StoredElement } from "./schemas.ts";
+
+// Re-export the canonical type so existing import sites (`./stored-element`)
+// keep working after the type moved to schemas.ts as the single source of
+// truth (issue #244, review H2).
+export type { StoredElement };
 
 /**
- * Unified element shape used by the dependency-resolved tool layer
- * (`find_features`, `filter`, `spatial_join`) and the per-conversation
- * {@link ResultStore}. Producers (`find_features`, `geocode`, `filter`)
- * map their tool-specific result shape into this common form; consumers
- * (`filter`, `spatial_join`, `display_map`) operate on it without
- * branching on the source tool.
+ * Helpers for the canonical {@link StoredElement} shape (defined as
+ * `Static<typeof StoredElementSchema>` in `schemas.ts`, the single source of
+ * truth). Producers (`find_features`, `geocode`) map their tool-specific
+ * result into this common form; consumers (`filter`, `spatial_join`,
+ * `display_map`) operate on it without branching on the source tool.
  *
  * `id` is a stable `"<type>/<numeric>"` string used for deduplication and
  * `elementIds` matching — same scheme the web client already uses for
  * `query_osm` results (`"node/12345"`). Geocode results, which carry no
  * OSM type/id in some cases, fall back to `"place/<placeId>"`.
  */
-export interface StoredElement {
-	id: string;
-	/** OSM element type when present (`"node" | "way" | "relation"`); absent for geocode-only entries. */
-	type?: "node" | "way" | "relation";
-	lat?: number;
-	lon?: number;
-	name?: string;
-	tags?: Record<string, string>;
-}
 
 /**
  * Map an {@link OverpassResultEntry} (the structured form `query_osm` and

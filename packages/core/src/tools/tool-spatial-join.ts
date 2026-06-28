@@ -5,9 +5,13 @@ import { resolveRef } from "./dependency-graph.ts";
 import type { StoredResult } from "./result-store.ts";
 import type { StoredElement } from "./stored-element.ts";
 import type { ToolProgress } from "./progress.ts";
+import {
+	SpatialJoinToolDetailsSchema,
+	type SpatialJoinToolDetails,
+	type SpatialPair,
+} from "./schemas.ts";
 import { throwIfAborted } from "./control-flow.ts";
 import { textResult, formatContentLines } from "./content.ts";
-import { SpatialJoinToolDetailsSchema, type SpatialJoinToolDetails } from "./schemas.ts";
 
 /**
  * `spatial_join` — in-memory spatial operations between two stored result
@@ -23,13 +27,6 @@ import { SpatialJoinToolDetailsSchema, type SpatialJoinToolDetails } from "./sch
  * experiment — it requires full geometry, which means `out geom;`
  * responses that are several times larger. Documented in issue #244.
  */
-
-/** Pair emitted by `near` / `nearest`. */
-export interface SpatialPair {
-	point: StoredElement;
-	target: StoredElement;
-	distance: number;
-}
 
 const schema = Type.Object({
 	operation: Type.Union([Type.Literal("near"), Type.Literal("nearest")], {
@@ -172,6 +169,7 @@ Returns pairs (point, target, distance). 'within' (polygon containment) is not s
 		throwIfAborted(signal);
 		const reg = ctx.coordinator.register(toolCallId);
 		let stored: StoredResult | null = null;
+		let pendingCause: unknown;
 		try {
 			onUpdate?.({ content: [], details: { type: "running" } });
 			// Resolve both refs concurrently — they're independent of each other.
@@ -236,8 +234,11 @@ Returns pairs (point, target, distance). 'within' (polygon containment) is not s
 					},
 				},
 			};
+		} catch (e) {
+			pendingCause = e;
+			throw e;
 		} finally {
-			reg.done(stored);
+			reg.done(stored, stored ? undefined : pendingCause);
 		}
 	},
 });
