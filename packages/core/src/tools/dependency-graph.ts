@@ -76,6 +76,14 @@ function errorToCause(e: unknown): { tag: string; message: string } {
  * framework still dispatches in parallel; the dependency order emerges
  * from the `await` chain.
  *
+ * The "synchronous prefix of every `execute` runs in source order before
+ * any await settles" assumption is load-bearing and was verified against
+ * `@earendil-works/pi-agent-core` 0.79.3's `executeToolCallsParallel` (it
+ * prepares each tool call sequentially, then `Promise.all`s the wrapped
+ * executors). A future framework version that interleaves dispatch
+ * differently would silently break intra-turn ref resolution; re-verify
+ * the assumption when bumping the framework version. See ADR-0013.
+ *
  * The coordinator is per-conversation (one agent ⇒ one coordinator) but
  * the in-flight map is naturally per-turn: tool call IDs are unique across
  * turns, and each entry is removed when its `done` callback fires. A
