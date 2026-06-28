@@ -381,19 +381,20 @@ function formatGeocodeSummary(query: string, result: GeocodeResult | null): stri
 	return `geocode("${query}") → ${name} (${result.lat}, ${result.lon})\n`;
 }
 
+function formatAreaDesc(area: Record<string, unknown> | undefined): string {
+	if (!area) return "features-based";
+	if (area.place) return `place=${area.place}`;
+	if (area.around) return `around=${JSON.stringify(area.around)}`;
+	if (area.bounds) return `bounds=${JSON.stringify(area.bounds)}`;
+	return "features-based";
+}
+
 function formatFindFeaturesSummary(
 	params: Record<string, unknown>,
 	result: FindFeaturesResult,
 ): string {
 	const types = params.types;
-	const area = params.area as Record<string, unknown> | undefined;
-	const areaDesc = area?.place
-		? `place=${area.place}`
-		: area?.around
-			? `around=${JSON.stringify(area.around)}`
-			: area?.bounds
-				? `bounds=${JSON.stringify(area.bounds)}`
-				: "features-based";
+	const areaDesc = formatAreaDesc(params.area as Record<string, unknown> | undefined);
 	const typesDesc = Array.isArray(types) ? types.join(", ") : "none";
 	const shown = Math.min(3, result.features.length);
 	const names = result.features
