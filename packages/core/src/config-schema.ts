@@ -112,9 +112,8 @@ export const PixiesConfigSchema = Type.Object({
 	}),
 	nominatimTimeoutMs: Type.Integer({
 		minimum: 1,
-		default: 60_000,
-		description:
-			"Timeout for each Nominatim HTTP request in ms (default: 60s). Nominatim is fast and 1 req/s-capped, so this can be far tighter than Overpass.",
+		default: 5_000,
+		description: "Timeout for each Nominatim HTTP request in ms (default: 5s).",
 	}),
 	overpassConcurrency: Type.Integer({
 		minimum: 1,
@@ -133,9 +132,9 @@ export const PixiesConfigSchema = Type.Object({
 	}),
 	overpassTimeoutMs: Type.Integer({
 		minimum: 1,
-		default: 60_000,
+		default: 10_000,
 		description:
-			"Timeout for each Overpass HTTP request in ms (default: 60s). Overpass legitimately takes 10–60s when healthy, so keep generous until tuned from measurement.",
+			"Timeout for each Overpass HTTP request in ms (default: 10s). Overpass query-level timeout is set to 5s via [timeout:5]; the HTTP timeout adds a small buffer for response download.",
 	}),
 	posthogHost: Type.String({
 		format: "url",

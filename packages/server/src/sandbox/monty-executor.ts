@@ -34,7 +34,7 @@ export interface MontyExecutorOptions {
 	overpass: OverpassClient;
 	limits?: ResourceLimits;
 	/** Hard wall-clock timeout (seconds) for the entire execute() call, including
-	 *  host function I/O. Defaults to 120s. Aborted executions surface as a
+	 *  host function I/O. Defaults to 5s. Aborted executions surface as a
 	 *  CodeExecutionError with "TimeoutError". */
 	maxWallClockSecs?: number;
 }
@@ -67,7 +67,7 @@ export class MontyExecutor implements CodeExecutor {
 		this.nominatim = opts.nominatim;
 		this.overpass = opts.overpass;
 		this.limits = opts.limits ?? DEFAULT_LIMITS;
-		this.maxWallClockSecs = opts.maxWallClockSecs ?? 120;
+		this.maxWallClockSecs = opts.maxWallClockSecs ?? 5;
 	}
 
 	async execute(
