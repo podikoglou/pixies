@@ -23,10 +23,12 @@ import {
 } from "@pixies/core";
 import { conversations as conversationsTable, type DbClient } from "@pixies/core/db";
 import { silentLogger, type Logger } from "@pixies/core/logging";
+import { MontyExecutor } from "./sandbox/monty-executor.ts";
 
 interface Conversation {
 	readonly id: string;
 	readonly agent: Agent;
+	readonly executor: MontyExecutor;
 	lastActivity: number;
 	inFlight: boolean;
 	tokensUsed: number;
@@ -66,13 +68,16 @@ export class ConversationStore {
 
 	create(): string {
 		const id = uuidv7();
+		const executor = new MontyExecutor({ nominatim: this.nominatim, overpass: this.overpass });
 		const conv: Conversation = {
 			id,
 			agent: this.agentFactory({
 				config: this.config,
 				nominatim: this.nominatim,
 				overpass: this.overpass,
+				codeExecutor: executor,
 			}),
+			executor,
 			lastActivity: Date.now(),
 			inFlight: false,
 			tokensUsed: 0,
@@ -93,23 +98,15 @@ export class ConversationStore {
 	}
 
 	/**
-	 * Resolve a conversation by id from cache or DB — the single owner of the
-	 * cache-miss load path previously duplicated by `get()` and `streamPrompt()`.
+	 * Load a conversation from cache or DB.
 	 *
-	 * On a cache hit it touches the LRU (move to tail + bump `lastActivity`)
-	 * and returns the live conversation, replicating the prior `get()` cache-hit
-	 * behavior. On a miss it loads the persisted row, builds a fresh
-	 * `Conversation`, rehydrates its transcript, and inserts it under eviction.
-	 * A missing row yields `undefined`, leaving the not-found mapping to each
-	 * caller: `get()` returns `undefined`; `streamPrompt()` maps it to
-	 * `Err(ConversationNotFoundError)` at its own call site.
+	 * Cache hit: LRU-touches and returns. Cache miss: queries DB, builds a
+	 * fresh `Conversation`, rehydrates the transcript, inserts into the map
+	 * under eviction, and returns. A missing row yields `undefined` — the
+	 * caller maps that to a domain error.
 	 *
-	 * `streamPrompt()` pre-checks the cache and only routes the *miss* through
-	 * here, so its separate LRU re-touch (after the in-flight/budget guards) is
-	 * unchanged. Centralizing the miss path means the ADR-0008 persisted-
-	 * transcript guard (`isPersistedTranscript`, called once inside
-	 * `rehydrateTranscript`) is trusted from exactly one read site instead of
-	 * two duplicated copies that had to stay in lockstep.
+	 * Single read-site for the ADR-0008 persisted-transcript guard
+	 * (`isPersistedTranscript`). Callers must not bypass.
 	 */
 	private async loadConversation(id: string): Promise<Conversation | undefined> {
 		let conv = this.map.get(id);
@@ -130,13 +127,16 @@ export class ConversationStore {
 		if (rows.length === 0) return undefined;
 
 		const row = rows[0]!;
+		const executor = new MontyExecutor({ nominatim: this.nominatim, overpass: this.overpass });
 		conv = {
 			id,
 			agent: this.agentFactory({
 				config: this.config,
 				nominatim: this.nominatim,
 				overpass: this.overpass,
+				codeExecutor: executor,
 			}),
+			executor,
 			lastActivity: Date.now(),
 			inFlight: false,
 			tokensUsed: 0,

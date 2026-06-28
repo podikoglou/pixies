@@ -21,6 +21,7 @@
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.79.3",
     "@pixies/core": "workspace:*",
+    "@pydantic/monty": "^0.0.18",
     "drizzle-orm": "^0.45.2",
     "posthog-node": "^5.38.5",
     "typebox": "1.1.38"

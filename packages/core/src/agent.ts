@@ -7,6 +7,7 @@ import { silentLogger, type Logger } from "./logging/index.ts";
 import { NominatimClient } from "./clients/nominatim.ts";
 import { OverpassClient } from "./clients/overpass.ts";
 import { createTools } from "./tools/index.ts";
+import type { CodeExecutor } from "./tools/tool-execute-code.ts";
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 
 export type { ResolvedPixiesConfig } from "./config-schema.ts";
@@ -122,19 +123,10 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 export interface CreateAgentOptions {
 	config: ResolvedPixiesConfig;
 	fetch?: typeof globalThis.fetch;
-	/**
-	 * Pre-built Nominatim client. When omitted, the client is constructed
-	 * inside this call via {@link createNominatimClient} (the path used by
-	 * single-user adapters and tests). Multi-tenant adapters (e.g. the server)
-	 * MUST inject a single shared instance so the Nominatim rate-limit chain is
-	 * process-global — see ADR-0004.
-	 */
 	nominatim?: NominatimClient;
-	/**
-	 * Pre-built Overpass client; see {@link CreateAgentOptions.nominatim} for
-	 * the injection / fallback contract.
-	 */
 	overpass?: OverpassClient;
+	/** Sandboxed Python executor (Monty) for the `execute_code` tool. Required — there is no built-in fallback. */
+	codeExecutor: CodeExecutor;
 }
 
 /**
@@ -228,12 +220,7 @@ export function createOverpassClient(
 export function createAgent(options: CreateAgentOptions): Agent {
 	const { config } = options;
 	const model = resolveModel(config.model);
-	// Inject callers own the client lifetime (server: one per process). When
-	// not injected, build a fresh pair — this preserves the single-user/test
-	// path. See ADR-0004.
-	const nominatim = options.nominatim ?? createNominatimClient(config, { fetch: options.fetch });
-	const overpass = options.overpass ?? createOverpassClient(config, { fetch: options.fetch });
-	const tools = createTools(nominatim, overpass);
+	const tools = createTools({ executor: options.codeExecutor });
 	return new Agent({
 		initialState: {
 			systemPrompt: SYSTEM_PROMPT,

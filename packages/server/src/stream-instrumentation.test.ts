@@ -7,11 +7,11 @@ import { StreamInstrumentation } from "./stream-instrumentation.ts";
 import type { PostHogAnalyticsClient } from "./posthog.ts";
 
 /**
- * Direct unit coverage for the {@link StreamInstrumentation} seam — the issue's
- * headline benefit. These tests exercise timing + analytics in isolation,
- * WITHOUT an SSE round-trip (`pipe-agent-stream.test.ts` still pins the
- * end-to-end wire + lifecycle). The tag-only-on-error privacy property is
- * asserted here directly, not just indirectly through the wire bytes.
+ * Direct unit coverage for the {@link StreamInstrumentation} seam. These
+ * tests exercise timing + analytics in isolation, WITHOUT an SSE round-trip
+ * (`pipe-agent-stream.test.ts` still pins the end-to-end wire + lifecycle).
+ * The tag-only-on-error privacy property is asserted here directly, not just
+ * indirectly through the wire bytes.
  */
 
 interface Captured {
@@ -282,7 +282,7 @@ function turnToolResult(
 	} = {},
 ): { toolName: string; isError: boolean; details?: unknown } {
 	return {
-		toolName: opts.toolName ?? "query_osm",
+		toolName: opts.toolName ?? "execute_code",
 		isError: opts.isError ?? false,
 		...(opts.details !== undefined ? { details: opts.details } : {}),
 	};
@@ -295,8 +295,8 @@ test("recordTurnEnd() captures exactly one `agent turn` with coarse-metadata-onl
 
 	instr.recordTurnStart();
 	instr.recordTurnEnd(assistantTurnMessage({ stopReason: "toolUse", input: 120, output: 7 }), [
-		turnToolResult({ toolName: "geocode" }),
-		turnToolResult({ toolName: "query_osm" }),
+		turnToolResult({ toolName: "execute_code" }),
+		turnToolResult({ toolName: "execute_code" }),
 	]);
 
 	const turn = posthog.captures.filter((c) => c.event === "agent turn");
@@ -310,7 +310,7 @@ test("recordTurnEnd() captures exactly one `agent turn` with coarse-metadata-onl
 		$process_person_profile: false,
 		turn_index: 0,
 		tool_calls: 2,
-		tool_names: ["geocode", "query_osm"],
+		tool_names: ["execute_code", "execute_code"],
 		stop_reason: "toolUse",
 		duration_ms: turn[0]!.properties.duration_ms,
 		input_tokens: 120,
@@ -346,8 +346,8 @@ test("had_tool_error is true when any tool result in the turn failed", () => {
 	const instr = new StreamInstrumentation("conv-1", posthog, logger);
 
 	instr.recordTurnEnd(assistantTurnMessage(), [
-		turnToolResult({ toolName: "geocode" }),
-		turnToolResult({ toolName: "query_osm", isError: true, details: { boom: true } }),
+		turnToolResult({ toolName: "execute_code" }),
+		turnToolResult({ toolName: "execute_code", isError: true, details: { boom: true } }),
 	]);
 
 	const props = posthog.captures.filter((c) => c.event === "agent turn")[0]!.properties;
@@ -362,7 +362,7 @@ test("had_busy_result is true when a non-error result carries the `{ busy: true 
 	const instr = new StreamInstrumentation("conv-1", posthog, logger);
 
 	instr.recordTurnEnd(assistantTurnMessage(), [
-		turnToolResult({ toolName: "query_osm", details: { busy: true } }),
+		turnToolResult({ toolName: "execute_code", details: { busy: true } }),
 	]);
 
 	const props = posthog.captures.filter((c) => c.event === "agent turn")[0]!.properties;
@@ -442,8 +442,8 @@ test("recordToolEnd() captures exactly one `tool call` for a successful data-fet
 	instr.recordToolStart("call-1");
 	instr.recordToolEnd(
 		"call-1",
-		"geocode",
-		toolExecResult({ data: [{ placeId: 1, name: "x", lat: 0, lon: 0 }] }),
+		"execute_code",
+		toolExecResult({ stdout: "stub", displays: [{ markers: [{ lat: 0, lon: 0 }] }] }),
 		false,
 	);
 
@@ -452,7 +452,7 @@ test("recordToolEnd() captures exactly one `tool call` for a successful data-fet
 	expect(calls[0]).toMatchObject({ distinctId: "conv-1" });
 	expect(calls[0]!.properties).toEqual({
 		$process_person_profile: false,
-		tool_name: "geocode",
+		tool_name: "execute_code",
 		outcome: "success",
 		duration_ms: calls[0]!.properties.duration_ms,
 		result_count: 1,
@@ -468,7 +468,12 @@ test("recordToolEnd() derives outcome=empty for a zero-feature data-fetch tool",
 	const instr = new StreamInstrumentation("conv-1", posthog, logger);
 
 	instr.recordToolStart("call-1");
-	instr.recordToolEnd("call-1", "query_osm", toolExecResult({ data: [] }), false);
+	instr.recordToolEnd(
+		"call-1",
+		"execute_code",
+		toolExecResult({ stdout: "", displays: [] }),
+		false,
+	);
 
 	const props = posthog.captures.filter((c) => c.event === "tool call")[0]!.properties;
 	expect(props.outcome).toBe("empty");
@@ -481,7 +486,7 @@ test("recordToolEnd() derives outcome=busy for a non-error busy soft-failure", (
 	const instr = new StreamInstrumentation("conv-1", posthog, logger);
 
 	instr.recordToolStart("call-1");
-	instr.recordToolEnd("call-1", "query_osm", toolExecResult({ busy: true }), false);
+	instr.recordToolEnd("call-1", "execute_code", toolExecResult({ busy: true }), false);
 
 	const props = posthog.captures.filter((c) => c.event === "tool call")[0]!.properties;
 	expect(props.outcome).toBe("busy");
@@ -495,29 +500,11 @@ test("recordToolEnd() derives outcome=error when isError is true", () => {
 	const instr = new StreamInstrumentation("conv-1", posthog, logger);
 
 	instr.recordToolStart("call-1");
-	instr.recordToolEnd("call-1", "geocode", toolExecResult({}), true);
+	instr.recordToolEnd("call-1", "execute_code", toolExecResult({}), true);
 
 	const props = posthog.captures.filter((c) => c.event === "tool call")[0]!.properties;
 	expect(props.outcome).toBe("error");
 	// result_count omitted for errors.
-	expect(Object.prototype.hasOwnProperty.call(props, "result_count")).toBe(false);
-});
-
-test("recordToolEnd() omits result_count for a non-data-fetch success (display_map)", () => {
-	const { logger } = mockLogger();
-	const posthog = spyPostHog();
-	const instr = new StreamInstrumentation("conv-1", posthog, logger);
-
-	instr.recordToolStart("call-1");
-	instr.recordToolEnd(
-		"call-1",
-		"display_map",
-		toolExecResult({ data: { markers: [{ lat: 1, lon: 2 }] } }),
-		false,
-	);
-
-	const props = posthog.captures.filter((c) => c.event === "tool call")[0]!.properties;
-	expect(props.outcome).toBe("success");
 	expect(Object.prototype.hasOwnProperty.call(props, "result_count")).toBe(false);
 });
 
@@ -529,7 +516,7 @@ test("recordToolProgress tracks queue_wait_ms from queued → running", () => {
 	instr.recordToolStart("call-1");
 	instr.recordToolProgress("call-1", { type: "queued" });
 	instr.recordToolProgress("call-1", { type: "running" });
-	instr.recordToolEnd("call-1", "geocode", toolExecResult({ data: [] }), false);
+	instr.recordToolEnd("call-1", "execute_code", toolExecResult({ data: [] }), false);
 
 	const props = posthog.captures.filter((c) => c.event === "tool call")[0]!.properties;
 	expect(Number.isInteger(props.queue_wait_ms)).toBe(true);
@@ -542,11 +529,11 @@ test("recordToolEnd() cleans up the tracking entry (no leak across calls)", () =
 	const instr = new StreamInstrumentation("conv-1", posthog, logger);
 
 	instr.recordToolStart("call-1");
-	instr.recordToolEnd("call-1", "geocode", toolExecResult({ data: [] }), false);
+	instr.recordToolEnd("call-1", "execute_code", toolExecResult({ data: [] }), false);
 	// A second tool with the same id starts fresh — duration_ms should not
 	// carry over from the first.
 	instr.recordToolStart("call-1");
-	instr.recordToolEnd("call-1", "geocode", toolExecResult({ data: [] }), false);
+	instr.recordToolEnd("call-1", "execute_code", toolExecResult({ data: [] }), false);
 
 	const calls = posthog.captures.filter((c) => c.event === "tool call");
 	expect(calls).toHaveLength(2);
@@ -559,7 +546,7 @@ test("recordToolEnd() handles a missing tracking entry (defensive: measures from
 
 	// tool_execution_end without a preceding start (shouldn't happen — the
 	// agent loop always emits start first — but must not crash).
-	instr.recordToolEnd("orphan", "geocode", toolExecResult({ data: [] }), false);
+	instr.recordToolEnd("orphan", "execute_code", toolExecResult({ data: [] }), false);
 
 	const calls = posthog.captures.filter((c) => c.event === "tool call");
 	expect(calls).toHaveLength(1);
