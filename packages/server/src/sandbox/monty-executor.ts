@@ -1,6 +1,16 @@
-import { Monty, runMontyAsync } from "@pydantic/monty";
+import {
+	Monty,
+	MontyComplete,
+	MontySnapshot,
+	MontyNameLookup,
+	MontyRuntimeError,
+	MontySyntaxError,
+	MontyTypingError,
+	MontyError,
+} from "@pydantic/monty";
 import type { ResourceLimits } from "@pydantic/monty";
-import type { NominatimClient, OverpassClient } from "@pixies/core";
+import { Result, type NominatimClient, type OverpassClient } from "@pixies/core";
+import { CodeExecutionError } from "@pixies/core";
 import {
 	geocodeHost,
 	reverseGeocodeHost,
@@ -15,7 +25,7 @@ import {
 	type FindFeaturesResult,
 	type SpatialPair,
 } from "@pixies/core/tools";
-import type { CodeExecutor, CodeExecutionResult } from "@pixies/core";
+import type { CodeExecutor, CodeExecutionSuccess } from "@pixies/core";
 
 export interface MontyExecutorOptions {
 	nominatim: NominatimClient;
@@ -47,7 +57,7 @@ export class MontyExecutor implements CodeExecutor {
 			onDisplay?: (data: DisplayData) => void;
 			onProgress?: (message: string) => void;
 		},
-	): Promise<CodeExecutionResult> {
+	): Promise<Result<CodeExecutionSuccess, CodeExecutionError>> {
 		const stdoutParts: string[] = [];
 		const displays: DisplayData[] = [];
 
@@ -57,39 +67,42 @@ export class MontyExecutor implements CodeExecutor {
 			signal: options.signal,
 		};
 
-		const print = (text: string) => {
-			stdoutParts.push(text);
-		};
-
-		const externalFunctions = this.buildExternalFunctions(ctx, print, (data) => {
-			displays.push(data);
-			options.onDisplay?.(data);
-		});
-
 		const printCallback = (_stream: string, text: string) => {
 			stdoutParts.push(text);
 		};
 
+		const externalFunctions = this.buildExternalFunctions(
+			ctx,
+			(text) => {
+				stdoutParts.push(text);
+			},
+			(data) => {
+				displays.push(data);
+				options.onDisplay?.(data);
+			},
+		);
+
 		try {
 			const monty = new Monty(code, { scriptName: "pixies.py" });
-			await runMontyAsync(monty, {
+			await runMontyLoop(monty, {
 				externalFunctions,
 				limits: this.limits,
 				printCallback,
 			});
-			return {
+			return Result.ok({
 				stdout: stdoutParts.join(""),
-				isError: false,
 				displays,
-			};
+			});
 		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			stdoutParts.push(`\n${message}`);
-			return {
-				stdout: stdoutParts.join(""),
-				isError: true,
-				displays,
-			};
+			const stdout = stdoutParts.join("");
+			const { errorType, message } = formatMontyError(err);
+			return Result.err(
+				new CodeExecutionError({
+					stdout,
+					errorType,
+					message: stdout ? `${stdout}\n\n${errorType}: ${message}` : `${errorType}: ${message}`,
+				}),
+			);
 		}
 	}
 
@@ -195,6 +208,103 @@ export class MontyExecutor implements CodeExecutor {
 		};
 		return fns;
 	}
+}
+
+/**
+ * Execute a Monty instance with async external function support.
+ *
+ * Replacement for Monty's `runMontyAsync` that fixes a critical bug: the
+ * upstream function puts `snapshot.resume({ returnValue })` inside the same
+ * try-catch as the external function call. If `resume()` throws (e.g. it
+ * can't serialize the return value), the catch tries to re-resume with
+ * `exception: { type: err.name }` — but `err.name` is `'MontyRuntimeError'`,
+ * which is not a valid Python exception type, producing the useless
+ * "Invalid exception type: 'MontyRuntimeError'" message.
+ *
+ * This loop keeps `resume()` outside the external-function try-catch, so
+ * resume errors propagate directly.
+ */
+async function runMontyLoop(
+	monty: Monty,
+	opts: {
+		externalFunctions: Record<string, (...args: unknown[]) => unknown>;
+		limits?: ResourceLimits;
+		printCallback?: (stream: string, text: string) => void;
+	},
+): Promise<void> {
+	let progress: MontySnapshot | MontyNameLookup | MontyComplete = monty.start({
+		limits: opts.limits,
+		printCallback: opts.printCallback,
+	});
+
+	while (!(progress instanceof MontyComplete)) {
+		if (progress instanceof MontyNameLookup) {
+			const fn = opts.externalFunctions[progress.variableName];
+			progress = fn ? progress.resume({ value: fn }) : progress.resume();
+			continue;
+		}
+
+		const snapshot = progress as MontySnapshot;
+		const fn = opts.externalFunctions[snapshot.functionName];
+		if (!fn) {
+			progress = snapshot.resume({
+				exception: {
+					type: "NameError",
+					message: `name '${snapshot.functionName}' is not defined`,
+				},
+			});
+			continue;
+		}
+
+		let result: unknown;
+		try {
+			result = fn(...snapshot.args, snapshot.kwargs);
+			if (result && typeof (result as Promise<unknown>).then === "function") {
+				result = await result;
+			}
+		} catch (error) {
+			progress = snapshot.resume({
+				exception: {
+					type: "RuntimeError",
+					message: error instanceof Error ? error.message : String(error),
+				},
+			});
+			continue;
+		}
+
+		progress = snapshot.resume({ returnValue: result });
+	}
+}
+
+function formatMontyError(err: unknown): { errorType: string; message: string } {
+	if (err instanceof MontyRuntimeError) {
+		return {
+			errorType: err.exception.typeName,
+			message: err.display("traceback"),
+		};
+	}
+	if (err instanceof MontySyntaxError) {
+		return {
+			errorType: "SyntaxError",
+			message: err.display("type-msg"),
+		};
+	}
+	if (err instanceof MontyTypingError) {
+		return {
+			errorType: "TypeError",
+			message: err.displayDiagnostics("concise"),
+		};
+	}
+	if (err instanceof MontyError) {
+		return {
+			errorType: err.exception.typeName,
+			message: err.display("type-msg"),
+		};
+	}
+	if (err instanceof Error) {
+		return { errorType: "RuntimeError", message: err.message };
+	}
+	return { errorType: "RuntimeError", message: String(err) };
 }
 
 function formatGeocodeSummary(query: string, result: GeocodeResult | null): string {
