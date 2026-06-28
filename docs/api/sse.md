@@ -232,6 +232,8 @@ Clients that want structured results should consume `details.data` directly inst
 
 **Dependency-resolved batches.** When the model emits multiple dependent tool calls in a single turn (e.g. `find_features` → `filter` → `spatial_join` → `display_map(pairsRef)`), the agent resolves the execution order via a per-conversation coordinator. The framework dispatches all the calls in parallel, but each ref-aware tool's `execute` awaits its upstream refs before doing real work. `tool_execution_start` arrives in source order for every call up front (some appear "running" before they truly are); `tool_execution_end` arrives as each tool settles. A `display_map` whose ref targets an in-flight sibling waits for that sibling to settle before completing, so client-side ref resolution does not race.
 
+> **Known issues (ADR-0013):** This mechanism is experimental and has known failure modes when mixed with sequential-execution tools (`geocode`), `UnknownRefError` on stale refs, and a `queueMicrotask` cleanup race. Refs are best-effort; the model may retry on failure.
+
 **Busy soft-failure.** When an OSM service reports a transient overload condition, the data-fetch tools (`geocode`, `reverse_geocode`, `query_osm`) return a normal result (`isError: false`) whose `details` carries `busy: true` and whose text is a model-facing "try again" message, rather than failing the tool. This is a success on the wire but a transient condition: clients may surface a "service busy" indicator, and the model is expected to retry or relax its query.
 
 ### `done`

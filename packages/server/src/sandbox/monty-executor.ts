@@ -42,13 +42,12 @@ const DEFAULT_LIMITS: ResourceLimits = {
 /**
  * Per-conversation Monty executor with variable persistence.
  *
- * v0.0.18 has no REPL-with-external-functions API (`MontySession.feedRun`
- * exists on main but is unpublished). State persistence is achieved by
- * prepending previous code snippets so variables exist in scope, with
- * external function call results cached so replay is instant (no network).
- *
- * A `__pixies_replay_end__()` marker is injected between replayed and new
- * code to toggle stdout suppression and cache lookups.
+ * `@pydantic/monty` has no session/REPL API for incremental execution, so
+ * state persistence is achieved by prepending previous code snippets so
+ * variables exist in scope. External function call results are cached so
+ * replay is instant (no network). A `__pixies_replay_end__()` marker is
+ * injected between replayed and new code to toggle stdout suppression and
+ * cache lookups.
  */
 export class MontyExecutor implements CodeExecutor {
 	private readonly nominatim: NominatimClient;
@@ -442,6 +441,7 @@ function normalizeFindFeaturesParams(
 	};
 }
 
+/** Normalize an `area` argument into one of: `{ place }`, `{ bounds }`, `{ around }`, or `{ features }`. Coerces a single-feature object with lat/lon/radius to `{ around }`. */
 function normalizeArea(
 	area: Record<string, unknown> | undefined,
 ): Parameters<typeof findFeaturesHost>[1]["area"] {

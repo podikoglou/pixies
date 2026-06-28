@@ -1,23 +1,6 @@
 import type { TagClause } from "./find-features-types.ts";
 
 /**
- * Brand dictionary for `find_features`. Brands are a special case of the
- * type dictionary: the same name can be tagged multiple ways in OSM
- * (`brand=LIDL`, `name=Lidl`, sometimes `name=LIDL`), and the shop value
- * varies (a LIDL is usually `shop=supermarket` but occasionally
- * `shop=convenience` or untagged). The dictionary encodes the variants
- * we know; unknown brands fall back to a `brand` + `name` regex union
- * (see {@link resolveBrand}).
- *
- * Each known brand has `required` clauses (always present in a match) and
- * `optional` shop-value variants. The resolver produces one OR-group per
- * optional value (each AND-ed with `required`), plus a name-only fallback
- * group — so a LIDL missing its `brand` tag but named "Lidl" still matches.
- *
- * Scoped to a starter set of ~15 globally-recognised brands for the
- * experiment; the unknown-brand fallback covers the long tail.
- */
-/**
  * Each known brand has `required` clauses (always present in a match) and
  * `optional` shop-value variants — each variant is a separate OR-group
  * AND-ed with `required`. The resolver appends a name-only fallback group

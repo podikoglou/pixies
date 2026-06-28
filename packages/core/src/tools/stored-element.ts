@@ -37,19 +37,6 @@ export function overpassElementToResultEntry(el: OverpassElement): OverpassResul
 }
 
 /**
- * Helpers for the canonical {@link StoredElement} shape (defined as
- * `Static<typeof StoredElementSchema>` in `schemas.ts`, the single source of
- * truth). Producers (`find_features`, `geocode`) map their tool-specific
- * result into this common form; consumers (`filter`, `spatial_join`,
- * `display_map`) operate on it without branching on the source tool.
- *
- * `id` is a stable `"<type>/<numeric>"` string used for deduplication and
- * `elementIds` matching — same scheme the web client already uses for
- * `query_osm` results (`"node/12345"`). Geocode results, which carry no
- * OSM type/id in some cases, fall back to `"place/<placeId>"`.
- */
-
-/**
  * Map an {@link OverpassResultEntry} (the structured form `query_osm` and
  * `find_features` produce) into the canonical {@link StoredElement}.
  *

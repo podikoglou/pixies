@@ -40,6 +40,7 @@ export interface CreateToolsInputs {
 	executor: CodeExecutor;
 }
 
+/** Build the agent tool set from injected dependencies. */
 export function createTools(inputs: CreateToolsInputs): AgentTool[] {
 	const builds: { [K in keyof typeof TOOL_MODULES]: AgentTool } = {
 		execute_code: executeCodeModule.build(inputs.executor),
@@ -53,6 +54,7 @@ type ToolResultFromModules = ExtractResult<(typeof TOOL_MODULES)[keyof typeof TO
 
 export type ToolResult = ToolResultFromModules | { kind: "empty" };
 
+/** Parse tool details into a typed result. Unknown tools return `{ kind: "empty" }`. */
 export function parseToolResult(toolName: string, details: unknown): ToolResult {
 	const mod = TOOL_MODULES[toolName as ToolName];
 	if (!mod) return { kind: "empty" };

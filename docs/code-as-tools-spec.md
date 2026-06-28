@@ -1,7 +1,7 @@
 # Spec: REPL-Style Code Agent for Spatial Queries
 
 **Status:** Experiment — proposed, pre-implementation
-**Supersedes:** PR #245 (dependency-resolved tool batches), ADR-0013
+**Intended to supersede:** PR #245, ADR-0013 (if implemented)
 **Research basis:** CodeAct (ICML 2024), Spatial-RAG (arXiv 2502.18470), CRAG (arXiv 2401.15884), GROKE (arXiv 2601.07375), Dissecting Agentic RAG (arXiv 2606.21553)
 
 ---
@@ -16,10 +16,10 @@ Replace the seven-tool + dependency-layer architecture with a **single `execute_
 
 The current architecture (PR #245, issue #244) failed in production for the reasons issue #244's Counterarguments section predicted:
 
-1. **The model cannot use the ref mechanism.** It hallucinated tool-call IDs, never emitted multi-tool batches, and abandoned the new tools entirely after two `UnknownRefError` failures.
-2. **The `ResultStore` was never written to.** Cross-turn refs are 100% broken in production — no tool's `execute` path calls `ctx.store.set(...)`.
+1. **The model cannot use the ref mechanism.** It hallucinated tool-call IDs, never emitted multi-tool batches, and abandoned the new tools after two `UnknownRefError` failures.
+2. **The `ResultStore` was never written to.** No tool's `execute` path calls `ctx.store.set(...)`, so cross-turn refs never resolve.
 3. **`geocode`'s `executionMode: "sequential"` poisons any batch** containing it — the framework forces the entire batch sequential, breaking the coordinator.
-4. **Content dumps waste context.** `find_features` dumps 50 elements × ~300 chars of tag soup per call. The model called it 3× in the failure trace → ~12K tokens of pharmacies.
+4. **Content dumps waste context.** `find_features` dumps 50 elements × ~300 chars per call. The model called it 3× in the failure trace → ~12K tokens per call.
 5. **The entire dependency layer is dead code in production.** Tests pass; users get nothing.
 
 ---

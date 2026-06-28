@@ -122,19 +122,10 @@ Add elementIds to show a subset of a referenced result. The map IS the primary o
 	parse: parseSchema(DisplayMapToolDetailsSchema, (d) => ({ kind: "display_map", data: d.data })),
 	execute: async (ctx, toolCallId, params, signal) => {
 		throwIfAborted(signal);
-		// display_map does not write to the result store (per the design: it
-		// produces no element-bearing result). But it DOES register with the
-		// coordinator so that, when its ref points to an in-flight sibling
-		// (e.g. a spatial_join in the same batch), it waits for that sibling
-		// to complete and appear in the client's timeline before itself
-		// completing — otherwise the client's ref resolution races and the
-		// map renders empty.
-		//
-		// The done() callback is invoked with null (no stored result). For
-		// refs to tools that do not participate in the dependency layer
-		// (legacy query_osm / geocode results from a prior turn),
-		// `resolveRef` throws UnknownRefError — we swallow that and forward
-		// the ref string as-is, preserving the pre-experiment behaviour.
+		// Registers with coordinator so display_map awaits in-flight refs
+		// before completing (otherwise client ref resolution races and the
+		// map renders empty). Resolves with null — no stored result.
+		// UnknownRefError (legacy refs from prior turns) is swallowed.
 		const reg = ctx.coordinator.register(toolCallId);
 		try {
 			const source = detectSource(params);
@@ -161,8 +152,7 @@ Add elementIds to show a subset of a referenced result. The map IS the primary o
 				});
 			}
 
-			// Forward everything the client needs to render. The client does
-			// its own resolution by walking its in-memory timeline.
+			// Forward render data; client walks its timeline for ref resolution.
 			return {
 				content: [
 					{
