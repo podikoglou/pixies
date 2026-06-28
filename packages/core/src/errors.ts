@@ -36,6 +36,13 @@ export class ToolAbortedError extends TaggedError("ToolAborted")<{
 	cause?: unknown;
 }>() {}
 
+/** Sandboxed Python code raised an exception (runtime error, syntax error, etc.). */
+export class CodeExecutionError extends TaggedError("CodeExecution")<{
+	stdout: string;
+	errorType: string;
+	message: string;
+}>() {}
+
 /** `display_map` XOR-guard violation (both or neither of markers/queryRef). */
 export class DisplayMapValidationError extends TaggedError("DisplayMapValidation")<{
 	reason: "both" | "neither";
@@ -150,7 +157,8 @@ export type PixiesError =
 	| InvalidTranscriptError
 	| UnknownRefError
 	| CircularRefError
-	| UpstreamFailedError;
+	| UpstreamFailedError
+	| CodeExecutionError;
 
 /** Discriminant string for any {@link PixiesError}. */
 export type PixiesErrorTag = PixiesError["_tag"];
@@ -188,6 +196,7 @@ export const PixiesErrorTagSchema = Type.Union([
 	Type.Literal("UnknownRef"),
 	Type.Literal("CircularRef"),
 	Type.Literal("UpstreamFailed"),
+	Type.Literal("CodeExecution"),
 ]);
 
 // Compile-time drift guard: the schema's literal set must equal PixiesError["_tag"]
