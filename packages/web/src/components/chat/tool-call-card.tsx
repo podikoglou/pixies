@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatToolName } from "@/lib/format-tool-name";
 import type { TimelineItem } from "@/state/chat-reducer";
-import { JsonTree } from "./json-tree";
 import { formatTime } from "@/lib/format-time";
 import { StatusIcon } from "./status-icon";
 
@@ -42,16 +41,9 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 	const isError = item.status === "error";
 	const isWarning = item.status === "warning";
 	const entries = argEntries(item.args);
-	const hasDetails = entries.length > 0 || item.resultText !== null;
-
-	const parsedResult =
-		item.result.kind === "query_osm" || item.result.kind === "geocode"
-			? item.result.entries
-			: item.result.kind === "reverse_geocode"
-				? item.result.entry
-				: null;
-
-	const hasParsedResult = parsedResult !== null;
+	const resultText = item.result.kind === "execute_code" ? item.result.stdout : item.resultText;
+	const hasResult = resultText !== null && resultText.length > 0;
+	const hasDetails = entries.length > 0 || hasResult;
 
 	const header: ReactNode = (
 		<div className="flex min-w-0 items-center gap-2">
@@ -99,22 +91,16 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 										))}
 									</dl>
 								)}
-								{item.resultText && (
+								{hasResult && (
 									<div className={entries.length > 0 ? "mt-3" : ""}>
 										{entries.length > 0 && (
 											<div className="text-muted-foreground mb-1 font-mono text-xs">result</div>
 										)}
-										{hasParsedResult ? (
-											<ScrollArea className="max-h-80">
-												<JsonTree data={parsedResult} />
-											</ScrollArea>
-										) : (
-											<ScrollArea className="max-h-60">
-												<pre className="text-muted-foreground whitespace-pre-wrap font-mono text-xs">
-													{item.resultText}
-												</pre>
-											</ScrollArea>
-										)}
+										<ScrollArea className="max-h-60">
+											<pre className="text-muted-foreground whitespace-pre-wrap font-mono text-xs">
+												{resultText}
+											</pre>
+										</ScrollArea>
 									</div>
 								)}
 							</div>

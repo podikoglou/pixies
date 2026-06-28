@@ -20,6 +20,10 @@
     "./logging/posthog-logs-sink": {
       "types": "./src/logging/posthog-logs-sink.ts",
       "default": "./src/logging/posthog-logs-sink.ts"
+    },
+    "./tools": {
+      "types": "./src/tools/index.ts",
+      "default": "./src/tools/index.ts"
     }
   },
   "scripts": {

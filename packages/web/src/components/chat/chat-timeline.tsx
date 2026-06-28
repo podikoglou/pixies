@@ -1,7 +1,10 @@
 import { useRef } from "react";
-import type { ChatState, TimelineItem } from "@/state/chat-reducer";
-import type { DisplayMapData } from "@pixies/core";
-import { resolveMapMarkers, resolveMapPairs } from "@/lib/resolve-map-markers";
+import type { ChatState } from "@/state/chat-reducer";
+import {
+	displaysToMarkers,
+	displaysToPolylines,
+	displaysToBounds,
+} from "@/lib/resolve-map-markers";
 import { ToolCallCard } from "./tool-call-card";
 import { MapWidget } from "./map-widget";
 import { UserMessage } from "./user-message";
@@ -9,34 +12,6 @@ import { AssistantMessage } from "./assistant-message";
 
 interface ChatTimelineProps {
 	state: ChatState;
-}
-
-const EMPTY_MAP_PLACEHOLDER = (
-	<div className="text-muted-foreground flex h-[400px] w-full items-center justify-center rounded-md border text-sm">
-		No results found for this query.
-	</div>
-);
-
-function renderDisplayMap(data: DisplayMapData, items: TimelineItem[], currentIndex: number) {
-	// pairsRef (spatial_join) — markers + connecting polylines.
-	if (data.pairsRef) {
-		const resolved = resolveMapPairs(data.pairsRef, items, currentIndex);
-		if (!resolved || resolved.markers.length === 0) return EMPTY_MAP_PLACEHOLDER;
-		return (
-			<MapWidget markers={resolved.markers} polylines={resolved.polylines} bounds={data.bounds} />
-		);
-	}
-
-	// queryRef / elementsRef — markers from any element-bearing result.
-	const ref = data.queryRef ?? data.elementsRef;
-	if (ref) {
-		const markers = resolveMapMarkers(ref, data.elementIds, items, currentIndex);
-		if (markers === null || markers.length === 0) return EMPTY_MAP_PLACEHOLDER;
-		return <MapWidget markers={markers} bounds={data.bounds} />;
-	}
-
-	// Inline markers (hand-picked points).
-	return <MapWidget markers={data.markers} bounds={data.bounds} />;
 }
 
 export function ChatTimeline({ state }: ChatTimelineProps) {
@@ -53,11 +28,24 @@ export function ChatTimeline({ state }: ChatTimelineProps) {
 				} else if (item.kind === "assistant-message") {
 					content = <AssistantMessage text={item.text} responseTimeMs={item.responseTimeMs} />;
 				} else if (
-					item.toolName === "display_map" &&
+					item.toolName === "execute_code" &&
 					item.status === "done" &&
-					item.result.kind === "display_map"
+					item.result.kind === "execute_code"
 				) {
-					content = renderDisplayMap(item.result.data, state.items, i);
+					const { displays } = item.result;
+					const markers = displaysToMarkers(displays);
+					const polylines = displaysToPolylines(displays);
+					if (markers.length > 0 || polylines.length > 0) {
+						content = (
+							<MapWidget
+								markers={markers}
+								polylines={polylines}
+								bounds={displaysToBounds(displays) ?? undefined}
+							/>
+						);
+					} else {
+						content = <ToolCallCard item={item} />;
+					}
 				} else {
 					content = <ToolCallCard item={item} />;
 				}

@@ -26,7 +26,7 @@ export interface ExecuteCodeDetails {
 	displays: DisplayData[];
 }
 
-const ExecuteCodeDetailsSchema = Type.Object({
+export const ExecuteCodeDetailsSchema = Type.Object({
 	stdout: Type.String(),
 	displays: Type.Array(Type.Unknown()),
 });

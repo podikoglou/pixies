@@ -23,6 +23,7 @@ import {
 } from "@pixies/core";
 import { conversations as conversationsTable, type DbClient } from "@pixies/core/db";
 import { silentLogger, type Logger } from "@pixies/core/logging";
+import { MontyExecutor } from "./sandbox/monty-executor.ts";
 
 interface Conversation {
 	readonly id: string;
@@ -40,6 +41,7 @@ export class ConversationStore {
 	private readonly config: ResolvedPixiesConfig;
 	private readonly nominatim: NominatimClient;
 	private readonly overpass: OverpassClient;
+	private readonly executor: MontyExecutor;
 	private readonly db: DbClient;
 	private readonly maxSize: number;
 	private readonly agentFactory: (opts: CreateAgentOptions) => Agent;
@@ -61,6 +63,7 @@ export class ConversationStore {
 		// process-global, independent of conversation count.
 		this.nominatim = createNominatimClient(config, { logger: this.logger });
 		this.overpass = createOverpassClient(config, { logger: this.logger });
+		this.executor = new MontyExecutor({ nominatim: this.nominatim, overpass: this.overpass });
 		this.sweeper = setInterval(() => this.sweep(), SWEEP_INTERVAL_MS);
 	}
 
@@ -72,6 +75,7 @@ export class ConversationStore {
 				config: this.config,
 				nominatim: this.nominatim,
 				overpass: this.overpass,
+				codeExecutor: this.executor,
 			}),
 			lastActivity: Date.now(),
 			inFlight: false,
@@ -136,6 +140,7 @@ export class ConversationStore {
 				config: this.config,
 				nominatim: this.nominatim,
 				overpass: this.overpass,
+				codeExecutor: this.executor,
 			}),
 			lastActivity: Date.now(),
 			inFlight: false,
