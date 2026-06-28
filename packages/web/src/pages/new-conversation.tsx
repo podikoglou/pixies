@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useChatContext } from "@/contexts/chat-context";
-import { ChatView } from "@/components/chat/chat-view";
+import { useMapContext } from "@/contexts/map-context";
+import { MapView } from "@/components/map/map-view";
 
 export function NewConversationPage() {
-	const { reset } = useChatContext();
+	const { reset } = useMapContext();
 	const navigate = useNavigate();
 
 	useEffect(() => {
@@ -12,7 +12,7 @@ export function NewConversationPage() {
 	}, [reset]);
 
 	return (
-		<ChatView
+		<MapView
 			onConversationCreated={(id) =>
 				void navigate({ to: "/c/$conversationId", params: { conversationId: id } })
 			}
