@@ -1,6 +1,10 @@
-import type { StoredElement } from "./schemas.ts";
+interface FilterableElement {
+	id: string;
+	name?: string;
+	tags?: Record<string, string>;
+}
 
-type Predicate = (el: StoredElement) => boolean;
+type Predicate = (el: FilterableElement) => boolean;
 
 class WhereParseError extends Error {
 	constructor(
@@ -134,10 +138,10 @@ function buildComparisonPredicate(key: string, op: string, lit: Token): Predicat
 	}
 }
 
-function getTag(el: StoredElement, key: string): string | null {
-	if (!el.tags) return null;
+function getTag(el: FilterableElement, key: string): string | null {
 	const clean = key.startsWith("tags.") ? key.slice(5) : key;
-	return el.tags[clean] ?? null;
+	if (clean === "name" && el.name) return el.name;
+	return el.tags?.[clean] ?? null;
 }
 
 function regexFromToken(t: Token): RegExp {
@@ -311,9 +315,9 @@ function findStringEnd(s: string, start: number, quote: string): number {
 
 /** Filter elements by tag key/value/op predicates. Each tag spec is matched independently (AND). */
 export function applyTagsFilter(
-	elements: StoredElement[],
+	elements: FilterableElement[],
 	tags: { key: string; value?: string; op?: string }[],
-): StoredElement[] {
+): FilterableElement[] {
 	if (!tags || tags.length === 0) return elements;
 	return elements.filter((el) =>
 		tags.every((t) => {
@@ -344,7 +348,7 @@ export function applyTagsFilter(
 }
 
 /** Sort elements by a tag key. Prefix with `-` for descending order. Numeric-aware when values parse as numbers. */
-export function applySortBy(elements: StoredElement[], sortBy: string): StoredElement[] {
+export function applySortBy(elements: FilterableElement[], sortBy: string): FilterableElement[] {
 	const desc = sortBy.startsWith("-");
 	const key = desc ? sortBy.slice(1) : sortBy;
 	const sorted = [...elements];

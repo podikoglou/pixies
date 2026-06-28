@@ -46,31 +46,6 @@ export const QueryOsmToolDetailsSchema = Type.Object({
 export type QueryOsmToolDetails = Static<typeof QueryOsmToolDetailsSchema>;
 
 /**
- * Minimal element shape the dependency-layer tools (find_features, filter,
- * spatial_join) exchange and store. A common subset of {@link OverpassResultEntry}
- * and {@link GeocodeResultEntry}: identity + coordinates + optional name/tags.
- * `additionalProperties: false` keeps the wire shape tight; the model-facing
- * `tags` map is the same one filter's where-clause predicates against.
- */
-export const StoredElementSchema = Type.Object(
-	{
-		id: Type.String({
-			description: "Stable element identity: '<type>/<id>' or 'place/<placeId>'.",
-		}),
-		type: Type.Optional(
-			Type.Union([Type.Literal("node"), Type.Literal("way"), Type.Literal("relation")]),
-		),
-		lat: Type.Optional(Type.Number()),
-		lon: Type.Optional(Type.Number()),
-		name: Type.Optional(Type.String()),
-		tags: Type.Optional(Type.Record(Type.String(), Type.String())),
-	},
-	{ additionalProperties: false },
-);
-/** Wire shape of a stored element. Structurally identical to the runtime `StoredElement` in stored-element.ts. */
-export type StoredElement = Static<typeof StoredElementSchema>;
-
-/**
  * Shared `tags` parameter schema used by both `find_features` and `filter`.
  * Same shape, same op enum — extracting it keeps the two tool surfaces
  * byte-identical and lets the model reuse the same expressions.
