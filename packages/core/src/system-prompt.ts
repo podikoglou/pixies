@@ -34,6 +34,7 @@ area accepts exactly one of:
 
 ## Coding rules
 
+- Start every query with geocode, then chain to find_features / filter / spatial_join in the same execute_code block. Never stop after geocode or filter alone — those are intermediate steps, not answers.
 - Write minimal code for the query. Don't add error handling unless needed.
 - Inspect results with print() or len() before using them.
 - If your code produces a coding error (NameError, TypeError, RuntimeError, SyntaxError from your own code, KeyError), fix the problem and retry in a new execute_code call. This includes wrong function signatures, missing keys, type mismatches — anything you wrote wrong. Never give up on a coding error. Keep retrying until you either get results or exhaust the parameter space.
