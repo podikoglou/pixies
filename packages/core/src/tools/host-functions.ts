@@ -64,6 +64,7 @@ export interface DisplayData {
 const DEFAULT_LIMIT = 200;
 const DEFAULT_MAX_PAIRS = 1000;
 
+/** Geocode a place name via Nominatim. Returns the top hit (with up to 4 alternatives) or null. */
 export async function geocodeHost(ctx: HostContext, query: string): Promise<GeocodeResult | null> {
 	const result = await ctx.nominatim.search(query, { limit: 5 }, ctx.signal);
 	if (Result.isError(result)) {
@@ -76,6 +77,7 @@ export async function geocodeHost(ctx: HostContext, query: string): Promise<Geoc
 	return nominatimToGeocodeResult(top, hits.slice(1, 4));
 }
 
+/** Reverse-geocode coordinates via Nominatim. Returns an array (0 or 1 entries). */
 export async function reverseGeocodeHost(
 	ctx: HostContext,
 	lat: number,
@@ -159,6 +161,7 @@ interface FilterParams {
 	distinct?: boolean;
 }
 
+/** In-memory filter over a feature list using a where-expression, tag filters, sort, limit, and dedup. */
 export function filterHost(features: Feature[], params: FilterParams): Feature[] {
 	let elements = features.map(featureToStoredElement);
 	if (params.where) {
@@ -188,6 +191,7 @@ interface SpatialJoinParams {
 	radius: number;
 }
 
+/** Haversine join: `near` (all targets within radius of each point) or `nearest` (closest target per point). */
 export function spatialJoinHost(params: SpatialJoinParams): SpatialPair[] {
 	const points = params.points.filter((f) => f.lat !== undefined && f.lon !== undefined);
 	const targets = params.targets.filter((f) => f.lat !== undefined && f.lon !== undefined);
@@ -221,6 +225,7 @@ export function spatialJoinHost(params: SpatialJoinParams): SpatialPair[] {
 	return pairs;
 }
 
+/** Run a raw Overpass QL query and return features. Escape hatch — prefer find_featuresHost. */
 export async function overpassQueryHost(
 	ctx: HostContext,
 	query: string,
@@ -237,6 +242,7 @@ export async function overpassQueryHost(
 	return { elements: features, count: features.length };
 }
 
+/** Map a raw Nominatim hit to the canonical GeocodeResult. Extracts bbox and up to 3 alternatives. */
 function nominatimToGeocodeResult(hit: NominatimResult, alts?: NominatimResult[]): GeocodeResult {
 	const id =
 		hit.osm_type && hit.osm_id !== undefined
@@ -269,6 +275,7 @@ interface ResolvedGroups {
 	resolvedKinds: { input: string; kind: "type" | "brand" | "name" }[];
 }
 
+/** Classify each `types` entry as brand / known-type / name-fallback, expand to OR-groups, AND with explicit `tags`. Returns null when nothing to query. */
 function resolveGroups(
 	types: string[] | undefined,
 	tags: { key: string; value?: string; op?: string }[] | undefined,
@@ -309,10 +316,12 @@ function resolveGroups(
 	return { groups, resolvedKinds };
 }
 
+/** Escape regex metacharacters for safe Overpass interpolation. Prevents invalid-regex rejections from model-supplied strings. */
 function escapeRegexForOverpass(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Resolve an area spec to a ResolvedArea. Accepts `bounds`, `around`, `features` (derives bbox), or `place` (geocodes). */
 async function resolveArea(
 	nominatim: NominatimClient,
 	area: FindFeaturesParams["area"],
@@ -355,6 +364,7 @@ async function resolveArea(
 	throw new Error("area must specify one of: place, bounds, around, features.");
 }
 
+/** Map raw Overpass elements to the canonical Feature shape, hoisting `name` from tags. */
 function elementsToFeatures(elements: OverpassElement[]): Feature[] {
 	const features: Feature[] = [];
 	for (const el of elements) {
@@ -377,6 +387,7 @@ function elementsToFeatures(elements: OverpassElement[]): Feature[] {
 	return features;
 }
 
+/** Package a feature list into the result shape. Truncates beyond `limit`, marks as `relaxed` when auto-broadening was applied. */
 function formatFeatures(
 	features: Feature[],
 	limit: number,
@@ -451,12 +462,14 @@ function broadenTags(groups: TagClause[][]): TagClause[][] | null {
 	return changed ? result : null;
 }
 
+/** Drop the most restrictive OR-groups (those with the most clauses). Keeps top half; returns null when there's ≤1 group. */
 function dropMostRestrictive(groups: TagClause[][]): TagClause[][] | null {
 	if (groups.length <= 1) return null;
 	const sorted = [...groups].sort((a, b) => b.length - a.length);
 	return sorted.slice(0, Math.max(1, Math.ceil(sorted.length / 2)));
 }
 
+/** Convert a Feature to StoredElement (re-injects name into tags so filter predicates resolve). */
 function featureToStoredElement(f: Feature): import("./schemas.ts").StoredElement {
 	const tags: Record<string, string> = { ...f.tags };
 	if (f.name) tags.name = f.name;
@@ -468,6 +481,7 @@ function featureToStoredElement(f: Feature): import("./schemas.ts").StoredElemen
 	};
 }
 
+/** Convert a StoredElement back to Feature (strips the type field, spreads tags). */
 function storedElementToFeature(el: import("./schemas.ts").StoredElement): Feature {
 	return {
 		id: el.id,

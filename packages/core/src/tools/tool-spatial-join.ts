@@ -70,7 +70,7 @@ export function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: 
 	return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/** Return only elements with usable coordinates. */
+/** Return only elements that have both lat and lon (skip coordinate-less nodes like relation stubs). */
 function withCoords(elements: StoredElement[]): StoredElement[] {
 	return elements.filter(
 		(el): el is StoredElement & { lat: number; lon: number } =>

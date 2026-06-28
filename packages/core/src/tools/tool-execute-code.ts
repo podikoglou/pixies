@@ -6,11 +6,13 @@ import type { ToolProgress } from "./progress.ts";
 import type { DisplayData } from "./host-functions.ts";
 import type { CodeExecutionError } from "../errors.ts";
 
+/** Successful sandbox execution: captured stdout and any map displays emitted by `display()`. */
 export interface CodeExecutionSuccess {
 	stdout: string;
 	displays: DisplayData[];
 }
 
+/** Sandboxed Python execution. The server implements this with Monty; tests use stubs. */
 export interface CodeExecutor {
 	execute(
 		code: string,
