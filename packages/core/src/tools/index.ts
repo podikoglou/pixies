@@ -7,7 +7,11 @@ export type { ToolProgress } from "./progress.ts";
 export { ToolProgressSchema, isToolProgress } from "./progress.ts";
 
 export { ExecuteCodeDetailsSchema } from "./tool-execute-code.ts";
-export type { CodeExecutor, CodeExecutionResult, ExecuteCodeDetails } from "./tool-execute-code.ts";
+export type {
+	CodeExecutor,
+	CodeExecutionSuccess,
+	ExecuteCodeDetails,
+} from "./tool-execute-code.ts";
 export type {
 	HostContext,
 	Feature,
