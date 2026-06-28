@@ -43,44 +43,6 @@ export class CodeExecutionError extends TaggedError("CodeExecution")<{
 	message: string;
 }>() {}
 
-/** `display_map` XOR-guard violation (both or neither of markers/queryRef). */
-export class DisplayMapValidationError extends TaggedError("DisplayMapValidation")<{
-	reason: "both" | "neither";
-	message: string;
-}>() {}
-
-/**
- * Dependency-resolved tool layer (experiment, see issue #244). The three
- * errors are raised inside a ref-aware tool's `execute` by the
- * `TurnCoordinator` and surface as ordinary tool errors (`isError: true`)
- * so the model can correct the ref or retry in the next turn.
- */
-
-/** A ref points to a tool call ID that is neither in the turn nor in the store. */
-export class UnknownRefError extends TaggedError("UnknownRef")<{
-	toolCallId: string;
-	refId: string;
-	message: string;
-}>() {}
-
-/** A tool call's refs form a cycle (direct or transitive); never deadlocks. */
-export class CircularRefError extends TaggedError("CircularRef")<{
-	toolCallId: string;
-	refId: string;
-	message: string;
-}>() {}
-
-/**
- * A tool call awaited an upstream that errored or was aborted. The dependent
- * surfaces this rather than silently operating on a stale/empty set.
- */
-export class UpstreamFailedError extends TaggedError("UpstreamFailed")<{
-	toolCallId: string;
-	refId: string;
-	upstreamErrorTag?: string;
-	message: string;
-}>() {}
-
 // --- Conversation store / server ---
 
 /** `streamPrompt` targeted a conversation id that does not exist. */
@@ -149,15 +111,11 @@ export type StreamPromptError =
 export type PixiesError =
 	| NominatimError
 	| OverpassError
-	| DisplayMapValidationError
 	| StreamPromptError
 	| InvalidJsonError
 	| ValidationError
 	| ConfigError
 	| InvalidTranscriptError
-	| UnknownRefError
-	| CircularRefError
-	| UpstreamFailedError
 	| CodeExecutionError;
 
 /** Discriminant string for any {@link PixiesError}. */
@@ -185,7 +143,6 @@ export const PixiesErrorTagSchema = Type.Union([
 	Type.Literal("OverpassParse"),
 	Type.Literal("OverpassRemark"),
 	Type.Literal("ToolAborted"),
-	Type.Literal("DisplayMapValidation"),
 	Type.Literal("ConversationNotFound"),
 	Type.Literal("PromptConflict"),
 	Type.Literal("BudgetExceeded"),
@@ -193,9 +150,6 @@ export const PixiesErrorTagSchema = Type.Union([
 	Type.Literal("Validation"),
 	Type.Literal("Config"),
 	Type.Literal("InvalidTranscript"),
-	Type.Literal("UnknownRef"),
-	Type.Literal("CircularRef"),
-	Type.Literal("UpstreamFailed"),
 	Type.Literal("CodeExecution"),
 ]);
 
