@@ -14,6 +14,7 @@ export {
 } from "./clients/overpass.ts";
 export {
 	ToolAbortedError,
+	CodeExecutionError,
 	ConversationNotFoundError,
 	PromptConflictError,
 	BudgetExceededError,
@@ -72,7 +73,7 @@ export {
 } from "./tools/index.ts";
 export type {
 	CodeExecutor,
-	CodeExecutionResult,
+	CodeExecutionSuccess,
 	ExecuteCodeDetails,
 	ToolProgress,
 	ToolResult,
