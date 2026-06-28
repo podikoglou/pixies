@@ -67,6 +67,8 @@ export const StoredElementSchema = Type.Object(
 	},
 	{ additionalProperties: false },
 );
+/** Wire shape of a stored element. Structurally identical to the runtime `StoredElement` in stored-element.ts. */
+export type StoredElement = Static<typeof StoredElementSchema>;
 
 export const DisplayMapDataSchema = Type.Object({
 	markers: Type.Array(
@@ -137,6 +139,7 @@ export const SpatialPairSchema = Type.Object({
 	target: StoredElementSchema,
 	distance: Type.Number({ description: "Distance in metres." }),
 });
+export type SpatialPair = Static<typeof SpatialPairSchema>;
 
 export const SpatialJoinToolDetailsSchema = Type.Object({
 	data: Type.Array(SpatialPairSchema),

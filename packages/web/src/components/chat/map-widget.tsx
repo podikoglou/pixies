@@ -9,8 +9,14 @@ import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
+export interface MapPolyline {
+	from: { lat: number; lon: number };
+	to: { lat: number; lon: number };
+}
+
 export interface MapWidgetProps {
 	markers?: Array<{ lat: number; lon: number; label?: string }>;
+	polylines?: MapPolyline[];
 	bounds?: { minlat: number; minlon: number; maxlat: number; maxlon: number };
 	className?: string;
 }
@@ -29,10 +35,11 @@ const ATTRIBUTION =
 const DEFAULT_CENTER: L.LatLngExpression = [20, 0];
 const DEFAULT_ZOOM = 2;
 
-export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
+export function MapWidget({ markers, polylines, bounds, className }: MapWidgetProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const mapRef = useRef<L.Map | null>(null);
 	const markersLayerRef = useRef<L.MarkerClusterGroup | null>(null);
+	const polylinesLayerRef = useRef<L.LayerGroup | null>(null);
 	const analytics = useAnalytics();
 	const openedCapturedRef = useRef(false);
 
@@ -54,6 +61,11 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 		cluster.addTo(map);
 		markersLayerRef.current = cluster;
 
+		// Polylines live in their own layer group (no clustering — the lines
+		// connect already-placed markers and shouldn't be hidden by clustering).
+		const polylineLayer = L.layerGroup().addTo(map);
+		polylinesLayerRef.current = polylineLayer;
+
 		const observer = new ResizeObserver(() => {
 			map.invalidateSize();
 		});
@@ -66,6 +78,7 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 			map.remove();
 			mapRef.current = null;
 			markersLayerRef.current = null;
+			polylinesLayerRef.current = null;
 		};
 	}, []);
 
@@ -85,9 +98,24 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 	useEffect(() => {
 		const map = mapRef.current;
 		const cluster = markersLayerRef.current;
+		const polylineLayer = polylinesLayerRef.current;
 		if (!cluster || !map) return;
 
 		cluster.clearLayers();
+		polylineLayer?.clearLayers();
+
+		// Polylines render first so markers sit on top of the connectors.
+		if (polylines && polylineLayer) {
+			for (const { from, to } of polylines) {
+				L.polyline(
+					[
+						[from.lat, from.lon],
+						[to.lat, to.lon],
+					],
+					{ color: "#3b82f6", weight: 2, opacity: 0.6 },
+				).addTo(polylineLayer);
+			}
+		}
 
 		if (!markers) return;
 
@@ -100,7 +128,7 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 		});
 		cluster.addLayers(leafletMarkers);
 
-		if (bounds === undefined && markers.length > 0) {
+		if (bounds === undefined && markers.length > 0 && (!polylines || polylines.length === 0)) {
 			if (markers.length === 1) {
 				const m = markers[0]!;
 				map.setView([m.lat, m.lon], 13);
@@ -108,8 +136,15 @@ export function MapWidget({ markers, bounds, className }: MapWidgetProps) {
 				const latLngs = markers.map((m) => L.latLng(m.lat, m.lon));
 				map.fitBounds(L.latLngBounds(latLngs), { padding: [30, 30] });
 			}
+		} else if (bounds === undefined && polylines && polylines.length > 0) {
+			// Fit to the union of polyline endpoints so the relationship is visible.
+			const latLngs = polylines.flatMap((p) => [
+				L.latLng(p.from.lat, p.from.lon),
+				L.latLng(p.to.lat, p.to.lon),
+			]);
+			map.fitBounds(L.latLngBounds(latLngs), { padding: [30, 30] });
 		}
-	}, [markers, bounds]);
+	}, [markers, polylines, bounds]);
 
 	// A map "opens" for the user once it actually shows results; capture that
 	// once per widget instance — each tool result mounts its own MapWidget, and

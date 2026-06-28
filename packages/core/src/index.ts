@@ -74,6 +74,11 @@ export {
 	QueryOsmToolDetailsSchema,
 	DisplayMapDataSchema,
 	DisplayMapToolDetailsSchema,
+	FindFeaturesToolDetailsSchema,
+	FilterToolDetailsSchema,
+	SpatialJoinToolDetailsSchema,
+	SpatialPairSchema,
+	StoredElementSchema,
 	parseToolResult,
 	isBusyResult,
 	toolResultCount,
@@ -84,11 +89,28 @@ export type {
 	QueryOsmToolDetails,
 	DisplayMapData,
 	DisplayMapToolDetails,
+	FindFeaturesToolDetails,
+	FilterToolDetails,
+	SpatialJoinToolDetails,
+	SpatialPair,
+	StoredElement,
 	ToolProgress,
 	ToolResult,
 	GeocodeResultEntry,
 	OverpassResultEntry,
 } from "./tools/index.ts";
+// Dependency-layer (issue #244) — exported for adapters that build tools directly.
+export { TurnCoordinator, resolveRef } from "./tools/dependency-graph.ts";
+export type { DependencyContext, DependencyError } from "./tools/dependency-graph.ts";
+export { ResultStore } from "./tools/result-store.ts";
+export type { StoredResult } from "./tools/result-store.ts";
+export {
+	overpassEntryToStored,
+	geocodeEntryToStored,
+	computeBounds,
+	boundsAreaKm2,
+	expandBounds,
+} from "./tools/stored-element.ts";
 export {
 	ConversationTranscriptSchema,
 	isConversationTranscript,
