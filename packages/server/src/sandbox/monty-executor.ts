@@ -10,7 +10,7 @@ import {
 } from "@pydantic/monty";
 import type { ResourceLimits } from "@pydantic/monty";
 import { Result, type NominatimClient, type OverpassClient } from "@pixies/core";
-import { CodeExecutionError } from "@pixies/core";
+import { CodeExecutionError, mergeSignals } from "@pixies/core";
 import {
 	geocodeHost,
 	reverseGeocodeHost,
@@ -33,6 +33,10 @@ export interface MontyExecutorOptions {
 	nominatim: NominatimClient;
 	overpass: OverpassClient;
 	limits?: ResourceLimits;
+	/** Hard wall-clock timeout (seconds) for the entire execute() call, including
+	 *  host function I/O. Defaults to 120s. Aborted executions surface as a
+	 *  CodeExecutionError with "TimeoutError". */
+	maxWallClockSecs?: number;
 }
 
 const DEFAULT_LIMITS: ResourceLimits = {
@@ -55,6 +59,7 @@ export class MontyExecutor implements CodeExecutor {
 	private readonly nominatim: NominatimClient;
 	private readonly overpass: OverpassClient;
 	private readonly limits: ResourceLimits;
+	private readonly maxWallClockSecs: number;
 	private readonly codeHistory: string[] = [];
 	private readonly callCache = new Map<string, unknown>();
 
@@ -62,6 +67,7 @@ export class MontyExecutor implements CodeExecutor {
 		this.nominatim = opts.nominatim;
 		this.overpass = opts.overpass;
 		this.limits = opts.limits ?? DEFAULT_LIMITS;
+		this.maxWallClockSecs = opts.maxWallClockSecs ?? 120;
 	}
 
 	async execute(
@@ -81,10 +87,15 @@ export class MontyExecutor implements CodeExecutor {
 		const stdoutParts: string[] = [];
 		const displays: DisplayData[] = [];
 
+		const wallSignal = mergeSignals(
+			options.signal,
+			AbortSignal.timeout(this.maxWallClockSecs * 1000),
+		);
+
 		const ctx: HostContext = {
 			nominatim: this.nominatim,
 			overpass: this.overpass,
-			signal: options.signal,
+			signal: wallSignal,
 		};
 
 		const printCallback = (_stream: string, text: string) => {

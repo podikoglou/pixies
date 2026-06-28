@@ -125,4 +125,4 @@ export type {
 } from "./clients/overpass.ts";
 export { NOMINATIM_BUSY_MESSAGE } from "./clients/nominatim.ts";
 export { OVERPASS_BUSY_MESSAGE } from "./clients/overpass.ts";
-export { isAbortError } from "./utils/abort.ts";
+export { isAbortError, mergeSignals } from "./utils/abort.ts";
