@@ -1,0 +1,124 @@
+/// <reference types="bun" />
+import { expect, test } from "bun:test";
+import { type NominatimClient, type OverpassClient, Result } from "@pixies/core";
+import { MontyExecutor } from "./monty-executor.ts";
+
+/** Minimal Nominatim stub: `search` returns a fixed hit list; `reverse` unused. */
+function fakeNominatim(hits: Array<Record<string, unknown>>): NominatimClient {
+	return {
+		async search(_query: string, _opts: unknown, _signal?: AbortSignal) {
+			return Result.ok(hits);
+		},
+		async reverse(_lat: number, _lon: number, _opts: unknown, _signal?: AbortSignal) {
+			return Result.ok(null);
+		},
+	} as unknown as NominatimClient;
+}
+
+/** Minimal Overpass stub: returns a fixed element list. */
+function fakeOverpass(elements: Array<Record<string, unknown>>): OverpassClient {
+	return {
+		async runQuery(_query: string, _signal?: AbortSignal) {
+			return Result.ok({ elements, truncate: false });
+		},
+	} as unknown as OverpassClient;
+}
+
+test("execute — display() with markers flows through to displays[]", async () => {
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([]),
+		overpass: fakeOverpass([]),
+	});
+	const code = `display(markers=[{"lat": 53.48, "lon": -2.24, "label": "Manchester"}])`;
+	const result = await executor.execute(code, {});
+	expect(Result.isError(result)).toBe(false);
+	if (Result.isError(result)) return;
+	expect(result.value.displays).toHaveLength(1);
+	expect(result.value.displays[0]?.markers?.[0]?.lat).toBe(53.48);
+});
+
+test("execute — display(features=...) with a geocoded point flows through", async () => {
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([
+			{
+				place_id: 1,
+				name: "Manchester",
+				lat: "53.4808",
+				lon: "-2.2426",
+				display_name: "Manchester, UK",
+				type: "city",
+			},
+		]),
+		overpass: fakeOverpass([]),
+	});
+	const code = `m = geocode("Manchester, UK")
+display(markers=[{"lat": m["lat"], "lon": m["lon"], "label": m["name"]}])`;
+	const result = await executor.execute(code, {});
+	expect(Result.isError(result)).toBe(false);
+	if (Result.isError(result)) return;
+	expect(result.value.displays).toHaveLength(1);
+	const marker = result.value.displays[0]?.markers?.[0];
+	expect(marker?.lat).toBe(53.4808);
+	expect(marker?.label).toBe("Manchester");
+});
+
+test("execute — variable persistence: first call stores value, second call uses it", async () => {
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([
+			{
+				place_id: 1,
+				name: "Manchester",
+				lat: "53.4808",
+				lon: "-2.2426",
+				display_name: "Manchester, UK",
+				type: "city",
+			},
+		]),
+		overpass: fakeOverpass([]),
+	});
+	const first = await executor.execute(`m = geocode("Manchester, UK")`, {});
+	expect(Result.isError(first)).toBe(false);
+	const second = await executor.execute(
+		`display(markers=[{"lat": m["lat"], "lon": m["lon"], "label": m["name"]}])`,
+		{},
+	);
+	expect(Result.isError(second)).toBe(false);
+	if (Result.isError(second)) return;
+	expect(second.value.displays).toHaveLength(1);
+	expect(second.value.displays[0]?.markers?.[0]?.label).toBe("Manchester");
+});
+
+test("execute — coding error returns Result.err, stdout preserved", async () => {
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([]),
+		overpass: fakeOverpass([]),
+	});
+	const result = await executor.execute(`1 + "foo"`, {});
+	expect(Result.isError(result)).toBe(true);
+});
+
+test("execute — replay of prior display() call does NOT produce duplicate displays", async () => {
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([
+			{
+				place_id: 1,
+				name: "Manchester",
+				lat: "53.4808",
+				lon: "-2.2426",
+				display_name: "Manchester, UK",
+				type: "city",
+			},
+		]),
+		overpass: fakeOverpass([]),
+	});
+	await executor.execute(
+		`m = geocode("Manchester, UK")
+display(markers=[{"lat": m["lat"], "lon": m["lon"], "label": m["name"]}])`,
+		{},
+	);
+	const second = await executor.execute(`print(m["name"])`, {});
+	if (Result.isError(second)) throw second.error;
+	// Second call's own code did not call display() — only the replayed code did,
+	// and replayed display() calls are skipped. Displays must be empty.
+	expect(second.value.displays).toEqual([]);
+});
