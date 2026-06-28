@@ -18,6 +18,7 @@ import {
 	filterHost,
 	spatialJoinHost,
 	overpassQueryHost,
+	haversineMeters,
 	type HostContext,
 	type DisplayData,
 	type Feature,
@@ -202,18 +203,9 @@ export class MontyExecutor implements CodeExecutor {
 			haversine: (...args: unknown[]) => {
 				const a = (args[0] ?? {}) as Record<string, unknown>;
 				const b = (args[1] ?? {}) as Record<string, unknown>;
-				const lat1 = Number(a.lat);
-				const lon1 = Number(a.lon);
-				const lat2 = Number(b.lat);
-				const lon2 = Number(b.lon);
-				const R = 6_371_000;
-				const toRad = (d: number) => (d * Math.PI) / 180;
-				const dLat = toRad(lat2 - lat1);
-				const dLon = toRad(lon2 - lon1);
-				const x =
-					Math.sin(dLat / 2) ** 2 +
-					Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-				return Math.round(R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)));
+				return Math.round(
+					haversineMeters(Number(a.lat), Number(a.lon), Number(b.lat), Number(b.lon)),
+				);
 			},
 
 			bounds_of: (...args: unknown[]) => {

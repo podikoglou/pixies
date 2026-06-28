@@ -12,6 +12,8 @@ export type {
 	CodeExecutionSuccess,
 	ExecuteCodeDetails,
 } from "./tool-execute-code.ts";
+export { haversineMeters } from "./tool-spatial-join.ts";
+
 export type {
 	HostContext,
 	Feature,
