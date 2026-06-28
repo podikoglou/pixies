@@ -249,6 +249,40 @@ export class MontyExecutor implements CodeExecutor {
  * replay, cached results are returned instantly without calling the real
  * function, and `display()` / `__pixies_replay_end__()` are handled specially.
  */
+/**
+ * Deep-convert Monty types (Map for dict, array-with-__tuple__ for tuple) into
+ * plain JS objects and arrays so external functions receive native shapes.
+ *
+ * Monty's `monty_to_js` serializes Python dicts as JS `Map` instances and
+ * tuples as arrays with a `__tuple__` marker. Every external-function caller
+ * would otherwise need to defend against Maps — `normalizeDisplayData`,
+ * `normalizeArea`, cache-key construction, and the web client's marker
+ * resolution all expect plain objects. This one conversion avoids poisoning
+ * every consumer.
+ */
+function deepToPlainObject(value: unknown): unknown {
+	if (value instanceof Map) {
+		const obj: Record<string, unknown> = {};
+		for (const [k, v] of value) {
+			obj[k] = deepToPlainObject(v);
+		}
+		return obj;
+	}
+	if (Array.isArray(value)) {
+		// Tuple marker: plain array (no __tuple__ property, no special treatment).
+		return value.map(deepToPlainObject);
+	}
+	if (value !== null && typeof value === "object") {
+		const obj: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(value)) {
+			if (k === "__tuple__") continue;
+			obj[k] = deepToPlainObject(v);
+		}
+		return obj;
+	}
+	return value;
+}
+
 async function runMontyLoop(
 	monty: Monty,
 	opts: {
@@ -284,7 +318,9 @@ async function runMontyLoop(
 			continue;
 		}
 
-		const cacheKey = JSON.stringify([snapshot.functionName, snapshot.args, snapshot.kwargs]);
+		const plainArgs = deepToPlainObject(snapshot.args);
+		const plainKwargs = deepToPlainObject(snapshot.kwargs);
+		const cacheKey = JSON.stringify([snapshot.functionName, plainArgs, plainKwargs]);
 		if (opts.state.isReplaying && opts.callCache.has(cacheKey)) {
 			progress = snapshot.resume({ returnValue: opts.callCache.get(cacheKey) });
 			continue;
@@ -303,7 +339,7 @@ async function runMontyLoop(
 
 		let result: unknown;
 		try {
-			result = fn(...snapshot.args, snapshot.kwargs);
+			result = fn(...(plainArgs as unknown[]), plainKwargs);
 			if (result && typeof (result as Promise<unknown>).then === "function") {
 				result = await result;
 			}
@@ -317,8 +353,9 @@ async function runMontyLoop(
 			continue;
 		}
 
-		opts.callCache.set(cacheKey, result);
-		progress = snapshot.resume({ returnValue: result });
+		const plainResult = deepToPlainObject(result);
+		opts.callCache.set(cacheKey, plainResult);
+		progress = snapshot.resume({ returnValue: plainResult });
 	}
 }
 
