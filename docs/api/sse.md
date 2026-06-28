@@ -223,9 +223,14 @@ The `details` shape is tool-specific:
 | `geocode` | `{ data: GeocodeResultEntry[] }` — empty `data: []` when no results; `{ busy: true, data: [] }` when Nominatim reports a transient overload |
 | `reverse_geocode` | `{ data: GeocodeResultEntry }`, `{ busy: true }`, or `undefined` (no result) |
 | `query_osm` | `{ data: OverpassResultEntry[] }` — empty `data: []` when no results; `{ busy: true }` when Overpass reports a transient overload |
-| `display_map` | `{ data: { markers: [{lat,lon,label?}], queryRef?, elementIds?, bounds? } }` — `queryRef` references a prior `query_osm` tool call ID |
+| `find_features` | `{ data: OverpassResultEntry[], queryArea?: Bounds, resolvedTypes?: { input, kind }[] }`, or `{ busy: true, data: [] }` when Overpass reports a transient overload |
+| `filter` | `{ data: StoredElement[], bounds?: Bounds, filterStats: { inputCount, outputCount, filteredOut } }` |
+| `spatial_join` | `{ data: SpatialPair[] (point + target + distance), stats: { pointsCount, targetsCount, pairsFound, pairsTruncated } }` |
+| `display_map` | `{ data: { markers: [{lat,lon,label?}], queryRef?, elementsRef?, pairsRef?, elementIds?, bounds? } }` — `queryRef` / `elementsRef` reference a prior `query_osm` / `find_features` / `filter` / `geocode` tool call ID; `pairsRef` references a prior `spatial_join` |
 
 Clients that want structured results should consume `details.data` directly instead of reverse-parsing the pipe-delimited `content[].text`.
+
+**Dependency-resolved batches.** When the model emits multiple dependent tool calls in a single turn (e.g. `find_features` → `filter` → `spatial_join` → `display_map(pairsRef)`), the agent resolves the execution order via a per-conversation coordinator. The framework dispatches all the calls in parallel, but each ref-aware tool's `execute` awaits its upstream refs before doing real work. `tool_execution_start` arrives in source order for every call up front (some appear "running" before they truly are); `tool_execution_end` arrives as each tool settles. A `display_map` whose ref targets an in-flight sibling waits for that sibling to settle before completing, so client-side ref resolution does not race.
 
 **Busy soft-failure.** When an OSM service reports a transient overload condition, the data-fetch tools (`geocode`, `reverse_geocode`, `query_osm`) return a normal result (`isError: false`) whose `details` carries `busy: true` and whose text is a model-facing "try again" message, rather than failing the tool. This is a success on the wire but a transient condition: clients may surface a "service busy" indicator, and the model is expected to retry or relax its query.
 
