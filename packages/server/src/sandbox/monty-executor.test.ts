@@ -56,10 +56,14 @@ display(markers=[{"lat": m["lat"], "lon": m["lon"], "label": m["name"]}])`;
 	const result = await executor.execute(code, {});
 	expect(Result.isError(result)).toBe(false);
 	if (Result.isError(result)) return;
-	expect(result.value.displays).toHaveLength(1);
-	const marker = result.value.displays[0]?.markers?.[0];
-	expect(marker?.lat).toBe(53.4808);
-	expect(marker?.label).toBe("Manchester");
+	// geocode auto-displays a marker, then display() adds another
+	expect(result.value.displays).toHaveLength(2);
+	const firstMarker = result.value.displays[0]?.markers?.[0];
+	expect(firstMarker?.lat).toBe(53.4808);
+	expect(firstMarker?.label).toBe("Manchester");
+	const secondMarker = result.value.displays[1]?.markers?.[0];
+	expect(secondMarker?.lat).toBe(53.4808);
+	expect(secondMarker?.label).toBe("Manchester");
 });
 
 test("execute — variable persistence: first call stores value, second call uses it", async () => {
