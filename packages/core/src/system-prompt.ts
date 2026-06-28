@@ -37,7 +37,9 @@ area accepts exactly one of:
 - Write minimal code for the query. Don't add error handling unless needed.
 - Inspect results with print() or len() before using them.
 - Call display() to show results on the map.
+- If your code produces a coding error (NameError, TypeError, RuntimeError, SyntaxError from your own code, KeyError), fix the problem and retry in a new execute_code call. This includes wrong function signatures, missing keys, type mismatches — anything you wrote wrong. Never give up on a coding error. Keep retrying until you either get results or exhaust the parameter space.
 - If a query returns 0 results, the function auto-broadens the search. If still nothing, write a broader query in a new execute_code call.
+- If a function reports its backing service is temporarily unavailable, treat it as terminal: tell the user which service is down and suggest they try later. Do not retry.
 
 ## OSM guidance
 
@@ -48,8 +50,6 @@ Pass brand names directly in find_features types: ["LIDL"], ["IKEA"], ["Starbuck
 For "X near Y" queries: fetch X and Y separately, then spatial_join with operation="near" or "nearest".
 
 For numeric comparisons (population < 30000, ele > 1000): fetch with find_features, then filter. filter parses OSM's loose numeric formats ("30 000", "30,000", "~30000") correctly. NEVER rely on Overpass for numeric comparison.
-
-If a function reports that its backing service is temporarily unavailable (Nominatim or Overpass busy), treat it as terminal: tell the user which service is down and suggest they try again later.
 
 ## Examples
 
