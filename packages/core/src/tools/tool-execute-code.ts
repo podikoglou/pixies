@@ -35,7 +35,7 @@ export const ExecuteCodeDetailsSchema = Type.Object({
 const schema = Type.Object({
 	code: Type.String({
 		description:
-			"Python code to execute. Call the provided functions (geocode, find_features, filter, spatial_join, display, reverse_geocode, overpass_query) to answer spatial questions. Use await for async functions (geocode, find_features, overpass_query). filter and spatial_join are synchronous. Call display() to show results on the map.",
+			"Python code to execute. Call the pre-loaded global functions directly — no imports needed and imports will fail.",
 	}),
 });
 
@@ -48,7 +48,7 @@ export const executeCodeModule = defineTool<
 	name: "execute_code",
 	label: "Execute Code",
 	description:
-		"Execute Python code that calls spatial functions to answer the user's question. The code runs in a sandboxed interpreter with access to geocode, find_features, filter, spatial_join, display, reverse_geocode, and overpass_query. Variables persist across calls within the same conversation. Use print() to inspect results.",
+		"Execute Python code in a sandboxed interpreter (Monty). The functions geocode, find_features, filter, spatial_join, display, reverse_geocode, overpass_query, haversine, and bounds_of are pre-loaded as globals — do NOT import them. There is no import system, no standard library. Use top-level await for async functions. Call display() to show results on the map.",
 	parameters: schema,
 	detailsSchema: ExecuteCodeDetailsSchema,
 	parse: parseSchema(ExecuteCodeDetailsSchema, (d) => ({
