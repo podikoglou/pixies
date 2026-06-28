@@ -26,6 +26,7 @@ export interface Feature {
 	lat?: number;
 	lon?: number;
 	tags?: Record<string, string>;
+	type?: string;
 }
 
 export interface GeocodeResult {
@@ -163,25 +164,25 @@ interface FilterParams {
 
 /** In-memory filter over a feature list using a where-expression, tag filters, sort, limit, and dedup. */
 export function filterHost(features: Feature[], params: FilterParams): Feature[] {
-	let elements = features.map(featureToStoredElement);
+	let result = features;
 	if (params.where) {
 		const predicate = compileWhere(params.where);
-		elements = elements.filter(predicate);
+		result = result.filter(predicate);
 	}
 	if (params.tags && params.tags.length > 0) {
-		elements = applyTagsFilter(elements, params.tags);
+		result = applyTagsFilter(result, params.tags);
 	}
 	if (params.distinct) {
 		const seen = new Set<string>();
-		elements = elements.filter((el) => {
+		result = result.filter((el) => {
 			if (seen.has(el.id)) return false;
 			seen.add(el.id);
 			return true;
 		});
 	}
-	if (params.sort_by) elements = applySortBy(elements, params.sort_by);
-	if (params.limit !== undefined) elements = elements.slice(0, params.limit);
-	return elements.map(storedElementToFeature);
+	if (params.sort_by) result = applySortBy(result, params.sort_by);
+	if (params.limit !== undefined) result = result.slice(0, params.limit);
+	return result;
 }
 
 interface SpatialJoinParams {
@@ -337,8 +338,7 @@ async function resolveArea(
 		};
 	}
 	if (area.features && area.features.length > 0) {
-		const elements = area.features.map(featureToStoredElement);
-		const bounds = computeBounds(elements);
+		const bounds = computeBounds(area.features);
 		if (!bounds) throw new Error("Cannot derive area from features without coordinates.");
 		return { kind: "bbox", bounds: expandBounds(bounds, 250) };
 	}
@@ -466,27 +466,4 @@ function dropMostRestrictive(groups: TagClause[][]): TagClause[][] | null {
 	if (groups.length <= 1) return null;
 	const sorted = [...groups].sort((a, b) => b.length - a.length);
 	return sorted.slice(0, Math.max(1, Math.ceil(sorted.length / 2)));
-}
-
-/** Convert a Feature to StoredElement (re-injects name into tags so filter predicates resolve). */
-function featureToStoredElement(f: Feature): import("./schemas.ts").StoredElement {
-	const tags: Record<string, string> = { ...f.tags };
-	if (f.name) tags.name = f.name;
-	return {
-		id: f.id,
-		...(f.lat !== undefined && f.lon !== undefined ? { lat: f.lat, lon: f.lon } : {}),
-		...(f.name ? { name: f.name } : {}),
-		...(Object.keys(tags).length > 0 ? { tags } : {}),
-	};
-}
-
-/** Convert a StoredElement back to Feature (strips the type field, spreads tags). */
-function storedElementToFeature(el: import("./schemas.ts").StoredElement): Feature {
-	return {
-		id: el.id,
-		...(el.lat !== undefined ? { lat: el.lat } : {}),
-		...(el.lon !== undefined ? { lon: el.lon } : {}),
-		...(el.name ? { name: el.name } : {}),
-		...(el.tags ? { tags: { ...el.tags } } : {}),
-	};
 }
