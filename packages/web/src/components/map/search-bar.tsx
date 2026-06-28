@@ -44,7 +44,8 @@ export function SearchBar({ value, onChange, onSubmit, isStreaming, onAbort }: S
 					onKeyDown={onKeyDown}
 					placeholder="Search places…"
 					aria-label="Search places"
-					className="h-11 flex-1 rounded-xl"
+					inputContainerClassName="flex-1"
+					className="h-11 rounded-xl"
 				/>
 				<Tooltip>
 					<TooltipTrigger
