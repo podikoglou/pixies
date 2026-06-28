@@ -18,7 +18,7 @@ function fakeNominatim(hits: Array<Record<string, unknown>>): NominatimClient {
 /** Minimal Overpass stub: returns a fixed element list. */
 function fakeOverpass(elements: Array<Record<string, unknown>>): OverpassClient {
 	return {
-		async runQuery(_query: string, _signal?: AbortSignal) {
+		async query(_query: string, _signal?: AbortSignal) {
 			return Result.ok({ elements, truncate: false });
 		},
 	} as unknown as OverpassClient;
@@ -121,4 +121,31 @@ display(markers=[{"lat": m["lat"], "lon": m["lon"], "label": m["name"]}])`,
 	// Second call's own code did not call display() — only the replayed code did,
 	// and replayed display() calls are skipped. Displays must be empty.
 	expect(second.value.displays).toEqual([]);
+});
+
+test("execute — find_features auto-displays features without explicit display() call", async () => {
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([]),
+		overpass: fakeOverpass([
+			{
+				type: "node",
+				id: 1,
+				lat: 53.48,
+				lon: -2.24,
+				tags: { name: "Stop A", highway: "bus_stop" },
+			},
+		]),
+	});
+	// find_features(types=["bus_stop"]) will query overpass; the stub returns one element.
+	// Don't pass area — use around with a hardcoded point.
+	const code = `bus_stops = find_features(types=["bus_stop"], area={"around": {"lat": 53.48, "lon": -2.24, "radius": 1000}})
+print(bus_stops["count"])`;
+	const result = await executor.execute(code, {});
+	// eslint-disable-next-line no-console
+	if (Result.isError(result)) console.log("ERR:", result.error.message);
+	expect(Result.isError(result)).toBe(false);
+	if (Result.isError(result)) return;
+	expect(result.value.displays).toHaveLength(1);
+	expect(result.value.displays[0]?.features).toHaveLength(1);
+	expect(result.value.displays[0]?.features?.[0]?.name).toBe("Stop A");
 });
