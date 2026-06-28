@@ -93,11 +93,10 @@ export interface Bounds {
 }
 
 /**
- * Compute the bounding box of a set of stored elements. Returns `null` when
- * no element carries `lat`/`lon`. Used by `find_features` to resolve an
- * `area.queryRef` to a search bbox and by `display_map` to fit the view.
+ * Compute the bounding box of a set of elements with optional lat/lon.
+ * Returns `null` when no element carries both coordinates.
  */
-export function computeBounds(elements: StoredElement[]): Bounds | null {
+export function computeBounds(elements: { lat?: number; lon?: number }[]): Bounds | null {
 	let minlat = Number.POSITIVE_INFINITY;
 	let minlon = Number.POSITIVE_INFINITY;
 	let maxlat = Number.NEGATIVE_INFINITY;
