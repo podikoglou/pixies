@@ -19,6 +19,7 @@ import {
 	spatialJoinHost,
 	overpassQueryHost,
 	haversineMeters,
+	computeBounds,
 	type HostContext,
 	type DisplayData,
 	type Feature,
@@ -210,21 +211,7 @@ export class MontyExecutor implements CodeExecutor {
 
 			bounds_of: (...args: unknown[]) => {
 				const features = (Array.isArray(args[0]) ? args[0] : []) as Feature[];
-				let minlat = Infinity;
-				let minlon = Infinity;
-				let maxlat = -Infinity;
-				let maxlon = -Infinity;
-				let seen = 0;
-				for (const f of features) {
-					if (f.lat === undefined || f.lon === undefined) continue;
-					seen++;
-					if (f.lat < minlat) minlat = f.lat;
-					if (f.lat > maxlat) maxlat = f.lat;
-					if (f.lon < minlon) minlon = f.lon;
-					if (f.lon > maxlon) maxlon = f.lon;
-				}
-				if (seen === 0) return null;
-				return { minlat, minlon, maxlat, maxlon };
+				return computeBounds(features);
 			},
 		};
 		return fns;

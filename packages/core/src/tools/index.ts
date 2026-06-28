@@ -13,6 +13,7 @@ export type {
 	ExecuteCodeDetails,
 } from "./tool-execute-code.ts";
 export { haversineMeters } from "./tool-spatial-join.ts";
+export { computeBounds } from "./stored-element.ts";
 
 export type {
 	HostContext,

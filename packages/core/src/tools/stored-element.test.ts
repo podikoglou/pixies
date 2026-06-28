@@ -66,7 +66,7 @@ test("geocodeEntryToStored — uses osm_type/osm_id for the identity when presen
 });
 
 test("computeBounds — null when no element has coordinates", () => {
-	expect(computeBounds([{ id: "node/1" }, { id: "node/2" }])).toBeNull();
+	expect(computeBounds([{}, {}])).toBeNull();
 });
 
 test("computeBounds — covers all elements with coordinates", () => {
