@@ -7,11 +7,11 @@ import { StreamInstrumentation } from "./stream-instrumentation.ts";
 import type { PostHogAnalyticsClient } from "./posthog.ts";
 
 /**
- * Direct unit coverage for the {@link StreamInstrumentation} seam — the issue's
- * headline benefit. These tests exercise timing + analytics in isolation,
- * WITHOUT an SSE round-trip (`pipe-agent-stream.test.ts` still pins the
- * end-to-end wire + lifecycle). The tag-only-on-error privacy property is
- * asserted here directly, not just indirectly through the wire bytes.
+ * Direct unit coverage for the {@link StreamInstrumentation} seam. These
+ * tests exercise timing + analytics in isolation, WITHOUT an SSE round-trip
+ * (`pipe-agent-stream.test.ts` still pins the end-to-end wire + lifecycle).
+ * The tag-only-on-error privacy property is asserted here directly, not just
+ * indirectly through the wire bytes.
  */
 
 interface Captured {

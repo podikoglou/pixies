@@ -15,6 +15,8 @@ interface ChatTimelineProps {
 }
 
 export function ChatTimeline({ state }: ChatTimelineProps) {
+	// Items present on first mount skip enter animation; only newly
+	// streamed-in items animate.
 	const initialCountRef = useRef(state.items.length);
 	const skipCount = initialCountRef.current;
 
@@ -28,6 +30,8 @@ export function ChatTimeline({ state }: ChatTimelineProps) {
 				} else if (item.kind === "assistant-message") {
 					content = <AssistantMessage text={item.text} responseTimeMs={item.responseTimeMs} />;
 				} else if (
+					// execute_code results with map-renderable data render as
+					// MapWidget instead of ToolCallCard.
 					item.toolName === "execute_code" &&
 					item.status === "done" &&
 					item.result.kind === "execute_code"

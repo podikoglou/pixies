@@ -98,23 +98,15 @@ export class ConversationStore {
 	}
 
 	/**
-	 * Resolve a conversation by id from cache or DB — the single owner of the
-	 * cache-miss load path previously duplicated by `get()` and `streamPrompt()`.
+	 * Load a conversation from cache or DB.
 	 *
-	 * On a cache hit it touches the LRU (move to tail + bump `lastActivity`)
-	 * and returns the live conversation, replicating the prior `get()` cache-hit
-	 * behavior. On a miss it loads the persisted row, builds a fresh
-	 * `Conversation`, rehydrates its transcript, and inserts it under eviction.
-	 * A missing row yields `undefined`, leaving the not-found mapping to each
-	 * caller: `get()` returns `undefined`; `streamPrompt()` maps it to
-	 * `Err(ConversationNotFoundError)` at its own call site.
+	 * Cache hit: LRU-touches and returns. Cache miss: queries DB, builds a
+	 * fresh `Conversation`, rehydrates the transcript, inserts into the map
+	 * under eviction, and returns. A missing row yields `undefined` — the
+	 * caller maps that to a domain error.
 	 *
-	 * `streamPrompt()` pre-checks the cache and only routes the *miss* through
-	 * here, so its separate LRU re-touch (after the in-flight/budget guards) is
-	 * unchanged. Centralizing the miss path means the ADR-0008 persisted-
-	 * transcript guard (`isPersistedTranscript`, called once inside
-	 * `rehydrateTranscript`) is trusted from exactly one read site instead of
-	 * two duplicated copies that had to stay in lockstep.
+	 * Single read-site for the ADR-0008 persisted-transcript guard
+	 * (`isPersistedTranscript`). Callers must not bypass.
 	 */
 	private async loadConversation(id: string): Promise<Conversation | undefined> {
 		let conv = this.map.get(id);

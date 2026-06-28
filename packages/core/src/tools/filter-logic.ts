@@ -12,6 +12,7 @@ class WhereParseError extends Error {
 	}
 }
 
+/** Compile a filter expression into a predicate. Supports `and`/`or`/`not`, comparisons (`=`, `!=`, `=~`, `<`, `<=`, `>`, `>=`), and `exists`/`notexists`. */
 export function compileWhere(expr: string): Predicate {
 	const tokens = tokenize(expr);
 	if (tokens.length === 0) throw new WhereParseError("empty expression", 0);
@@ -166,6 +167,7 @@ function literalAsNumber(t: Token): number | null {
 	return parseOsmNumber(literalAsString(t));
 }
 
+/** Parse an OSM-style numeric value (may include units like `"42 m"`). Returns null on unparseable input. */
 export function parseOsmNumber(raw: string | null): number | null {
 	if (raw === null) return null;
 	const acceptable = /^\s*[~≈]?\s*(?:c\.\s*)?-?\d{1,3}(?:[ ,]?\d{3})*(?:\.\d+)?\s*$/;
@@ -307,6 +309,7 @@ function findStringEnd(s: string, start: number, quote: string): number {
 	return -1;
 }
 
+/** Filter elements by tag key/value/op predicates. Each tag spec is matched independently (AND). */
 export function applyTagsFilter(
 	elements: StoredElement[],
 	tags: { key: string; value?: string; op?: string }[],
@@ -340,6 +343,7 @@ export function applyTagsFilter(
 	);
 }
 
+/** Sort elements by a tag key. Prefix with `-` for descending order. Numeric-aware when values parse as numbers. */
 export function applySortBy(elements: StoredElement[], sortBy: string): StoredElement[] {
 	const desc = sortBy.startsWith("-");
 	const key = desc ? sortBy.slice(1) : sortBy;

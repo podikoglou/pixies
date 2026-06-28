@@ -9,16 +9,10 @@ export type { TagClause };
  * model-facing abstraction that lets `find_features` accept "restaurant" /
  * "LIDL" / "hospital" without the model hand-writing Overpass tags.
  *
- * Each entry maps to a list of OR-groups; each group is a conjunction (AND)
- * of tag clauses. Groups are OR'd in the generated query. The dictionary is
- * deliberately scoped to ~30 high-yield types — misses fall back to a
- * case-insensitive `name` regex (see {@link resolveType}).
- *
- * Co-located with `find_features` (single consumer); the prefix mirrors
- * `geocode-entry.ts` for the same reason.
+ * Each entry maps to a list of OR-groups; each group is an AND of tag
+ * clauses. Groups are OR'd in the generated query. Scoped to ~30 high-yield
+ * types — misses fall back to a case-insensitive `name` regex.
  */
-
-/** A resolved type — a list of OR-groups; each group is an AND of clauses. */
 export type ResolvedType = TagClause[][];
 
 const amenity = (value: string): TagClause[] => [{ key: "amenity", value }];

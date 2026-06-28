@@ -103,6 +103,11 @@ interface FindFeaturesParams {
 	limit?: number;
 }
 
+/**
+ * Search OSM features via Overpass. On zero results, auto-relaxes:
+ * expands radius (1.5x, 2x, 3x), broadens `eq` to `iregex` tags,
+ * then drops the most restrictive OR-groups.
+ */
 export async function findFeaturesHost(
 	ctx: HostContext,
 	params: FindFeaturesParams,
@@ -389,6 +394,11 @@ function formatFeatures(
 	};
 }
 
+/**
+ * Multi-pass relaxation when an Overpass query returns zero results.
+ * Tries in order: expand around-radius (1.5x, 2x, 3x), broaden `eq`
+ * tag clauses to `iregex`, drop the most restrictive OR-groups.
+ */
 async function applyRelaxation(
 	tryQuery: (groups: TagClause[][], area: ResolvedArea) => Promise<Feature[]>,
 	groups: TagClause[][],
@@ -426,6 +436,7 @@ async function applyRelaxation(
 	return { features: [], note: undefined, exhausted: true };
 }
 
+/** Convert `eq` tag clauses to case-insensitive `iregex`. Returns null when no clauses to broaden. */
 function broadenTags(groups: TagClause[][]): TagClause[][] | null {
 	let changed = false;
 	const result = groups.map((group) =>
