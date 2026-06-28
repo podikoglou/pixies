@@ -154,6 +154,9 @@ export class MontyExecutor implements CodeExecutor {
 				const kwargs = (args[args.length - 1] ?? {}) as Record<string, unknown>;
 				const result = await findFeaturesHost(ctx, normalizeFindFeaturesParams(kwargs));
 				print(formatFindFeaturesSummary(kwargs, result));
+				if (result.features.length > 0) {
+					onDisplay({ features: result.features });
+				}
 				return result;
 			},
 
@@ -175,6 +178,9 @@ export class MontyExecutor implements CodeExecutor {
 					`spatial_join(${kwargs.operation}, ${kwargs.radius}m) → ${result.length} pair(s)` +
 						(best !== undefined ? ` (best: ${best}m)\n` : "\n"),
 				);
+				if (result.length > 0) {
+					onDisplay({ pairs: result });
+				}
 				return result;
 			},
 
