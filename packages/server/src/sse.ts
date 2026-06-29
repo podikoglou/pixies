@@ -5,8 +5,8 @@ export type SseCloseHandler = () => void;
 export class SseWriter {
 	private controller?: ReadableStreamDefaultController<Uint8Array>;
 	private heartbeat?: ReturnType<typeof setInterval>;
-	private readonly stream: ReadableStream<Uint8Array>;
-	private readonly encoder = new TextEncoder();
+	private stream: ReadableStream<Uint8Array>;
+	private encoder = new TextEncoder();
 
 	constructor(onClose: SseCloseHandler) {
 		this.stream = new ReadableStream<Uint8Array>({
