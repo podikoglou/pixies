@@ -139,44 +139,40 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 export function joinContentText(content: unknown, separator = ""): string {
 	if (typeof content === "string") return content;
 	if (!Array.isArray(content)) return "";
-	const parts: string[] = [];
-	for (const block of content) {
-		if (
-			block !== null &&
-			typeof block === "object" &&
-			(block as { type?: unknown }).type === "text" &&
-			typeof (block as { text?: unknown }).text === "string"
-		) {
-			parts.push((block as { text: string }).text);
-		}
-	}
-	return parts.join(separator);
+	return (content as Array<unknown>)
+		.filter(
+			(block): block is { text: string } =>
+				block !== null &&
+				typeof block === "object" &&
+				(block as { type?: unknown }).type === "text" &&
+				typeof (block as { text?: unknown }).text === "string",
+		)
+		.map((block) => block.text)
+		.join(separator);
 }
 
 export function transcriptToItems(transcript: ConversationTranscript): TimelineItem[] {
-	const items: TimelineItem[] = [];
-	for (const msg of transcript.messages) {
+	return transcript.messages.flatMap((msg) => {
 		switch (msg.role) {
 			case "user":
-				items.push({ kind: "user-message", text: joinContentText(msg.content, "") });
-				break;
+				return [{ kind: "user-message" as const, text: joinContentText(msg.content, "") }];
 			case "assistant":
-				break;
+				return [];
 			case "toolResult": {
 				const parsed = parseToolResult(msg.toolName, msg.details);
-				items.push({
-					kind: "tool-call",
-					toolCallId: msg.toolCallId,
-					toolName: msg.toolName,
-					args: undefined,
-					status: msg.isError ? "error" : isBusyResult(msg.details) ? "warning" : "done",
-					queued: false,
-					resultText: joinContentText(msg.content, "\n") || null,
-					result: parsed,
-				});
-				break;
+				return [
+					{
+						kind: "tool-call" as const,
+						toolCallId: msg.toolCallId,
+						toolName: msg.toolName,
+						args: undefined,
+						status: msg.isError ? "error" : isBusyResult(msg.details) ? "warning" : "done",
+						queued: false,
+						resultText: joinContentText(msg.content, "\n") || null,
+						result: parsed,
+					},
+				];
 			}
 		}
-	}
-	return items;
+	});
 }
