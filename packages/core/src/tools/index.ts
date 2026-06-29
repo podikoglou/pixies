@@ -36,6 +36,9 @@ export {
 export { renderDiagnosisLines, computeDiagnosis, levenshtein } from "../functions/diagnosis.ts";
 export type { Diagnosis, ResolvedKind, ResolvedPlace } from "../functions/diagnosis.ts";
 
+export { profileHost, formatProfileSummary } from "../functions/profile.ts";
+export type { ProfileResult, TagProfile, NumericProfile } from "../functions/profile.ts";
+
 const TOOL_MODULES = {
 	execute_code: executeCodeModule,
 } as const;
