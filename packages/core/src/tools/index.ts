@@ -11,6 +11,7 @@ export type {
 	CodeExecutor,
 	CodeExecutionSuccess,
 	ExecuteCodeDetails,
+	PrimitiveTraceEntry,
 } from "./tool-execute-code.ts";
 export { haversineMeters } from "../functions/haversine.ts";
 export { computeBounds } from "../functions/geometry.ts";
