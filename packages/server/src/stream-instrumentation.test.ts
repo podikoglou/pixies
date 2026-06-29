@@ -552,3 +552,113 @@ test("recordToolEnd() handles a missing tracking entry (defensive: measures from
 	expect(calls).toHaveLength(1);
 	expect(Number.isInteger(calls[0]!.properties.duration_ms)).toBe(true);
 });
+
+// ---- total_tool_ms on stream events -----------------------------------------
+
+test("complete() ships total_tool_ms = sum of tool durations", () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	const instr = new StreamInstrumentation("conv-1", posthog, logger);
+
+	instr.recordToolStart("call-1");
+	instr.recordToolEnd("call-1", "execute_code", toolExecResult({}), false);
+	instr.recordToolStart("call-2");
+	instr.recordToolEnd("call-2", "execute_code", toolExecResult({}), false);
+
+	instr.complete();
+
+	const done = posthog.captures.filter((c) => c.event === "agent stream done")[0]!;
+	const toolDurations = posthog.captures
+		.filter((c) => c.event === "tool call")
+		.reduce((sum, c) => sum + (c.properties.duration_ms as number), 0);
+	expect(done.properties.total_tool_ms).toBe(toolDurations);
+	expect(Number.isInteger(done.properties.total_tool_ms)).toBe(true);
+});
+
+test("complete() ships total_tool_ms = 0 when no tools ran", () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	const instr = new StreamInstrumentation("conv-1", posthog, logger);
+
+	instr.complete();
+
+	const done = posthog.captures.filter((c) => c.event === "agent stream done")[0]!;
+	expect(done.properties.total_tool_ms).toBe(0);
+});
+
+test("disconnect() ships total_tool_ms from completed tools only", () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	const instr = new StreamInstrumentation("conv-1", posthog, logger);
+
+	instr.recordToolStart("call-1");
+	instr.recordToolEnd("call-1", "execute_code", toolExecResult({}), false);
+	// Simulate an in-flight tool that never completes (user aborts mid-call).
+	instr.recordToolStart("call-2");
+
+	instr.disconnect();
+
+	const disconnect = posthog.captures.filter((c) => c.event === "agent stream disconnect")[0]!;
+	const firstToolDuration = posthog.captures.filter((c) => c.event === "tool call")[0]!.properties
+		.duration_ms as number;
+	expect(disconnect.properties.total_tool_ms).toBe(firstToolDuration);
+});
+
+// ---- primitive trace on tool call -------------------------------------------
+
+test("recordToolEnd() derives primitives[] and primitive_timings_ms from details.primitives", () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	const instr = new StreamInstrumentation("conv-1", posthog, logger);
+
+	instr.recordToolStart("call-1");
+	instr.recordToolEnd(
+		"call-1",
+		"execute_code",
+		toolExecResult({
+			stdout: "",
+			displays: [{ features: [{ lat: 0, lon: 0 }] }],
+			primitives: [
+				{ name: "geocode", duration_ms: 200 },
+				{ name: "find_features", duration_ms: 3400 },
+				{ name: "find_features", duration_ms: 1200 },
+				{ name: "profile", duration_ms: 3 },
+				{ name: "display", duration_ms: 0 },
+			],
+		}),
+		false,
+	);
+
+	const props = posthog.captures.filter((c) => c.event === "tool call")[0]!.properties;
+	expect(props.primitives).toEqual([
+		"geocode",
+		"find_features",
+		"find_features",
+		"profile",
+		"display",
+	]);
+	expect(props.primitive_timings_ms).toEqual({
+		geocode: 200,
+		find_features: 4600,
+		profile: 3,
+		display: 0,
+	});
+});
+
+test("recordToolEnd() omits primitives/primitive_timings_ms when details has no trace", () => {
+	const { logger } = mockLogger();
+	const posthog = spyPostHog();
+	const instr = new StreamInstrumentation("conv-1", posthog, logger);
+
+	instr.recordToolStart("call-1");
+	instr.recordToolEnd(
+		"call-1",
+		"execute_code",
+		toolExecResult({ stdout: "", displays: [] }),
+		false,
+	);
+
+	const props = posthog.captures.filter((c) => c.event === "tool call")[0]!.properties;
+	expect(Object.prototype.hasOwnProperty.call(props, "primitives")).toBe(false);
+	expect(Object.prototype.hasOwnProperty.call(props, "primitive_timings_ms")).toBe(false);
+});
