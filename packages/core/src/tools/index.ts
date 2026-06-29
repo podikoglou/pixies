@@ -20,6 +20,7 @@ export type {
 	Feature,
 	GeocodeResult,
 	FindFeaturesResult,
+	FeaturesEnvelope,
 	SpatialPair,
 	DisplayData,
 } from "../functions/host-functions.ts";
@@ -31,6 +32,7 @@ export {
 	filterHost,
 	spatialJoinHost,
 	overpassQueryHost,
+	searchHost,
 } from "../functions/host-functions.ts";
 
 export { renderDiagnosisLines, computeDiagnosis, levenshtein } from "../functions/diagnosis.ts";

@@ -61,6 +61,15 @@ export interface SpatialPair {
 	distance: number;
 }
 
+/** Unified fetch-envelope shape for the fetch primitives (search, find_features,
+ *  overpass_query): the features actually returned, their count (always
+ *  len(features)), and whether the source had more than the display limit. */
+export interface FeaturesEnvelope {
+	features: Feature[];
+	count: number;
+	truncated: boolean;
+}
+
 export interface DisplayData {
 	markers?: { lat: number; lon: number; label?: string }[];
 	features?: Feature[];
@@ -253,6 +262,46 @@ export async function overpassQueryHost(
 	}
 	const features = elementsToFeatures(result.value.elements ?? []);
 	return { features, count: features.length, truncated: false };
+}
+
+/**
+ * Free-text Nominatim `/search` fetch — relevance-ranked fuzzy POI discovery,
+ * a *different capability* from `find_features` (exhaustive structural tag-match
+ * via Overpass). `truncated` is heuristic (`count >= requested_limit`): the
+ * public Nominatim cap is ≤40, so hitting the limit means the answer is partial
+ * and `find_features` may be needed for exhaustiveness.
+ *
+ * Nominatim returns no arbitrary OSM tags, so results carry no `tags` —
+ * `filter(where=...)` on `search` results is limited to `name` comparisons.
+ */
+export async function searchHost(
+	ctx: HostContext,
+	query: string,
+	limit = 40,
+): Promise<FeaturesEnvelope> {
+	const result = await ctx.nominatim.search(query, { limit }, ctx.signal);
+	if (Result.isError(result)) {
+		if (result.error._tag === "NominatimBusy") throw new Error(NOMINATIM_BUSY_MESSAGE);
+		throw new Error(result.error.message);
+	}
+	const features = result.value.map(nominatimToFeature);
+	return { features, count: features.length, truncated: features.length >= limit };
+}
+
+/** Map a Nominatim hit to the canonical Feature. Derives `id` from osm type/id,
+ *  `type` from class/type, and parses the string coordinates. No `tags` —
+ *  Nominatim does not return arbitrary OSM tags. */
+function nominatimToFeature(r: NominatimResult): Feature {
+	const id =
+		r.osm_type && r.osm_id !== undefined ? `${r.osm_type}/${r.osm_id}` : `place/${r.place_id}`;
+	const type = r.class && r.type ? `${r.class}/${r.type}` : (r.class ?? r.type);
+	return {
+		id,
+		lat: Number(r.lat),
+		lon: Number(r.lon),
+		...(r.name ? { name: r.name } : {}),
+		...(type ? { type } : {}),
+	};
 }
 
 /** Map a raw Nominatim hit to the canonical GeocodeResult. Extracts bbox and up to 3 alternatives. */

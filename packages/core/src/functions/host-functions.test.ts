@@ -14,6 +14,7 @@ import {
 	spatialJoinHost,
 	geocodeHost,
 	findFeaturesHost,
+	searchHost,
 	type HostContext,
 	type Feature,
 } from "./host-functions.ts";
@@ -29,6 +30,7 @@ type NominatimHit = {
 	display_name: string;
 	name?: string;
 	type?: string;
+	class?: string;
 	osm_type?: "node" | "way" | "relation";
 	osm_id?: number;
 	boundingbox?: [string, string, string, string];
@@ -557,4 +559,88 @@ test("findFeaturesHost — resolveGroups: type + tags produce correct groups", a
 	expect(capturedQuery).not.toBeNull();
 	expect(capturedQuery!).toContain('["amenity"="restaurant"]');
 	expect(capturedQuery!).toContain('["cuisine"="italian"]');
+});
+
+// ---------------------------------------------------------------------------
+// searchHost
+// ---------------------------------------------------------------------------
+
+test("searchHost — maps Nominatim hits to Features (id/type from class, coords parsed)", async () => {
+	const ctx = mockCtx({
+		nominatim: {
+			search: () =>
+				Promise.resolve(
+					Result.ok([
+						makeHit({
+							place_id: 10,
+							name: "IKEA Athens",
+							lat: "37.98",
+							lon: "23.72",
+							display_name: "IKEA Athens, Greece",
+							type: "furniture",
+							osm_type: "node",
+							osm_id: 99,
+							class: "shop",
+							boundingbox: undefined,
+						}),
+					]),
+				),
+		},
+	});
+	const result = await searchHost(ctx, "ikea greece");
+	expect(result.count).toBe(1);
+	expect(result.features[0]!.id).toBe("node/99");
+	expect(result.features[0]!.name).toBe("IKEA Athens");
+	expect(result.features[0]!.lat).toBe(37.98);
+	expect(result.features[0]!.lon).toBe(23.72);
+	expect(result.features[0]!.type).toBe("shop/furniture");
+	expect(result.features[0]!.tags).toBeUndefined(); // Nominatim returns no arbitrary tags
+	expect(result.truncated).toBe(false);
+});
+
+test("searchHost — falls back to place/<place_id> id when osm_type/id absent", async () => {
+	const ctx = mockCtx({
+		nominatim: {
+			search: () =>
+				Promise.resolve(
+					Result.ok([
+						{
+							place_id: 4242,
+							lat: "40.0",
+							lon: "20.0",
+							display_name: "Somewhere",
+							name: "Somewhere",
+						},
+					]),
+				),
+		},
+	});
+	const result = await searchHost(ctx, "somewhere");
+	expect(result.features[0]!.id).toBe("place/4242");
+});
+
+test("searchHost — truncated heuristic fires at the requested limit", async () => {
+	// count == requested limit ⇒ the public Nominatim cap likely bit ⇒ partial.
+	const hits = Array.from({ length: 5 }, (_, i) => ({
+		place_id: i + 1,
+		lat: `${40 + i}`,
+		lon: `${20 + i}`,
+		display_name: `Hit ${i}`,
+		name: `Hit ${i}`,
+	}));
+	const ctx = mockCtx({
+		nominatim: { search: () => Promise.resolve(Result.ok(hits)) },
+	});
+	const result = await searchHost(ctx, "x", 5);
+	expect(result.count).toBe(5);
+	expect(result.truncated).toBe(true);
+});
+
+test("searchHost — NominatimBusy error throws with busy message", async () => {
+	const ctx = mockCtx({
+		nominatim: {
+			search: () => Promise.resolve(Result.err(new NominatimBusyError({ status: 429 }))),
+		},
+	});
+	await expect(searchHost(ctx, "x")).rejects.toThrow(NOMINATIM_BUSY_MESSAGE);
 });
