@@ -1,15 +1,26 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
+import fc from "fast-check";
 import { haversineMeters } from "./haversine.ts";
 
-test("haversineMeters — zero distance for identical points", () => {
-	expect(haversineMeters(59.3, 18.1, 59.3, 18.1)).toBe(0);
+/** Any valid WGS-84 latitude/longitude pair. */
+const latLonPair = fc.tuple(
+	fc.float({ min: -90, max: 90, noNaN: true }),
+	fc.float({ min: -180, max: 180, noNaN: true }),
+);
+
+test("haversineMeters — zero distance for any identical point", () => {
+	fc.assert(fc.property(latLonPair, ([lat, lon]) => haversineMeters(lat, lon, lat, lon) === 0));
 });
 
-test("haversineMeters — symmetric in argument order", () => {
-	const a = haversineMeters(59.3, 18.1, 60.0, 19.0);
-	const b = haversineMeters(60.0, 19.0, 59.3, 18.1);
-	expect(a).toBeCloseTo(b, 5);
+test("haversineMeters — symmetric in argument order for any two points", () => {
+	fc.assert(
+		fc.property(latLonPair, latLonPair, ([lat1, lon1], [lat2, lon2]) => {
+			const a = haversineMeters(lat1, lon1, lat2, lon2);
+			const b = haversineMeters(lat2, lon2, lat1, lon1);
+			return Math.abs(a - b) < 1e-6;
+		}),
+	);
 });
 
 test("haversineMeters — Stockholm → Uppsala is ~60 km (known geographic anchor)", () => {
