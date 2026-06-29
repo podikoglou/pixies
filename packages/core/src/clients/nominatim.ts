@@ -199,18 +199,18 @@ export const NOMINATIM_BUSY_MESSAGE =
 
 /** Client for Nominatim search and reverse-geocoding. */
 export class NominatimClient {
-	private readonly baseUrl: string;
-	private readonly contactEmail?: string;
-	private readonly userAgent: string;
-	private readonly fetchFn: typeof globalThis.fetch;
-	private readonly logger: Logger;
-	private readonly queue: PQueue;
-	private readonly concurrency: number;
+	private baseUrl: string;
+	private contactEmail?: string;
+	private userAgent: string;
+	private fetchFn: typeof globalThis.fetch;
+	private logger: Logger;
+	private queue: PQueue;
+	private concurrency: number;
 	/**
 	 * Per-request timeout in ms. Backs the `timeoutMs` passed to
 	 * {@link fetchNominatimResponse}; defaults to 60_000 prior-behavior.
 	 */
-	private readonly timeoutMs: number;
+	private timeoutMs: number;
 	/**
 	 * LRU+TTL cache for successful search/reverse responses. `undefined` when
 	 * caching is disabled (either knob is 0).
@@ -225,7 +225,7 @@ export class NominatimClient {
 	 * invalid-shape, network) propagate uncached so a transient failure is
 	 * retried on the next call rather than served stale.
 	 */
-	private readonly cache?: LRUCache<string, NominatimResult[] | NominatimResult>;
+	private cache?: LRUCache<string, NominatimResult[] | NominatimResult>;
 
 	constructor(config: NominatimConfig) {
 		// `Value.Default` fills the documented defaults for omitted knobs; `Value.Parse`
@@ -442,7 +442,7 @@ export class NominatimClient {
 				}
 			},
 			catch: (err): NominatimError =>
-				err instanceof NominatimParseError
+				NominatimParseError.is(err)
 					? err
 					: new NominatimParseError({ message: String(err), cause: err }),
 		});
@@ -497,7 +497,7 @@ async function fetchNominatimResponse(
 		}
 		return res;
 	} catch (e) {
-		if (e instanceof NominatimBusyError || e instanceof NominatimHttpError) throw e;
+		if (NominatimBusyError.is(e) || NominatimHttpError.is(e)) throw e;
 		if (isAbortError(e)) throw e;
 		throw new NominatimHttpError({
 			message: `network error: ${e instanceof Error ? e.message : String(e)}`,
@@ -512,10 +512,10 @@ function isNominatimBusyResponse(status: number, body: string): boolean {
 }
 
 function toNominatimError(e: unknown): NominatimError {
-	if (e instanceof NominatimBusyError) return e;
-	if (e instanceof NominatimHttpError) return e;
-	if (e instanceof NominatimParseError) return e;
-	if (e instanceof ToolAbortedError) return e;
+	if (NominatimBusyError.is(e)) return e;
+	if (NominatimHttpError.is(e)) return e;
+	if (NominatimParseError.is(e)) return e;
+	if (ToolAbortedError.is(e)) return e;
 	if (isAbortError(e)) return new ToolAbortedError({ message: "Operation aborted", cause: e });
 	return new NominatimHttpError({ message: String(e), cause: e });
 }

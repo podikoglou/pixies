@@ -5,8 +5,8 @@ import { SSE_EVENT_DATA_SCHEMAS } from "@pixies/core";
 import type { SSEEvent, SSEEventName } from "@pixies/core";
 
 export class ApiError extends Error {
-	readonly status: number;
-	readonly body: unknown;
+	status: number;
+	body: unknown;
 	constructor(status: number, message: string, body: unknown) {
 		super(message);
 		this.name = "ApiError";

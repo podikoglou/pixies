@@ -35,15 +35,15 @@ interface Conversation {
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 export class ConversationStore {
-	private readonly map = new Map<string, Conversation>();
-	private readonly sweeper: ReturnType<typeof setInterval>;
-	private readonly config: ResolvedPixiesConfig;
-	private readonly nominatim: NominatimClient;
-	private readonly overpass: OverpassClient;
-	private readonly db: DbClient;
-	private readonly maxSize: number;
-	private readonly agentFactory: (opts: CreateAgentOptions) => Agent;
-	private readonly logger: Logger;
+	private map = new Map<string, Conversation>();
+	private sweeper: ReturnType<typeof setInterval>;
+	private config: ResolvedPixiesConfig;
+	private nominatim: NominatimClient;
+	private overpass: OverpassClient;
+	private db: DbClient;
+	private maxSize: number;
+	private agentFactory: (opts: CreateAgentOptions) => Agent;
+	private logger: Logger;
 
 	constructor(
 		config: ResolvedPixiesConfig,

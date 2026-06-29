@@ -200,17 +200,17 @@ export const OVERPASS_BUSY_MESSAGE =
 
 /** Client for Overpass QL queries. */
 export class OverpassClient {
-	private readonly baseUrl: string;
-	private readonly userAgent: string;
-	private readonly fetchFn: typeof globalThis.fetch;
-	private readonly queue: PQueue;
-	private readonly concurrency: number;
-	private readonly logger: Logger;
+	private baseUrl: string;
+	private userAgent: string;
+	private fetchFn: typeof globalThis.fetch;
+	private queue: PQueue;
+	private concurrency: number;
+	private logger: Logger;
 	/**
 	 * Per-request timeout in ms. Backs the `timeoutMs` passed to
 	 * {@link fetchOverpassResponse}; defaults to 60_000 prior-behavior.
 	 */
-	private readonly timeoutMs: number;
+	private timeoutMs: number;
 
 	constructor(config: OverpassConfig) {
 		// `Value.Default` fills the documented defaults for omitted knobs; `Value.Parse`
@@ -399,7 +399,7 @@ async function fetchOverpassResponse(
 		}
 		return res;
 	} catch (e) {
-		if (e instanceof OverpassBusyError || e instanceof OverpassHttpError) throw e;
+		if (OverpassBusyError.is(e) || OverpassHttpError.is(e)) throw e;
 		if (isAbortError(e)) throw e;
 		throw new OverpassHttpError({
 			message: `network error: ${e instanceof Error ? e.message : String(e)}`,
@@ -414,11 +414,11 @@ function isOverpassBusyResponse(status: number, body: string): boolean {
 }
 
 function toOverpassError(e: unknown): OverpassError {
-	if (e instanceof OverpassBusyError) return e;
-	if (e instanceof OverpassHttpError) return e;
-	if (e instanceof OverpassParseError) return e;
-	if (e instanceof OverpassRemarkError) return e;
-	if (e instanceof ToolAbortedError) return e;
+	if (OverpassBusyError.is(e)) return e;
+	if (OverpassHttpError.is(e)) return e;
+	if (OverpassParseError.is(e)) return e;
+	if (OverpassRemarkError.is(e)) return e;
+	if (ToolAbortedError.is(e)) return e;
 	if (isAbortError(e)) return new ToolAbortedError({ message: "Operation aborted", cause: e });
 	return new OverpassHttpError({ message: String(e), cause: e });
 }

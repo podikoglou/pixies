@@ -43,13 +43,13 @@ export interface ConsumeResult {
  * windowStart + windowMs)`; the counter resets when the window elapses.
  */
 export class IpRateLimiter {
-	readonly maxRequests: number;
-	readonly windowMs: number;
-	readonly trustProxy: boolean;
-	readonly trustedProxyHops: number;
-	readonly logger: Logger;
-	private readonly windows = new Map<string, WindowState>();
-	private readonly sweeper: ReturnType<typeof setInterval>;
+	maxRequests: number;
+	windowMs: number;
+	trustProxy: boolean;
+	trustedProxyHops: number;
+	logger: Logger;
+	private windows = new Map<string, WindowState>();
+	private sweeper: ReturnType<typeof setInterval>;
 
 	constructor(opts: IpRateLimiterOptions) {
 		this.maxRequests = opts.maxRequests;

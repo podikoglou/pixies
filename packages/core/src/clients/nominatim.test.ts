@@ -201,7 +201,7 @@ test("500 non-busy response returns Err(NominatimHttpError)", async () => {
 		expect(r.error._tag).toBe("NominatimHttp");
 		expect(r.error).toBeInstanceOf(NominatimHttpError);
 		expect(r.error).not.toBeInstanceOf(NominatimBusyError);
-		if (!(r.error instanceof NominatimHttpError)) throw new Error("expected NominatimHttpError");
+		if (!NominatimHttpError.is(r.error)) throw new Error("expected NominatimHttpError");
 		expect(r.error.status).toBe(500);
 		expect(r.error.body).toBe(body);
 	}
@@ -220,7 +220,7 @@ test("busy body marker on non-ok response returns Err(NominatimBusyError)", asyn
 	if (Result.isError(r)) {
 		expect(r.error._tag).toBe("NominatimBusy");
 		expect(r.error).toBeInstanceOf(NominatimBusyError);
-		if (!(r.error instanceof NominatimBusyError)) throw new Error("expected NominatimBusyError");
+		if (!NominatimBusyError.is(r.error)) throw new Error("expected NominatimBusyError");
 		expect(r.error.status).toBe(500);
 	}
 });

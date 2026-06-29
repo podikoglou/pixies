@@ -23,7 +23,7 @@ import { ConversationStore } from "./conversations.ts";
 class FakeAgent {
 	state = { messages: [] as AgentMessage[] };
 	aborted = false;
-	private readonly listeners = new Set<(event: AgentEvent) => void>();
+	private listeners = new Set<(event: AgentEvent) => void>();
 
 	subscribe(listener: (event: AgentEvent) => void): () => void {
 		this.listeners.add(listener);

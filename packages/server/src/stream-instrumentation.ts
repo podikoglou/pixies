@@ -98,7 +98,7 @@ export interface StreamErrorFrame {
  * the raw-event TTFT measurement that must happen BEFORE wire translation.
  */
 export class StreamInstrumentation {
-	private readonly startTime = Date.now();
+	private startTime = Date.now();
 	// `running` → `completed` (wrote `done`) or `aborted` (client went away).
 	// Modelled as one state, not separate booleans, so the impossible
 	// "completed && aborted" can't be represented.
@@ -127,12 +127,12 @@ export class StreamInstrumentation {
 	// `tool_execution_start` time and (optionally) the rate-limiter queue-wait
 	// window from `tool_execution_update` progress. Cleaned up at
 	// `tool_execution_end` ({@link recordToolEnd}).
-	private readonly toolStarts = new Map<string, { startedAt: number; queuedAt?: number }>();
+	private toolStarts = new Map<string, { startedAt: number; queuedAt?: number }>();
 
 	constructor(
-		private readonly distinctId: string,
-		private readonly posthog: PostHogAnalyticsClient | undefined,
-		private readonly logger: Logger,
+		private distinctId: string,
+		private posthog: PostHogAnalyticsClient | undefined,
+		private logger: Logger,
 	) {}
 
 	/**

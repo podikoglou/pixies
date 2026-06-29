@@ -242,7 +242,7 @@ test("500 non-busy response returns Err(OverpassHttpError)", async () => {
 		expect(r.error._tag).toBe("OverpassHttp");
 		expect(r.error).toBeInstanceOf(OverpassHttpError);
 		expect(r.error).not.toBeInstanceOf(OverpassBusyError);
-		if (!(r.error instanceof OverpassHttpError)) throw new Error("expected OverpassHttpError");
+		if (!OverpassHttpError.is(r.error)) throw new Error("expected OverpassHttpError");
 		expect(r.error.status).toBe(500);
 		expect(r.error.body).toBe(body);
 	}
@@ -259,7 +259,7 @@ test("busy body marker on non-ok response returns Err(OverpassBusyError)", async
 	if (Result.isError(r)) {
 		expect(r.error._tag).toBe("OverpassBusy");
 		expect(r.error).toBeInstanceOf(OverpassBusyError);
-		if (!(r.error instanceof OverpassBusyError)) throw new Error("expected OverpassBusyError");
+		if (!OverpassBusyError.is(r.error)) throw new Error("expected OverpassBusyError");
 		expect(r.error.status).toBe(500);
 	}
 });

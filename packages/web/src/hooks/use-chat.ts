@@ -1,11 +1,32 @@
-import { useCallback, useReducer, useRef } from "react";
+import { useCallback, useReducer, useRef, type MutableRefObject } from "react";
 import { isAbortError } from "@pixies/core";
 import { createConversationStream, sendMessageStream } from "../api/conversations.ts";
 import { toolResultCount } from "../lib/posthog-capture.ts";
-import { chatReducer, initialChatState, type TimelineItem } from "../state/chat-reducer.ts";
+import {
+	chatReducer,
+	initialChatState,
+	type ChatState,
+	type TimelineItem,
+} from "../state/chat-reducer.ts";
 import { dispatchSseEvent } from "../state/sse-dispatch.ts";
 
-export function useChat() {
+export interface UseChatReturn {
+	state: ChatState;
+	sendMessage: (
+		message: string,
+		opts?: {
+			onConversationCreated?: (id: string) => void;
+			onToolError?: (toolName: string) => void;
+			onToolEmpty?: (props: { tool_name: string; result_count: number }) => void;
+		},
+	) => Promise<void>;
+	abort: () => void;
+	reset: () => void;
+	loadTranscript: (conversationId: string, items: TimelineItem[]) => void;
+	hadOutputRef: MutableRefObject<boolean>;
+}
+
+export function useChat(): UseChatReturn {
 	const [state, dispatch] = useReducer(chatReducer, initialChatState);
 	const stateRef = useRef(state);
 	stateRef.current = state;
