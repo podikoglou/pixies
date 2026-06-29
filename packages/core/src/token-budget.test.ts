@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
+import fc from "fast-check";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { countTranscriptTokens, budgetExceeded } from "./token-budget.ts";
 
@@ -109,4 +110,64 @@ test("budgetExceeded: used === 0, positive budget → within budget", () => {
 test("budgetExceeded: negative budget is treated as unlimited", () => {
 	// Defensive — config min is 0, but a malformed value must not block.
 	expect(budgetExceeded(1_000_000, -1)).toBeUndefined();
+});
+
+// --- countTranscriptTokens (property-based) ---
+//
+// The sum contract must hold for ANY transcript, not the five hand-picked mixes
+// above: `total` is the sum of every assistant message's numeric `totalTokens`,
+// and `missingUsage` counts assistant messages whose `usage`/`totalTokens` is
+// absent or non-numeric. Non-assistant messages are skipped EVEN IF they happen
+// to carry a usage field — the role guard precedes the usage read. fast-check
+// draws thousands of random mixes; the oracle is the tagged contribution each
+// generator item declares, so the property is independent of the SUT's arithmetic.
+
+/** Assistant whose `usage` object exists but `totalTokens` is absent (gap). */
+function assistantMissingTokens(): AgentMessage {
+	return {
+		role: "assistant",
+		content: [{ type: "text", text: "x" }],
+		// Present-but-empty usage: passes the schema, but totalTokens is undefined.
+		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } as unknown as object,
+	} as unknown as AgentMessage;
+}
+
+/**
+ * A user message carrying a `usage.totalTokens` field. This is malformed for a
+ * user message, but persisted/untrusted data (ADR-0008) can carry stray fields
+ * — the counter MUST ignore it because the role guard comes first.
+ */
+function userWithUsage(totalTokens: number): AgentMessage {
+	return {
+		role: "user",
+		content: "hi",
+		timestamp: 1,
+		usage: { totalTokens },
+	} as unknown as AgentMessage;
+}
+
+/** A transcript item paired with the contribution its author expects. */
+type Item = { msg: AgentMessage; total: number; missing: 0 | 1 };
+
+const countedAssistantArb = fc
+	.nat()
+	.map<Item>((n) => ({ msg: assistant(n), total: n, missing: 0 }));
+const missingUsageArb = fc.constant<Item>({ msg: assistantMissingUsage(), total: 0, missing: 1 });
+const missingTokensArb = fc.constant<Item>({ msg: assistantMissingTokens(), total: 0, missing: 1 });
+const sneakyUserArb = fc.nat().map<Item>((n) => ({ msg: userWithUsage(n), total: 0, missing: 0 }));
+
+const transcriptArb = fc.array(
+	fc.oneof(countedAssistantArb, missingUsageArb, missingTokensArb, sneakyUserArb),
+);
+
+test("countTranscriptTokens: total sums assistant totalTokens and missingUsage counts the gaps, for any transcript", () => {
+	fc.assert(
+		fc.property(transcriptArb, (items) => {
+			const messages = items.map((i) => i.msg);
+			const expectedTotal = items.reduce((s, i) => s + i.total, 0);
+			const expectedMissing = items.reduce((s, i) => s + i.missing, 0);
+			const got = countTranscriptTokens(messages);
+			return got.total === expectedTotal && got.missingUsage === expectedMissing;
+		}),
+	);
 });
