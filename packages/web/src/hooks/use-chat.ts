@@ -1,5 +1,5 @@
 import { useCallback, useReducer, useRef, type MutableRefObject } from "react";
-import { isAbortError } from "@pixies/core";
+import { isAbortError, Result } from "@pixies/core";
 import { createConversationStream, sendMessageStream } from "../api/conversations.ts";
 import { toolResultCount } from "../lib/posthog-capture.ts";
 import {
@@ -59,39 +59,41 @@ export function useChat(): UseChatReturn {
 			// arrived earlier on `tool_execution_start`, so remember it to attribute
 			// any error to the right tool for product analytics.
 			const toolNames = new Map<string, string>();
-			try {
-				for await (const evt of stream) {
-					if (evt.event === "tool_execution_start") {
-						hadOutputRef.current = true;
-						toolNames.set(evt.data.toolCallId, evt.data.toolName);
-					} else if (evt.event === "tool_execution_end") {
-						const toolName = toolNames.get(evt.data.toolCallId);
-						if (toolName) {
-							if (evt.data.isError) {
-								opts?.onToolError?.(toolName);
-							} else {
-								// Success path: count the features for the empty-rate signal
-								// (undefined → not a data-fetch tool or a busy soft-failure,
-								// in which case no `tool_empty` fires).
-								const count = toolResultCount(toolName, evt.data.result.details);
-								if (count !== undefined)
-									opts?.onToolEmpty?.({ tool_name: toolName, result_count: count });
+			const result = await Result.tryPromise({
+				try: async () => {
+					for await (const evt of stream) {
+						if (evt.event === "tool_execution_start") {
+							hadOutputRef.current = true;
+							toolNames.set(evt.data.toolCallId, evt.data.toolName);
+						} else if (evt.event === "tool_execution_end") {
+							const toolName = toolNames.get(evt.data.toolCallId);
+							if (toolName) {
+								if (evt.data.isError) {
+									opts?.onToolError?.(toolName);
+								} else {
+									// Success path: count the features for the empty-rate signal
+									// (undefined → not a data-fetch tool or a busy soft-failure,
+									// in which case no `tool_empty` fires).
+									const count = toolResultCount(toolName, evt.data.result.details);
+									if (count !== undefined)
+										opts?.onToolEmpty?.({ tool_name: toolName, result_count: count });
+								}
 							}
 						}
+						dispatchSseEvent(evt, dispatch, opts?.onConversationCreated, startTimeRef.current);
 					}
-					dispatchSseEvent(evt, dispatch, opts?.onConversationCreated, startTimeRef.current);
-				}
-			} catch (err) {
-				if (isAbortError(err)) {
-					dispatch({ type: "STREAM_DONE" });
-				} else {
-					dispatch({
-						type: "SET_ERROR",
-						message: err instanceof Error ? err.message : String(err),
-					});
-				}
-			} finally {
-				abortRef.current = null;
+				},
+				catch: (e) => e,
+			});
+			abortRef.current = null;
+			if (Result.isOk(result)) return;
+			if (isAbortError(result.error)) {
+				dispatch({ type: "STREAM_DONE" });
+			} else {
+				dispatch({
+					type: "SET_ERROR",
+					message: result.error instanceof Error ? result.error.message : String(result.error),
+				});
 			}
 		},
 		[],

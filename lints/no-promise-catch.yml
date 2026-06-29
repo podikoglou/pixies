@@ -1,0 +1,6 @@
+id: no-promise-catch
+language: TypeScript
+rule:
+  pattern: $X.catch($$$ARGS)
+message: "Don't handle promise rejections with `.catch()` — wrap the async boundary with `Result.tryPromise` and propagate a `Result<T, E>` (see better-result)."
+severity: warning

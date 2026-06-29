@@ -5,6 +5,8 @@ import {
 	Result,
 	matchError,
 	isToolProgress,
+	InvalidJsonError,
+	ValidationError,
 	type ResolvedPixiesConfig,
 	type StreamPromptError,
 } from "@pixies/core";
@@ -79,22 +81,34 @@ export interface StartServerOptions extends Partial<Pick<ResolvedPixiesConfig, "
 	onReady?: (url: string) => void;
 }
 
-type MessageResult = { ok: true; message: string } | { ok: false; status: number; error: string };
-
 const MessageBodySchema = Type.Object({
 	message: Type.String({ minLength: 1 }),
 });
 
-async function readMessage(req: Request): Promise<MessageResult> {
-	let body: unknown;
-	try {
-		body = await req.json();
-	} catch {
-		return { ok: false, status: 400, error: "invalid JSON" };
-	}
+/**
+ * Parse and validate the request body's `message` field.
+ *
+ * JSON-parse failures map to {@link InvalidJsonError}; schema failures map to
+ * {@link ValidationError}. Both flow through `Result` rather than a hand-rolled
+ * union, so the caller exhaustively matches via {@link rejectMessageError}.
+ */
+async function readMessage(
+	req: Request,
+): Promise<Result<{ message: string }, InvalidJsonError | ValidationError>> {
+	const json = await Result.tryPromise(() => req.json());
+	if (Result.isError(json)) return Result.err(new InvalidJsonError({ message: "invalid JSON" }));
+	const body = json.value;
 	if (!Value.Check(MessageBodySchema, body))
-		return { ok: false, status: 400, error: "missing required field: message" };
-	return { ok: true, message: body.message };
+		return Result.err(new ValidationError({ message: "missing required field: message" }));
+	return Result.ok({ message: body.message });
+}
+
+/** Map a {@link readMessage} error to its HTTP response (exhaustive). */
+function rejectMessageError(err: InvalidJsonError | ValidationError): Response {
+	return matchError(err, {
+		InvalidJson: () => Response.json({ error: "invalid JSON" }, { status: 400 }),
+		Validation: () => Response.json({ error: "missing required field: message" }, { status: 400 }),
+	});
 }
 
 /**
@@ -363,16 +377,16 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 						return denied;
 					}
 					const parsed = await readMessage(req);
-					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
+					if (Result.isError(parsed)) return rejectMessageError(parsed.error);
 					const id = store.create();
 					server.timeout(req, 0);
-					const result = await store.streamPrompt(id, parsed.message);
+					const result = await store.streamPrompt(id, parsed.value.message);
 					if (Result.isError(result)) {
 						captureBudgetExceeded(posthog, id, result.error);
 						return rejectStream(result.error);
 					}
 					captureServerEvent(posthog, id, "conversation started", {
-						message_length: parsed.message.length,
+						message_length: parsed.value.message.length,
 					});
 					return pipeAgentStream(store, result.value, id, logger, posthog, (w) =>
 						w.write("conversation_created", { id }),
@@ -389,15 +403,15 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 					}
 					const id = req.params.id!;
 					const parsed = await readMessage(req);
-					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
+					if (Result.isError(parsed)) return rejectMessageError(parsed.error);
 					server.timeout(req, 0);
-					const result = await store.streamPrompt(id, parsed.message);
+					const result = await store.streamPrompt(id, parsed.value.message);
 					if (Result.isError(result)) {
 						captureBudgetExceeded(posthog, id, result.error);
 						return rejectStream(result.error);
 					}
 					captureServerEvent(posthog, id, "message sent", {
-						message_length: parsed.message.length,
+						message_length: parsed.value.message.length,
 					});
 					return pipeAgentStream(store, result.value, id, logger, posthog);
 				}),

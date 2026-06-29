@@ -79,12 +79,16 @@ export class ConversationStore {
 		};
 		this.map.set(conv.id, conv);
 		this.evictIfNeeded();
-		this.db
-			.insert(conversationsTable)
-			.values({ id, transcript: [] })
-			.catch((err) =>
-				this.logger.error("failed to insert conversation", { conversationId: id, err }),
-			);
+		void Result.tryPromise(() =>
+			this.db.insert(conversationsTable).values({ id, transcript: [] }),
+		).then((r) =>
+			r.tapError((e) =>
+				this.logger.error("failed to insert conversation", {
+					conversationId: id,
+					err: e.cause ?? e,
+				}),
+			),
+		);
 		return conv.id;
 	}
 
@@ -205,19 +209,22 @@ export class ConversationStore {
 						// usage, and warning here would fire every turn.
 						conv.tokensUsed = countTranscriptTokens(conv.agent.state.messages).total;
 						conv.inFlight = false;
-						this.db
-							.update(conversationsTable)
-							.set({
-								transcript: conv.agent.state.messages as AgentMessage[],
-								updatedAt: new Date(),
-							})
-							.where(eq(conversationsTable.id, id))
-							.catch((err) =>
+						void Result.tryPromise(() =>
+							this.db
+								.update(conversationsTable)
+								.set({
+									transcript: conv.agent.state.messages as AgentMessage[],
+									updatedAt: new Date(),
+								})
+								.where(eq(conversationsTable.id, id)),
+						).then((r) =>
+							r.tapError((e) =>
 								this.logger.error("failed to persist transcript", {
 									conversationId: id,
-									err,
+									err: e.cause ?? e,
 								}),
-							);
+							),
+						);
 					});
 			},
 		});
@@ -235,12 +242,16 @@ export class ConversationStore {
 		if (!conv) return false;
 		this.abortConversation(conv);
 		this.map.delete(id);
-		this.db
-			.delete(conversationsTable)
-			.where(eq(conversationsTable.id, id))
-			.catch((err) =>
-				this.logger.error("failed to delete conversation", { conversationId: id, err }),
-			);
+		void Result.tryPromise(() =>
+			this.db.delete(conversationsTable).where(eq(conversationsTable.id, id)),
+		).then((r) =>
+			r.tapError((e) =>
+				this.logger.error("failed to delete conversation", {
+					conversationId: id,
+					err: e.cause ?? e,
+				}),
+			),
+		);
 		return true;
 	}
 

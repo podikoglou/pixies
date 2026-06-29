@@ -86,6 +86,20 @@ test("construction rejects a non-URL base URL at the boundary", () => {
 	expect(() => new OverpassClient({ ...baseConfig(), baseUrl: "not-a-url" })).toThrow(ParseError);
 });
 
+test("generic non-abort error returns Err with the network-error message", async () => {
+	const fetchMock = mock(() =>
+		Promise.reject(new Error("network down")),
+	) as unknown as typeof fetch;
+	const client = makeOverpass(fetchMock);
+
+	const r = await client.query("[out:json];node(1);out;");
+	expect(Result.isError(r)).toBe(true);
+	if (Result.isError(r)) {
+		expect(r.error._tag).toBe("OverpassHttp");
+		expect(r.error.message).toBe("network error: network down");
+	}
+});
+
 /** A fetch that returns a fresh controllable blocker for every call. */
 function blockingFetch(): {
 	fetch: typeof globalThis.fetch;

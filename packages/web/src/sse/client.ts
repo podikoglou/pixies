@@ -1,7 +1,7 @@
 import { Type } from "typebox";
 import type { Static } from "typebox";
 import { Value } from "typebox/value";
-import { SSE_EVENT_DATA_SCHEMAS } from "@pixies/core";
+import { Result, SSE_EVENT_DATA_SCHEMAS } from "@pixies/core";
 import type { SSEEvent, SSEEventName } from "@pixies/core";
 
 export class ApiError extends Error {
@@ -40,12 +40,8 @@ export function extractErrorMessage(body: unknown): string | undefined {
 }
 
 export async function buildApiError(res: Response): Promise<ApiError> {
-	let body: unknown;
-	try {
-		body = await res.json();
-	} catch {
-		body = null;
-	}
+	const bodyResult = await Result.tryPromise(() => res.json());
+	const body = Result.isOk(bodyResult) ? bodyResult.value : null;
 	const message = extractErrorMessage(body) ?? `request failed with status ${res.status}`;
 	return new ApiError(res.status, message, body);
 }
@@ -64,12 +60,9 @@ export function parseSseFrame(raw: string): SSEEvent | null {
 	}
 	if (eventName === null || dataLine === null) return null;
 
-	let data: unknown;
-	try {
-		data = JSON.parse(dataLine);
-	} catch {
-		return null;
-	}
+	const dataResult = Result.try(() => JSON.parse(dataLine));
+	if (Result.isError(dataResult)) return null;
+	const data = dataResult.value;
 
 	const schema = SSE_EVENT_DATA_SCHEMAS[eventName as SSEEventName];
 	if (!schema) return null;
