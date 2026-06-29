@@ -128,7 +128,12 @@ export async function findFeaturesHost(
 			groups,
 			...(params.name ? { nameRegex: params.name } : {}),
 			area: queryArea,
-			limit,
+			// Fetch one more than the display limit so Overpass (which respects
+			// `out N`) can signal "there are more" — `formatFeatures` detects the
+			// overflow and sets `truncated`. Requesting exactly `limit` made the
+			// flag dead code: Overpass capped at `limit`, so the >limit check was
+			// always false.
+			limit: limit + 1,
 		});
 		const validation = validateOverpassQL(query, queryArea);
 		if (!validation.valid) {
@@ -387,7 +392,7 @@ function elementsToFeatures(elements: OverpassElement[]): Feature[] {
 	return features;
 }
 
-/** Package a feature list into the result shape. Truncates beyond `limit`, marks as `relaxed` when auto-broadening was applied. */
+/** Package a feature list into the result shape. Truncates beyond `limit`, marks as `truncated` when the source held more than `limit` (detected because the query requested `limit + 1`). `count` is always `len(features)` — the count actually returned, never the pre-slice input. */
 function formatFeatures(
 	features: Feature[],
 	limit: number,
@@ -398,7 +403,7 @@ function formatFeatures(
 	const shown = truncated ? features.slice(0, limit) : features;
 	return {
 		features: shown,
-		count: features.length,
+		count: shown.length,
 		truncated,
 		relaxed,
 		...(note ? { note } : {}),

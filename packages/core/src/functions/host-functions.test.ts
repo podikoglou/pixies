@@ -390,8 +390,40 @@ test("findFeaturesHost — successful feature search returns FindFeaturesResult"
 	expect(result.relaxed).toBe(false);
 });
 
-test("findFeaturesHost — truncated result when count > limit", async () => {
-	const els = Array.from({ length: 5 }, (_, i) =>
+test("findFeaturesHost — truncated result when source has more than limit", async () => {
+	// Overpass respects `out N`; we request `limit + 1` so a source with more
+	// than the display limit returns the extra element and `formatFeatures`
+	// detects overflow. Simulate exactly that: limit 3 ⇒ query asks for 4 ⇒
+	// Overpass returns 4 (one over) ⇒ truncated fires, count == len(features).
+	const els = Array.from({ length: 4 }, (_, i) =>
+		makeEl({ id: i + 1, lat: 40.7 + i * 0.001, lon: -74.0 }),
+	);
+	let capturedQuery: string | null = null;
+	const ctx = mockCtx({
+		overpass: {
+			query: async (query: string) => {
+				capturedQuery = query;
+				return Result.ok({ elements: els });
+			},
+		},
+	});
+	const result = await findFeaturesHost(ctx, {
+		types: ["restaurant"],
+		area: { around: { lat: 40.71, lon: -74.0, radius: 1000 } },
+		limit: 3,
+	});
+	// mechanism: the generated query asks Overpass for one more than the limit
+	expect(capturedQuery).not.toBeNull();
+	expect(capturedQuery!).toContain("out center 4");
+	// result: sliced to the limit, count == len(features), truncated fires
+	expect(result.features).toHaveLength(3);
+	expect(result.count).toBe(3);
+	expect(result.truncated).toBe(true);
+});
+
+test("findFeaturesHost — non-truncated when source fits within limit", async () => {
+	// limit 3 ⇒ query asks for 4 ⇒ Overpass returns 2 (under) ⇒ not truncated.
+	const els = Array.from({ length: 2 }, (_, i) =>
 		makeEl({ id: i + 1, lat: 40.7 + i * 0.001, lon: -74.0 }),
 	);
 	const ctx = mockCtx({
@@ -404,9 +436,9 @@ test("findFeaturesHost — truncated result when count > limit", async () => {
 		area: { around: { lat: 40.71, lon: -74.0, radius: 1000 } },
 		limit: 3,
 	});
-	expect(result.features).toHaveLength(3);
-	expect(result.count).toBe(5);
-	expect(result.truncated).toBe(true);
+	expect(result.features).toHaveLength(2);
+	expect(result.count).toBe(2);
+	expect(result.truncated).toBe(false);
 });
 
 test("findFeaturesHost — no types or tags throws Provide at least one", async () => {
