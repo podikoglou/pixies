@@ -6,13 +6,21 @@ import type { ToolProgress } from "./progress.ts";
 import type { DisplayData } from "../functions/host-functions.ts";
 import type { CodeExecutionError } from "../errors.ts";
 
-/** Successful sandbox execution: the curated host-summary channel (model-visible), the model's own bounded stdout (console), and any map displays emitted by `display()`. */
+/** One primitive-call timing entry: the function name (fixed vocabulary) + wall-clock duration. */
+export interface PrimitiveTraceEntry {
+	name: string;
+	duration_ms: number;
+}
+
+/** Successful sandbox execution: the curated host-summary channel (model-visible), the model's own bounded stdout (console), any map displays emitted by `display()`, and the per-primitive execution trace. */
 export interface CodeExecutionSuccess {
 	/** Server-authored per-primitive summaries — the model's bounded result window. */
 	summary: string;
 	/** The model's own `print()` output, bounded per cell (flood guard). */
 	stdout: string;
 	displays: DisplayData[];
+	/** Per-primitive timing trace — one entry per host-function call, in execution order. */
+	trace: PrimitiveTraceEntry[];
 }
 
 /** Sandboxed Python execution. The server implements this with Monty; tests use stubs. */
@@ -30,11 +38,20 @@ export interface CodeExecutor {
 export interface ExecuteCodeDetails {
 	stdout: string;
 	displays: DisplayData[];
+	primitives?: PrimitiveTraceEntry[];
 }
 
 export const ExecuteCodeDetailsSchema = Type.Object({
 	stdout: Type.String(),
 	displays: Type.Array(Type.Unknown()),
+	primitives: Type.Optional(
+		Type.Array(
+			Type.Object({
+				name: Type.String(),
+				duration_ms: Type.Integer(),
+			}),
+		),
+	),
 });
 
 const schema = Type.Object({
@@ -45,7 +62,12 @@ const schema = Type.Object({
 });
 
 export const executeCodeModule = defineTool<
-	{ kind: "execute_code"; stdout: string; displays: DisplayData[] },
+	{
+		kind: "execute_code";
+		stdout: string;
+		displays: DisplayData[];
+		primitives?: PrimitiveTraceEntry[];
+	},
 	CodeExecutor,
 	typeof schema,
 	ToolProgress | ExecuteCodeDetails
@@ -60,6 +82,7 @@ export const executeCodeModule = defineTool<
 		kind: "execute_code",
 		stdout: d.stdout,
 		displays: d.displays as DisplayData[],
+		...(d.primitives ? { primitives: d.primitives as PrimitiveTraceEntry[] } : {}),
 	})),
 	execute: async (executor, _toolCallId, params, signal, onUpdate) => {
 		throwIfAborted(signal);
@@ -69,7 +92,7 @@ export const executeCodeModule = defineTool<
 			onProgress: () => {},
 		});
 		if (Result.isError(result)) throw result.error;
-		const { summary, stdout, displays } = result.value;
+		const { summary, stdout, displays, trace } = result.value;
 		// The model's result window is the curated summary, with its own bounded
 		// stdout appended so short debug/len prints stay useful. `stdout` is the
 		// bounded model-print channel (console); it is also the wire `details`
@@ -80,7 +103,7 @@ export const executeCodeModule = defineTool<
 			"OK";
 		return {
 			content: [{ type: "text" as const, text }],
-			details: { stdout, displays },
+			details: { stdout, displays, primitives: trace },
 		};
 	},
 });

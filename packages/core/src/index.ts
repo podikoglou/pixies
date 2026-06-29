@@ -75,6 +75,7 @@ export type {
 	CodeExecutor,
 	CodeExecutionSuccess,
 	ExecuteCodeDetails,
+	PrimitiveTraceEntry,
 	ToolProgress,
 	ToolResult,
 	HostContext,

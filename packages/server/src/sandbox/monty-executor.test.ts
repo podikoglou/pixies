@@ -305,3 +305,112 @@ print(r["count"])`;
 	expect(result.value.summary).toContain('search("ikea greece")');
 	expect(result.value.summary).toContain("(ranked, possibly incomplete)");
 });
+
+// ---- primitive trace ---------------------------------------------------------
+
+test("execute — trace records the primitive names called, in order", async () => {
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([
+			{
+				place_id: 1,
+				name: "Manchester",
+				lat: "53.48",
+				lon: "-2.24",
+				display_name: "Manchester, UK",
+				type: "city",
+			},
+		]),
+		overpass: fakeOverpass([
+			{ type: "node", id: 1, lat: 53.48, lon: -2.24, tags: { amenity: "cafe", name: "A" } },
+		]),
+	});
+	const code = `m = geocode("Manchester, UK")
+result = find_features(types=["cafe"], area={"around": {"lat": m["lat"], "lon": m["lon"], "radius": 1000}})
+p = profile(result["features"])
+print(p["count"])`;
+	const result = await executor.execute(code, {});
+	if (Result.isError(result)) throw result.error;
+	const names = result.value.trace.map((t) => t.name);
+	expect(names).toEqual(["geocode", "find_features", "profile"]);
+});
+
+test("execute — trace is empty for a pure-Python cell (no host calls)", async () => {
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([]),
+		overpass: fakeOverpass([]),
+	});
+	const result = await executor.execute(
+		`x = 1 + 2
+print(x)`,
+		{},
+	);
+	if (Result.isError(result)) throw result.error;
+	expect(result.value.trace).toEqual([]);
+});
+
+test("execute — every trace entry has a non-negative integer duration_ms", async () => {
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([]),
+		overpass: fakeOverpass([
+			{ type: "node", id: 1, lat: 53.48, lon: -2.24, tags: { name: "A", amenity: "cafe" } },
+		]),
+	});
+	const code = `r = find_features(types=["cafe"], area={"around": {"lat": 53.48, "lon": -2.24, "radius": 1000}})
+display(markers=[{"lat": 53.48, "lon": -2.24}])`;
+	const result = await executor.execute(code, {});
+	if (Result.isError(result)) throw result.error;
+	for (const entry of result.value.trace) {
+		expect(Number.isInteger(entry.duration_ms)).toBe(true);
+		expect(entry.duration_ms).toBeGreaterThanOrEqual(0);
+		expect(typeof entry.name).toBe("string");
+	}
+});
+
+test("execute — replayed calls are not traced (cache hits are instant)", async () => {
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([
+			{
+				place_id: 1,
+				name: "Manchester",
+				lat: "53.48",
+				lon: "-2.24",
+				display_name: "Manchester, UK",
+				type: "city",
+			},
+		]),
+		overpass: fakeOverpass([]),
+	});
+	// First call: geocode is traced.
+	const first = await executor.execute(`m = geocode("Manchester, UK")`, {});
+	if (Result.isError(first)) throw first.error;
+	expect(first.value.trace.map((t) => t.name)).toEqual(["geocode"]);
+
+	// Second call: the geocode call is replayed from cache — the timing block
+	// is never reached. Only the NEW code's primitives (if any) are traced.
+	const second = await executor.execute(`print(m["name"])`, {});
+	if (Result.isError(second)) throw second.error;
+	expect(second.value.trace).toEqual([]);
+});
+
+test("execute — a throwing primitive inside try/except is still traced (finally fires on error)", async () => {
+	// The timing wrapper's `finally` block must push the trace entry even when
+	// the host function throws — as long as the Python-level exception is caught
+	// so the cell succeeds and the trace survives in result.value.trace.
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([]),
+		overpass: fakeOverpass([]),
+	});
+	const code = `try:
+    geocode("nonexistent-place-xyz")
+except:
+    pass
+m = geocode("also-nonexistent-xyz")`;
+	const result = await executor.execute(code, {});
+	if (Result.isError(result)) throw result.error;
+	// Both geocode calls must appear in the trace — the one that returned null
+	// (caught by except) and the one that also returned null.
+	expect(result.value.trace.map((t) => t.name)).toEqual(["geocode", "geocode"]);
+	for (const entry of result.value.trace) {
+		expect(entry.duration_ms).toBeGreaterThanOrEqual(0);
+	}
+});

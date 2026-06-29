@@ -31,7 +31,7 @@ import {
 	type FindFeaturesResult,
 	type SpatialPair,
 } from "@pixies/core/tools";
-import type { CodeExecutor, CodeExecutionSuccess } from "@pixies/core";
+import type { CodeExecutor, CodeExecutionSuccess, PrimitiveTraceEntry } from "@pixies/core";
 import { StdoutCollector } from "./stdout-collector.ts";
 
 export interface MontyExecutorOptions {
@@ -104,6 +104,7 @@ export class MontyExecutor implements CodeExecutor {
 		const summaryParts: string[] = [];
 		const userStdout = new StdoutCollector(DEFAULT_USER_STDOUT_BUDGET);
 		const displays: DisplayData[] = [];
+		const trace: PrimitiveTraceEntry[] = [];
 
 		const wallSignal = mergeSignals(
 			options.signal,
@@ -140,6 +141,7 @@ export class MontyExecutor implements CodeExecutor {
 				printCallback,
 				callCache: this.callCache,
 				state,
+				trace,
 			});
 
 			this.codeHistory.push(code);
@@ -147,6 +149,7 @@ export class MontyExecutor implements CodeExecutor {
 				summary: summaryParts.join(""),
 				stdout: userStdout.finish(),
 				displays,
+				trace,
 			});
 		} catch (err) {
 			// On error, surface both channels as pre-error context so the model
@@ -333,6 +336,7 @@ async function runMontyLoop(
 		printCallback?: (stream: string, text: string) => void;
 		callCache: Map<string, unknown>;
 		state: { isReplaying: boolean };
+		trace: PrimitiveTraceEntry[];
 	},
 ): Promise<void> {
 	let progress: MontySnapshot | MontyNameLookup | MontyComplete = monty.start({
@@ -380,6 +384,7 @@ async function runMontyLoop(
 		}
 
 		let result: unknown;
+		const start = Date.now();
 		try {
 			result = fn(...(plainArgs as unknown[]), plainKwargs);
 			if (result && typeof (result as Promise<unknown>).then === "function") {
@@ -393,6 +398,8 @@ async function runMontyLoop(
 				},
 			});
 			continue;
+		} finally {
+			opts.trace.push({ name: snapshot.functionName, duration_ms: Date.now() - start });
 		}
 
 		const plainResult = deepToPlainObject(result);
