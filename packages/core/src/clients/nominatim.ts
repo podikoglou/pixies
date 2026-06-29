@@ -70,6 +70,15 @@ export type NominatimResult = Static<typeof NominatimResultSchema>;
 /** TypeBox schema for a Nominatim search response. */
 export const NominatimSearchResponseSchema = Type.Array(NominatimResultSchema);
 
+/**
+ * TypeBox schema for a Nominatim `/reverse` error response (`{ error: "..." }`),
+ * used to distinguish a server-reported error from a malformed success payload
+ * before {@link NominatimResultSchema} is applied.
+ */
+export const NominatimReverseErrorSchema = Type.Object({
+	error: Type.Optional(Type.String()),
+});
+
 /** Options for Nominatim search calls. */
 export interface SearchOptions {
 	limit?: number;
@@ -415,17 +424,16 @@ export class NominatimClient {
 					});
 					throw new NominatimParseError({ message: "Nominatim: invalid reverse response" });
 				}
-				const result = json as NominatimResult | { error?: string };
-				if ("error" in result && result.error) {
+				if (Value.Check(NominatimReverseErrorSchema, json) && json.error) {
 					logger.warning("reverse error response", {
 						service: "Nominatim",
 						statusCode,
 						contentType,
 					});
-					throw new NominatimParseError({ message: `Nominatim: ${result.error}` });
+					throw new NominatimParseError({ message: `Nominatim: ${json.error}` });
 				}
 				try {
-					const parsed = Value.Parse(NominatimResultSchema, result);
+					const parsed = Value.Parse(NominatimResultSchema, json);
 					cache?.set(key, parsed);
 					return parsed;
 				} catch (err) {
