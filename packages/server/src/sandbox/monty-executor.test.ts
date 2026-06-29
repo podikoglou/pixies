@@ -275,3 +275,33 @@ print(p["count"])`;
 	expect(result.value.summary).toContain("numeric 10000–40000");
 	expect(result.value.stdout).toContain("2");
 });
+
+test("execute — search() auto-displays and reports ranked/possibly-incomplete", async () => {
+	// search is Nominatim free-text discovery — a different path from find_features.
+	// It auto-displays like the other fetch primitives, and its summary always
+	// flags the answer as ranked/possibly-incomplete so the model escalates to
+	// find_features when it needs exhaustiveness.
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([
+			{
+				place_id: 1,
+				name: "IKEA Athens",
+				lat: "37.98",
+				lon: "23.72",
+				display_name: "IKEA Athens, Greece",
+				type: "furniture",
+				class: "shop",
+			},
+		]),
+		overpass: fakeOverpass([]),
+	});
+	const code = `r = search("ikea greece")
+print(r["count"])`;
+	const result = await executor.execute(code, {});
+	if (Result.isError(result)) throw result.error;
+	expect(result.value.displays).toHaveLength(1);
+	expect(result.value.displays[0]?.features).toHaveLength(1);
+	expect(result.value.displays[0]?.features?.[0]?.name).toBe("IKEA Athens");
+	expect(result.value.summary).toContain('search("ikea greece")');
+	expect(result.value.summary).toContain("(ranked, possibly incomplete)");
+});

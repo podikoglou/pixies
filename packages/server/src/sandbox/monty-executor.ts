@@ -18,6 +18,7 @@ import {
 	filterHost,
 	spatialJoinHost,
 	overpassQueryHost,
+	searchHost,
 	haversineMeters,
 	computeBounds,
 	renderDiagnosisLines,
@@ -245,6 +246,18 @@ export class MontyExecutor implements CodeExecutor {
 				return result;
 			},
 
+			search: async (...args: unknown[]) => {
+				const query = String(args[0] ?? "");
+				const kwargs = (args[args.length - 1] ?? {}) as Record<string, unknown>;
+				const limit = typeof kwargs.limit === "number" ? kwargs.limit : 40;
+				const result = await searchHost(ctx, query, limit);
+				print(formatSearchSummary(query, result));
+				if (result.features.length > 0) {
+					onDisplay({ features: result.features });
+				}
+				return result;
+			},
+
 			haversine: (...args: unknown[]) => {
 				const a = (args[0] ?? {}) as Record<string, unknown>;
 				const b = (args[1] ?? {}) as Record<string, unknown>;
@@ -423,6 +436,24 @@ function formatGeocodeSummary(query: string, result: GeocodeResult | null): stri
 	if (!result) return `geocode("${query}") → no results\n`;
 	const name = result.name ?? result.display_name?.split(",")[0] ?? "unknown";
 	return `geocode("${query}") → ${name} (${result.lat}, ${result.lon})\n`;
+}
+
+/** search summary. Always carries a "(ranked, possibly incomplete)" qualifier so
+ *  the model never mistakes a partial ranked answer for an exhaustive one; when
+ *  the heuristic cap fires, escalate to "(ranked, incomplete) [capped]". */
+function formatSearchSummary(
+	query: string,
+	result: { count: number; truncated: boolean; features: Feature[] },
+): string {
+	const tail = result.truncated
+		? `+ (ranked, incomplete) [capped]`
+		: ` (ranked, possibly incomplete)`;
+	const shown = Math.min(3, result.features.length);
+	const names = result.features
+		.slice(0, shown)
+		.map((f) => f.name ?? f.id)
+		.join(", ");
+	return `search("${query}") → ${result.count}${tail}\n${shown > 0 ? `  top: ${names}\n` : ""}`;
 }
 
 function formatAreaDesc(area: Record<string, unknown> | undefined): string {
