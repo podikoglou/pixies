@@ -176,3 +176,67 @@ print(result["count"])`;
 	expect(result.value.displays[0]?.features).toHaveLength(1);
 	expect(result.value.displays[0]?.features?.[0]?.name).toBe("Node Seven");
 });
+
+test("execute — host summary and model print are split into separate channels", async () => {
+	// Principle 3: curated host summaries (model-visible window) and the model's
+	// own print() (bounded console) must not share a sink. A geocode call emits
+	// its summary; the model's print() lands in the separate stdout channel.
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([
+			{
+				place_id: 1,
+				name: "Manchester",
+				lat: "53.4808",
+				lon: "-2.2426",
+				display_name: "Manchester, UK",
+				type: "city",
+			},
+		]),
+		overpass: fakeOverpass([]),
+	});
+	const code = `m = geocode("Manchester, UK")
+print("got:", m["name"])`;
+	const result = await executor.execute(code, {});
+	if (Result.isError(result)) throw result.error;
+	// host summary channel carries the geocode line, not the model's print
+	expect(result.value.summary).toContain('geocode("Manchester, UK")');
+	expect(result.value.summary).not.toContain("got:");
+	// model stdout channel carries the model's print, not the host summary
+	expect(result.value.stdout).toContain("got: Manchester");
+	expect(result.value.stdout).not.toContain("geocode(");
+});
+
+test("execute — a huge model print() is truncated with a steering marker", async () => {
+	// The model tends to print(features) and flood its context. The stdout
+	// channel is bounded per cell; overflow is dropped and a marker steers the
+	// model to profile()/filter().
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([]),
+		overpass: fakeOverpass([]),
+	});
+	const code = `print("x" * 5000)`;
+	const result = await executor.execute(code, {});
+	if (Result.isError(result)) throw result.error;
+	expect(result.value.stdout).toContain("[stdout truncated");
+	expect(result.value.stdout).toContain("profile()/filter()");
+	// the stored body is well under the 5000-char print
+	expect(result.value.stdout.length).toBeLessThan(5000);
+});
+
+test("execute — passing a FeaturesEnvelope where a list is expected raises a clear error", async () => {
+	// The classic shape mistake: result = find_features(...); spatial_join(points=result, ...).
+	// Previously this silently became [] → "0 pairs". Now it raises a RuntimeError
+	// naming the wrong type and the fix, so the model corrects it in one retry.
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([]),
+		overpass: fakeOverpass([{ type: "node", id: 1, lat: 53.48, lon: -2.24, tags: { name: "A" } }]),
+	});
+	const code = `result = find_features(types=["bus_stop"], area={"around": {"lat": 53.48, "lon": -2.24, "radius": 1000}})
+spatial_join(points=result, targets=result, operation="near", radius=1000)`;
+	const result = await executor.execute(code, {});
+	expect(Result.isError(result)).toBe(true);
+	if (!Result.isError(result)) return;
+	expect(result.error.message).toContain("points must be a list[Feature]");
+	expect(result.error.message).toContain("FeaturesEnvelope");
+	expect(result.error.message).toContain('points["features"]');
+});

@@ -41,7 +41,11 @@ export function ToolCallCard({ item }: ToolCallCardProps) {
 	const isError = item.status === "error";
 	const isWarning = item.status === "warning";
 	const entries = argEntries(item.args);
-	const resultText = item.result.kind === "execute_code" ? item.result.stdout : item.resultText;
+	// execute_code's tool-result `content` is now the curated summary (+ the
+	// model's bounded stdout) — the model-visible window — so surface it
+	// directly. (Previously content was just "OK" and the card fell back to
+	// details.stdout; content is now the authoritative channel.)
+	const resultText = item.resultText;
 	const hasResult = resultText !== null && resultText.length > 0;
 	const hasDetails = entries.length > 0 || hasResult;
 

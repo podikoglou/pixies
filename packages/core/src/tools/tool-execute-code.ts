@@ -6,8 +6,11 @@ import type { ToolProgress } from "./progress.ts";
 import type { DisplayData } from "../functions/host-functions.ts";
 import type { CodeExecutionError } from "../errors.ts";
 
-/** Successful sandbox execution: captured stdout and any map displays emitted by `display()`. */
+/** Successful sandbox execution: the curated host-summary channel (model-visible), the model's own bounded stdout (console), and any map displays emitted by `display()`. */
 export interface CodeExecutionSuccess {
+	/** Server-authored per-primitive summaries — the model's bounded result window. */
+	summary: string;
+	/** The model's own `print()` output, bounded per cell (flood guard). */
 	stdout: string;
 	displays: DisplayData[];
 }
@@ -66,9 +69,17 @@ export const executeCodeModule = defineTool<
 			onProgress: () => {},
 		});
 		if (Result.isError(result)) throw result.error;
-		const { stdout, displays } = result.value;
+		const { summary, stdout, displays } = result.value;
+		// The model's result window is the curated summary, with its own bounded
+		// stdout appended so short debug/len prints stay useful. `stdout` is the
+		// bounded model-print channel (console); it is also the wire `details`
+		// field the UI card can fall back to. Pure-computation cells (no host
+		// calls, no prints) fall back to "OK".
+		const text =
+			[summary, stdout].filter((s) => s.length > 0).join(summary.endsWith("\n") ? "" : "\n") ||
+			"OK";
 		return {
-			content: [{ type: "text" as const, text: "OK" }],
+			content: [{ type: "text" as const, text }],
 			details: { stdout, displays },
 		};
 	},
