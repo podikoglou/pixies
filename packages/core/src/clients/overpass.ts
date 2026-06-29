@@ -411,7 +411,10 @@ function toOverpassError(e: unknown): OverpassError {
 	if (OverpassRemarkError.is(e)) return e;
 	if (ToolAbortedError.is(e)) return e;
 	if (isAbortError(e)) return new ToolAbortedError({ message: "Operation aborted", cause: e });
-	return new OverpassHttpError({ message: String(e), cause: e });
+	return new OverpassHttpError({
+		message: `network error: ${e instanceof Error ? e.message : String(e)}`,
+		cause: e,
+	});
 }
 
 function formatCoord(lat: number, lon: number): string {
