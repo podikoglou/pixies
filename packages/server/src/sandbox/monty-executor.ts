@@ -20,6 +20,7 @@ import {
 	overpassQueryHost,
 	haversineMeters,
 	computeBounds,
+	renderDiagnosisLines,
 	type HostContext,
 	type DisplayData,
 	type Feature,
@@ -410,13 +411,18 @@ function formatFindFeaturesSummary(
 	const types = params.types;
 	const areaDesc = formatAreaDesc(params.area as Record<string, unknown> | undefined);
 	const typesDesc = Array.isArray(types) ? types.join(", ") : "none";
-	const shown = Math.min(3, result.features.length);
-	const names = result.features
-		.slice(0, shown)
-		.map((f) => f.name ?? f.id)
-		.join(", ");
-	const relaxed = result.relaxed ? (result.note ? ` [${result.note}]` : " [relaxed]") : "";
-	return `find_features(types=[${typesDesc}], ${areaDesc}) → ${result.count} feature(s)${truncatedSuffix(result)}${relaxed}\n${shown > 0 ? `  top: ${names}\n` : ""}`;
+	const head = `find_features(types=[${typesDesc}], ${areaDesc}) → ${result.count} feature(s)${truncatedSuffix(result)}`;
+	if (result.features.length > 0) {
+		const names = result.features
+			.slice(0, Math.min(3, result.features.length))
+			.map((f) => f.name ?? f.id)
+			.join(", ");
+		return `${head}\n  top: ${names}\n`;
+	}
+	// 0-results: render the "did you mean?" diagnosis below the head line.
+	if (!result.diagnosis) return `${head}\n`;
+	const lines = [head, ...renderDiagnosisLines(result.diagnosis).map((l) => `  ${l}`)];
+	return `${lines.join("\n")}\n`;
 }
 
 function truncatedSuffix(result: FindFeaturesResult): string {

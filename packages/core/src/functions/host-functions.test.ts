@@ -387,7 +387,6 @@ test("findFeaturesHost — successful feature search returns FindFeaturesResult"
 	expect(result.features[0]!.lon).toBe(-74.0059);
 	expect(result.count).toBe(1);
 	expect(result.truncated).toBe(false);
-	expect(result.relaxed).toBe(false);
 });
 
 test("findFeaturesHost — truncated result when source has more than limit", async () => {
@@ -455,9 +454,10 @@ test("findFeaturesHost — unknown area throws area must specify one of", async 
 	);
 });
 
-test("findFeaturesHost — returns empty when relaxation exhausts", async () => {
-	// Overpass always returns 0 elements; relaxation tries radius×1.5/×2/×3,
-	// then broadens tags, then drops the most restrictive group — all return 0.
+test("findFeaturesHost — 0 results with known type + around area has no diagnosis", async () => {
+	// Known types resolve to `kind:"type"` (not unknown), and `around` supplies
+	// no place metadata — so there is nothing to diagnose. Honest empty, no
+	// suggestion (better than a misleading one).
 	const ctx = mockCtx({
 		overpass: {
 			query: () => Promise.resolve(Result.ok({ elements: [] })),
@@ -469,7 +469,69 @@ test("findFeaturesHost — returns empty when relaxation exhausts", async () => 
 	});
 	expect(result.features).toEqual([]);
 	expect(result.count).toBe(0);
-	expect(result.relaxed).toBe(true);
+	expect(result.diagnosis).toBeUndefined();
+});
+
+test("findFeaturesHost — 0 results with misspelled type suggests closest (Level 0)", async () => {
+	// "cofee" is unknown to the dictionary (kind:"name"); Levenshtein ≤2 against
+	// the type dictionary yields "cafe". The diagnosis carries the match + hint.
+	const ctx = mockCtx({
+		overpass: {
+			query: () => Promise.resolve(Result.ok({ elements: [] })),
+		},
+	});
+	const result = await findFeaturesHost(ctx, {
+		types: ["cofee"],
+		area: { around: { lat: 40.71, lon: -74.0, radius: 1000 } },
+	});
+	expect(result.count).toBe(0);
+	expect(result.diagnosis).toBeDefined();
+	expect(result.diagnosis!.typeMatch).toContain("cafe");
+	expect(result.diagnosis!.hint).toContain('types=["cafe"]');
+});
+
+test("findFeaturesHost — 0 results with place surfaces resolved name + alternatives (Level 1)", async () => {
+	// A `place` geocodes to up to 5 hits; the diagnosis reports which one was
+	// picked (name + size) and the alternatives, so the model can disambiguate.
+	const ctx = mockCtx({
+		nominatim: {
+			search: () =>
+				Promise.resolve(
+					Result.ok([
+						makeHit({
+							place_id: 1,
+							name: "Athens",
+							lat: "34.0",
+							lon: "-83.3",
+							display_name: "Athens, Georgia, United States",
+							boundingbox: ["34.0", "34.1", "-83.4", "-83.2"],
+						}),
+						makeHit({
+							place_id: 2,
+							name: "Athens",
+							lat: "38.0",
+							lon: "23.7",
+							display_name: "Athens, Greece",
+							boundingbox: undefined,
+						}),
+					]),
+				),
+		},
+		overpass: {
+			query: () => Promise.resolve(Result.ok({ elements: [] })),
+		},
+	});
+	const result = await findFeaturesHost(ctx, {
+		types: ["restaurant"],
+		area: { place: "Athens" },
+	});
+	expect(result.count).toBe(0);
+	expect(result.diagnosis).toBeDefined();
+	expect(result.diagnosis!.areaResolved).toBeDefined();
+	expect(result.diagnosis!.areaResolved!.name).toBe("Athens, Georgia, United States");
+	expect(result.diagnosis!.areaResolved!.sizeKm2).toBeGreaterThan(0);
+	expect(result.diagnosis!.areaResolved!.alternatives).toContain("Athens, Greece");
+	expect(result.diagnosis!.hint).toContain('area={"place": "Athens, Greece"');
 });
 
 // ---------------------------------------------------------------------------

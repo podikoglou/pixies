@@ -10,9 +10,15 @@ import {
 	validateOverpassQL,
 	type ResolvedArea,
 } from "./find-features-query.ts";
-import { expandBounds, computeBounds, type Bounds } from "./geometry.ts";
+import { boundsAreaKm2, expandBounds, computeBounds, type Bounds } from "./geometry.ts";
 import { haversineMeters } from "./haversine.ts";
 import { compileWhere, applyTagsFilter, applySortBy } from "./filter-logic.ts";
+import {
+	computeDiagnosis,
+	type Diagnosis,
+	type ResolvedKind,
+	type ResolvedPlace,
+} from "./diagnosis.ts";
 
 export interface HostContext {
 	nominatim: NominatimClient;
@@ -45,8 +51,8 @@ export interface FindFeaturesResult {
 	features: Feature[];
 	count: number;
 	truncated: boolean;
-	relaxed: boolean;
-	note?: string;
+	/** Present when count == 0: names the likely-failed dimension and suggests a retry. */
+	diagnosis?: Diagnosis;
 }
 
 export interface SpatialPair {
@@ -107,9 +113,11 @@ interface FindFeaturesParams {
 }
 
 /**
- * Search OSM features via Overpass. On zero results, auto-relaxes:
- * expands radius (1.5x, 2x, 3x), broadens `eq` to `iregex` tags,
- * then drops the most restrictive OR-groups.
+ * Search OSM features via Overpass. On zero results, attaches a `diagnosis`
+ * naming the likely-failed dimension (misspelled type, ambiguous place) and
+ * suggesting a concrete retry — the "did you mean?" pattern. No auto-broadening:
+ * a 0-result is the model's signal to reformulate, and silent multi-pass retries
+ * hide the model's mistake.
  */
 export async function findFeaturesHost(
 	ctx: HostContext,
@@ -120,7 +128,7 @@ export async function findFeaturesHost(
 	if (!resolved) {
 		throw new Error("Provide at least one of 'types' or 'tags'.");
 	}
-	const area = await resolveArea(nominatim, params.area, signal);
+	const { area, place } = await resolveArea(nominatim, params.area, signal);
 	const limit = params.limit ?? DEFAULT_LIMIT;
 
 	const tryQuery = async (groups: TagClause[][], queryArea: ResolvedArea): Promise<Feature[]> => {
@@ -147,16 +155,14 @@ export async function findFeaturesHost(
 		return elementsToFeatures(result.value.elements ?? []);
 	};
 
-	let features = await tryQuery(resolved.groups, area);
+	const features = await tryQuery(resolved.groups, area);
 	if (features.length > 0) {
-		return formatFeatures(features, limit, false, undefined);
+		return formatFeatures(features, limit);
 	}
-
-	const relaxed = await applyRelaxation(tryQuery, resolved.groups, area);
-	if (relaxed.features.length > 0 || relaxed.exhausted) {
-		return formatFeatures(relaxed.features, limit, true, relaxed.note);
-	}
-	return formatFeatures([], limit, false, undefined);
+	// 0-results: a measurement, not a failure. Diagnose from data already in
+	// hand (resolved type kinds + the geocoded place metadata) — no extra network.
+	const diagnosis = computeDiagnosis({ resolvedKinds: resolved.resolvedKinds, place });
+	return formatFeatures([], limit, diagnosis);
 }
 
 interface FilterParams {
@@ -279,7 +285,7 @@ function nominatimToGeocodeResult(hit: NominatimResult, alts?: NominatimResult[]
 
 interface ResolvedGroups {
 	groups: TagClause[][];
-	resolvedKinds: { input: string; kind: "type" | "brand" | "name" }[];
+	resolvedKinds: ResolvedKind[];
 }
 
 /** Classify each `types` entry as brand / known-type / name-fallback, expand to OR-groups, AND with explicit `tags`. Returns null when nothing to query. */
@@ -293,7 +299,7 @@ function resolveGroups(
 		...(t.op ? { op: t.op as TagClause["op"] } : {}),
 	}));
 	const groups: TagClause[][] = [];
-	const resolvedKinds: { input: string; kind: "type" | "brand" | "name" }[] = [];
+	const resolvedKinds: ResolvedKind[] = [];
 
 	for (const input of types ?? []) {
 		const trimmed = input.trim();
@@ -328,43 +334,56 @@ function escapeRegexForOverpass(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Resolve an area spec to a ResolvedArea. Accepts `bounds`, `around`, `features` (derives bbox), or `place` (geocodes). */
+/** Resolve an area spec to a spatial clause, retaining the geocoded place's metadata (Level 1 diagnosis) when `area` was a `place`. Accepts `bounds`, `around`, `features` (derives bbox), or `place` (geocodes up to 5 hits so alternatives are available). */
 async function resolveArea(
 	nominatim: NominatimClient,
 	area: FindFeaturesParams["area"],
 	signal?: AbortSignal,
-): Promise<ResolvedArea> {
-	if (area.bounds) return { kind: "bbox", bounds: area.bounds };
+): Promise<{ area: ResolvedArea; place?: ResolvedPlace }> {
+	if (area.bounds) return { area: { kind: "bbox", bounds: area.bounds } };
 	if (area.around) {
 		return {
-			kind: "around",
-			lat: area.around.lat,
-			lon: area.around.lon,
-			radius: area.around.radius,
+			area: {
+				kind: "around",
+				lat: area.around.lat,
+				lon: area.around.lon,
+				radius: area.around.radius,
+			},
 		};
 	}
 	if (area.features && area.features.length > 0) {
 		const bounds = computeBounds(area.features);
 		if (!bounds) throw new Error("Cannot derive area from features without coordinates.");
-		return { kind: "bbox", bounds: expandBounds(bounds, 250) };
+		return { area: { kind: "bbox", bounds: expandBounds(bounds, 250) } };
 	}
 	if (area.place) {
-		const result = await nominatim.search(area.place, { limit: 1 }, signal);
+		// Fetch up to 5 hits so the alternatives are available for diagnosis
+		// ("did you mean Athens, Greece?") without a second round-trip.
+		const result = await nominatim.search(area.place, { limit: 5 }, signal);
 		if (Result.isError(result)) {
 			if (result.error._tag === "NominatimBusy") throw new Error(NOMINATIM_BUSY_MESSAGE);
 			throw new Error(result.error.message);
 		}
-		const hit = result.value[0];
+		const hits = result.value;
+		const hit = hits[0];
 		if (!hit) throw new Error(`Place '${area.place}' did not geocode to any result.`);
+		const place: ResolvedPlace = {
+			// `display_name` is always present and disambiguates which hit was
+			// picked ("Athens, Georgia, United States"), unlike `name` ("Athens").
+			name: hit.display_name,
+			alternatives: hits.slice(1).map((h) => h.display_name),
+		};
 		if (hit.boundingbox) {
 			const [s = 0, n = 0, w = 0, e = 0] = hit.boundingbox.map(Number);
-			return { kind: "bbox", bounds: { minlat: s, minlon: w, maxlat: n, maxlon: e } };
+			const bounds = { minlat: s, minlon: w, maxlat: n, maxlon: e };
+			return {
+				area: { kind: "bbox", bounds },
+				place: { ...place, sizeKm2: boundsAreaKm2(bounds) },
+			};
 		}
 		return {
-			kind: "around",
-			lat: Number(hit.lat),
-			lon: Number(hit.lon),
-			radius: 5000,
+			area: { kind: "around", lat: Number(hit.lat), lon: Number(hit.lon), radius: 5000 },
+			place,
 		};
 	}
 	throw new Error("area must specify one of: place, bounds, around, features.");
@@ -397,8 +416,7 @@ function elementsToFeatures(elements: OverpassElement[]): Feature[] {
 function formatFeatures(
 	features: Feature[],
 	limit: number,
-	relaxed: boolean,
-	note: string | undefined,
+	diagnosis: Diagnosis | undefined = undefined,
 ): FindFeaturesResult {
 	const truncated = features.length > limit;
 	const shown = truncated ? features.slice(0, limit) : features;
@@ -406,70 +424,6 @@ function formatFeatures(
 		features: shown,
 		count: shown.length,
 		truncated,
-		relaxed,
-		...(note ? { note } : {}),
+		...(diagnosis ? { diagnosis } : {}),
 	};
-}
-
-/**
- * Multi-pass relaxation when an Overpass query returns zero results.
- * Tries in order: expand around-radius (1.5x, 2x, 3x), broaden `eq`
- * tag clauses to `iregex`, drop the most restrictive OR-groups.
- */
-async function applyRelaxation(
-	tryQuery: (groups: TagClause[][], area: ResolvedArea) => Promise<Feature[]>,
-	groups: TagClause[][],
-	area: ResolvedArea,
-): Promise<{ features: Feature[]; note?: string; exhausted: boolean }> {
-	if (area.kind === "around") {
-		const original = area.radius;
-		for (const mult of [1.5, 2, 3]) {
-			const expanded: ResolvedArea = { ...area, radius: Math.round(original * mult) };
-			const features = await tryQuery(groups, expanded);
-			if (features.length > 0) {
-				return {
-					features,
-					note: `expanded radius from ${original}m to ${expanded.radius}m`,
-					exhausted: false,
-				};
-			}
-		}
-	}
-	const broadened = broadenTags(groups);
-	if (broadened) {
-		const features = await tryQuery(broadened, area);
-		if (features.length > 0) {
-			return { features, note: "broadened tag filters", exhausted: false };
-		}
-	}
-	const dropped = dropMostRestrictive(groups);
-	if (dropped && dropped.length > 0) {
-		const features = await tryQuery(dropped, area);
-		if (features.length > 0) {
-			return { features, note: "dropped most restrictive tag clause", exhausted: false };
-		}
-	}
-	return { features: [], note: undefined, exhausted: true };
-}
-
-/** Convert `eq` tag clauses to case-insensitive `iregex`. Returns null when no clauses to broaden. */
-function broadenTags(groups: TagClause[][]): TagClause[][] | null {
-	let changed = false;
-	const result = groups.map((group) =>
-		group.map((c) => {
-			if ((c.op ?? "eq") === "eq" && c.value) {
-				changed = true;
-				return { ...c, op: "iregex" as const };
-			}
-			return c;
-		}),
-	);
-	return changed ? result : null;
-}
-
-/** Drop the most restrictive OR-groups (those with the most clauses). Keeps the broadest half; returns null when there's ≤1 group. */
-function dropMostRestrictive(groups: TagClause[][]): TagClause[][] | null {
-	if (groups.length <= 1) return null;
-	const sorted = [...groups].sort((a, b) => b.length - a.length);
-	return sorted.slice(Math.ceil(sorted.length / 2));
 }
