@@ -1,4 +1,6 @@
 import type { PixiesErrorTag } from "@pixies/core";
+import { BudgetExceededDetailsSchema } from "@pixies/core";
+import { Value } from "typebox/value";
 
 /**
  * Pick friendly toast copy for an SSE `"error"` event.
@@ -30,10 +32,10 @@ export function errorToToastCopy({ tag, defaultMessage, details }: ErrorCopyArgs
 		case "ToolAborted":
 			return defaultMessage || "Stopped.";
 		case "BudgetExceeded": {
-			const d = details as { used?: number; budget?: number } | undefined;
-			return d?.budget
-				? `This conversation hit its token budget (${d.used}/${d.budget}). Start a new conversation.`
-				: "This conversation hit its token budget. Start a new conversation.";
+			if (!Value.Check(BudgetExceededDetailsSchema, details)) {
+				return "This conversation hit its token budget. Start a new conversation.";
+			}
+			return `This conversation hit its token budget (${details.used}/${details.budget}). Start a new conversation.`;
 		}
 		case "PromptConflict":
 			return "This conversation is already responding. Wait for it to finish.";
