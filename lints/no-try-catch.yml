@@ -1,0 +1,6 @@
+id: no-try-catch
+language: TypeScript
+rule:
+  kind: try_statement
+message: "Don't use try/catch for expected failures — wrap the throwing boundary with `Result.try` / `Result.tryPromise` and propagate a `Result<T, E>` (see better-result). Defects that must throw become `Panic` inside a Result callback."
+severity: warning
