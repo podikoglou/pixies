@@ -12,6 +12,7 @@ import { createDb } from "@pixies/core/db";
 import { createLogger, dispose, type Logger } from "@pixies/core/logging";
 import { getPostHogLogsSink } from "@pixies/core/logging/posthog-logs-sink";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { BunRequest } from "bun";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import path from "node:path";
@@ -250,18 +251,10 @@ function captureBudgetExceeded(
 	});
 }
 
-// Bun augments route handler Request objects with `params`. Use a broader
-// Request type so the wrapper works for both plain and parametric routes.
-type RouteHandler = (req: Request, server: Bun.Server<undefined>) => Response | Promise<Response>;
-
-function params(req: Request): Record<string, string> {
-	return (req as Request & { params: Record<string, string> }).params;
-}
-
-function withRequestLogging(
+function withRequestLogging<T extends string = string>(
 	logger: Logger,
-	handler: RouteHandler,
-): (req: Request, server: Bun.Server<undefined>) => Promise<Response> {
+	handler: (req: BunRequest<T>, server: Bun.Server<undefined>) => Response | Promise<Response>,
+): (req: BunRequest<T>, server: Bun.Server<undefined>) => Promise<Response> {
 	return async (req, server) => {
 		const start = Date.now();
 		const res = await handler(req, server);
@@ -394,7 +387,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 						captureRateLimitDenied(posthog, ip, "/conversations/:id/messages");
 						return denied;
 					}
-					const id = params(req).id!;
+					const id = req.params.id!;
 					const parsed = await readMessage(req);
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
 					server.timeout(req, 0);
@@ -411,7 +404,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 			},
 			"/conversations/:id": {
 				GET: withRequestLogging(logger, async (req) => {
-					const id = params(req).id!;
+					const id = req.params.id!;
 					const conv = await store.get(id);
 					if (!conv)
 						return Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
@@ -421,7 +414,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 					return Response.json({ id, messages });
 				}),
 				DELETE: withRequestLogging(logger, (req) => {
-					const id = params(req).id!;
+					const id = req.params.id!;
 					const ok = store.delete(id);
 					if (ok) captureServerEvent(posthog, id, "conversation deleted", {});
 					return ok
