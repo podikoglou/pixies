@@ -240,3 +240,38 @@ spatial_join(points=result, targets=result, operation="near", radius=1000)`;
 	expect(result.error.message).toContain("FeaturesEnvelope");
 	expect(result.error.message).toContain('points["features"]');
 });
+
+test("execute — profile() emits its fingerprint to the summary channel", async () => {
+	// profile is the schema-visible, row-opaque keystone: it lets the model
+	// write informed filters without peeking rows. Its summary lands in the
+	// model-visible channel (not its own stdout), and it takes a bare list
+	// (shape-guarded) — so the model passes result["features"].
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([]),
+		overpass: fakeOverpass([
+			{
+				type: "node",
+				id: 1,
+				lat: 53.48,
+				lon: -2.24,
+				tags: { amenity: "cafe", population: "10000" },
+			},
+			{
+				type: "node",
+				id: 2,
+				lat: 53.49,
+				lon: -2.25,
+				tags: { amenity: "cafe", population: "40000" },
+			},
+		]),
+	});
+	const code = `result = find_features(types=["cafe"], area={"around": {"lat": 53.48, "lon": -2.24, "radius": 1000}})
+p = profile(result["features"])
+print(p["count"])`;
+	const result = await executor.execute(code, {});
+	if (Result.isError(result)) throw result.error;
+	expect(result.value.summary).toContain("profile(2 features)");
+	expect(result.value.summary).toContain("amenity  100%");
+	expect(result.value.summary).toContain("numeric 10000–40000");
+	expect(result.value.stdout).toContain("2");
+});

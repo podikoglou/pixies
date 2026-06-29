@@ -21,6 +21,8 @@ import {
 	haversineMeters,
 	computeBounds,
 	renderDiagnosisLines,
+	profileHost,
+	formatProfileSummary,
 	type HostContext,
 	type DisplayData,
 	type Feature,
@@ -199,6 +201,15 @@ export class MontyExecutor implements CodeExecutor {
 				print(
 					`filter(${features.length} features, where=${kwargs.where ?? "none"}) → ${result.length} feature(s)\n`,
 				);
+				return result;
+			},
+
+			profile: (...args: unknown[]) => {
+				const features = requireFeatureList(args[0], "features");
+				const kwargs = (args[args.length - 1] ?? {}) as Record<string, unknown>;
+				const maxTags = typeof kwargs.max_tags === "number" ? kwargs.max_tags : 12;
+				const result = profileHost(features, maxTags);
+				print(formatProfileSummary(result));
 				return result;
 			},
 
