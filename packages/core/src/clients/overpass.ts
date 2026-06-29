@@ -200,17 +200,17 @@ export const OVERPASS_BUSY_MESSAGE =
 
 /** Client for Overpass QL queries. */
 export class OverpassClient {
-	private readonly baseUrl: string;
-	private readonly userAgent: string;
-	private readonly fetchFn: typeof globalThis.fetch;
-	private readonly queue: PQueue;
-	private readonly concurrency: number;
-	private readonly logger: Logger;
+	private baseUrl: string;
+	private userAgent: string;
+	private fetchFn: typeof globalThis.fetch;
+	private queue: PQueue;
+	private concurrency: number;
+	private logger: Logger;
 	/**
 	 * Per-request timeout in ms. Backs the `timeoutMs` passed to
 	 * {@link fetchOverpassResponse}; defaults to 60_000 prior-behavior.
 	 */
-	private readonly timeoutMs: number;
+	private timeoutMs: number;
 
 	constructor(config: OverpassConfig) {
 		// `Value.Default` fills the documented defaults for omitted knobs; `Value.Parse`

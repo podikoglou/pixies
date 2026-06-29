@@ -199,18 +199,18 @@ export const NOMINATIM_BUSY_MESSAGE =
 
 /** Client for Nominatim search and reverse-geocoding. */
 export class NominatimClient {
-	private readonly baseUrl: string;
-	private readonly contactEmail?: string;
-	private readonly userAgent: string;
-	private readonly fetchFn: typeof globalThis.fetch;
-	private readonly logger: Logger;
-	private readonly queue: PQueue;
-	private readonly concurrency: number;
+	private baseUrl: string;
+	private contactEmail?: string;
+	private userAgent: string;
+	private fetchFn: typeof globalThis.fetch;
+	private logger: Logger;
+	private queue: PQueue;
+	private concurrency: number;
 	/**
 	 * Per-request timeout in ms. Backs the `timeoutMs` passed to
 	 * {@link fetchNominatimResponse}; defaults to 60_000 prior-behavior.
 	 */
-	private readonly timeoutMs: number;
+	private timeoutMs: number;
 	/**
 	 * LRU+TTL cache for successful search/reverse responses. `undefined` when
 	 * caching is disabled (either knob is 0).
@@ -225,7 +225,7 @@ export class NominatimClient {
 	 * invalid-shape, network) propagate uncached so a transient failure is
 	 * retried on the next call rather than served stale.
 	 */
-	private readonly cache?: LRUCache<string, NominatimResult[] | NominatimResult>;
+	private cache?: LRUCache<string, NominatimResult[] | NominatimResult>;
 
 	constructor(config: NominatimConfig) {
 		// `Value.Default` fills the documented defaults for omitted knobs; `Value.Parse`
