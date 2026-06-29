@@ -1,4 +1,4 @@
-import { Result, TaggedError, matchErrorPartial } from "better-result";
+import { Result, TaggedError } from "better-result";
 import PQueue from "p-queue";
 import { Type } from "typebox";
 import type { Static } from "typebox";
@@ -442,9 +442,9 @@ export class NominatimClient {
 				}
 			},
 			catch: (err): NominatimError =>
-				matchErrorPartial(err as NominatimParseError, {
-					NominatimParse: (e) => e,
-				}) ?? new NominatimParseError({ message: String(err), cause: err }),
+				NominatimParseError.is(err)
+					? err
+					: new NominatimParseError({ message: String(err), cause: err }),
 		});
 	}
 }
@@ -497,10 +497,7 @@ async function fetchNominatimResponse(
 		}
 		return res;
 	} catch (e) {
-		matchErrorPartial(e as NominatimBusyError | NominatimHttpError, {
-			NominatimBusy: () => { throw e; },
-			NominatimHttp: () => { throw e; },
-		});
+		if (NominatimBusyError.is(e) || NominatimHttpError.is(e)) throw e;
 		if (isAbortError(e)) throw e;
 		throw new NominatimHttpError({
 			message: `network error: ${e instanceof Error ? e.message : String(e)}`,
@@ -515,11 +512,10 @@ function isNominatimBusyResponse(status: number, body: string): boolean {
 }
 
 function toNominatimError(e: unknown): NominatimError {
+	if (NominatimBusyError.is(e)) return e;
+	if (NominatimHttpError.is(e)) return e;
+	if (NominatimParseError.is(e)) return e;
+	if (ToolAbortedError.is(e)) return e;
 	if (isAbortError(e)) return new ToolAbortedError({ message: "Operation aborted", cause: e });
-	return matchErrorPartial(e as NominatimBusyError | NominatimHttpError | NominatimParseError | ToolAbortedError, {
-		NominatimBusy: (e) => e,
-		NominatimHttp: (e) => e,
-		NominatimParse: (e) => e,
-		ToolAborted: (e) => e,
-	}) ?? new NominatimHttpError({ message: String(e), cause: e });
+	return new NominatimHttpError({ message: String(e), cause: e });
 }
