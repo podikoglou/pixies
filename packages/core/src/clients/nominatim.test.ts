@@ -275,7 +275,7 @@ test("generic non-abort error returns Err with the message", async () => {
 
 	const r = await client.search("Berlin");
 	expect(Result.isError(r)).toBe(true);
-	if (Result.isError(r)) expect(r.error.message).toContain("network down");
+	if (Result.isError(r)) expect(r.error.message).toBe("network error: network down");
 });
 
 // ---- interval spacing -------------------------------------------------------
