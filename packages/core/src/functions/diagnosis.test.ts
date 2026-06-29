@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
+import fc from "fast-check";
 import {
 	levenshtein,
 	computeTypeMatches,
@@ -31,6 +32,56 @@ test("levenshtein — single substitution is 1", () => {
 
 test("levenshtein — insertion and deletion counted", () => {
 	expect(levenshtein("starbucs", "starbucks")).toBe(1); // missing 'k'
+});
+
+// ---------------------------------------------------------------------------
+// levenshtein — metric laws (property-based)
+// ---------------------------------------------------------------------------
+// Edit distance is a *metric*: these laws hold for ANY strings, not just the
+// hand-picked examples above. They are the real contract; the examples above
+// only witness specific distances. A correct implementation must satisfy all
+// five for every input — the triangle inequality in particular is what a
+// broken recurrence (e.g. a wrong base case) would violate.
+
+test("levenshtein — d(x, x) === 0 for any string (identity)", () => {
+	fc.assert(fc.property(fc.string(), (s) => levenshtein(s, s) === 0));
+});
+
+test("levenshtein — d(a, b) === d(b, a) for any two strings (symmetry)", () => {
+	fc.assert(
+		fc.property(fc.string(), fc.string(), (a, b) => levenshtein(a, b) === levenshtein(b, a)),
+	);
+});
+
+test("levenshtein — d(a, c) <= d(a, b) + d(b, c) for any three strings (triangle inequality)", () => {
+	fc.assert(
+		fc.property(
+			fc.string(),
+			fc.string(),
+			fc.string(),
+			(a, b, c) => levenshtein(a, c) <= levenshtein(a, b) + levenshtein(b, c),
+		),
+	);
+});
+
+test("levenshtein — d(a, b) >= |len(a) - len(b)| for any two strings (lower bound)", () => {
+	fc.assert(
+		fc.property(
+			fc.string(),
+			fc.string(),
+			(a, b) => levenshtein(a, b) >= Math.abs(a.length - b.length),
+		),
+	);
+});
+
+test("levenshtein — d(a, b) <= max(len(a), len(b)) for any two strings (upper bound)", () => {
+	fc.assert(
+		fc.property(
+			fc.string(),
+			fc.string(),
+			(a, b) => levenshtein(a, b) <= Math.max(a.length, b.length),
+		),
+	);
 });
 
 // ---------------------------------------------------------------------------
