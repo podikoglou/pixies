@@ -391,3 +391,26 @@ test("execute — replayed calls are not traced (cache hits are instant)", async
 	if (Result.isError(second)) throw second.error;
 	expect(second.value.trace).toEqual([]);
 });
+
+test("execute — a throwing primitive inside try/except is still traced (finally fires on error)", async () => {
+	// The timing wrapper's `finally` block must push the trace entry even when
+	// the host function throws — as long as the Python-level exception is caught
+	// so the cell succeeds and the trace survives in result.value.trace.
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([]),
+		overpass: fakeOverpass([]),
+	});
+	const code = `try:
+    geocode("nonexistent-place-xyz")
+except:
+    pass
+m = geocode("also-nonexistent-xyz")`;
+	const result = await executor.execute(code, {});
+	if (Result.isError(result)) throw result.error;
+	// Both geocode calls must appear in the trace — the one that returned null
+	// (caught by except) and the one that also returned null.
+	expect(result.value.trace.map((t) => t.name)).toEqual(["geocode", "geocode"]);
+	for (const entry of result.value.trace) {
+		expect(entry.duration_ms).toBeGreaterThanOrEqual(0);
+	}
+});
