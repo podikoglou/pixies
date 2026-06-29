@@ -508,5 +508,8 @@ function toNominatimError(e: unknown): NominatimError {
 	if (NominatimParseError.is(e)) return e;
 	if (ToolAbortedError.is(e)) return e;
 	if (isAbortError(e)) return new ToolAbortedError({ message: "Operation aborted", cause: e });
-	return new NominatimHttpError({ message: String(e), cause: e });
+	return new NominatimHttpError({
+		message: `network error: ${e instanceof Error ? e.message : String(e)}`,
+		cause: e,
+	});
 }
