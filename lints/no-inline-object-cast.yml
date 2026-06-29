@@ -1,0 +1,23 @@
+id: no-inline-object-cast
+language: TypeScript
+rule:
+  kind: object_type
+  inside:
+    kind: as_expression
+    stopBy: end
+  # Only flag the outermost inline object type of a cast (`as { a: { b } }`
+  # reports once, not twice) and never inside a bun:test wrapper — type-assertion
+  # shortcuts are a tolerated test convention (see token-budget.test.ts:8).
+  not:
+    any:
+      - inside:
+          stopBy: end
+          any:
+            - pattern: test($$$)
+            - pattern: it($$$)
+            - pattern: describe($$$)
+      - inside:
+          kind: object_type
+          stopBy: end
+message: "Don't cast to an inline object type (`x as { ... }`). It re-implements validation that a TypeBox schema or a named type already owns — use `Value.Check`/`Value.Decode` against the schema, a real return type, or a `value is T` guard."
+severity: warning

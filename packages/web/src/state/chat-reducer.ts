@@ -1,5 +1,15 @@
 import type { ConversationTranscript } from "../api/conversations.ts";
-import { parseToolResult, isBusyResult, type ToolProgress, type ToolResult } from "@pixies/core";
+import type { Static } from "typebox";
+import { Value } from "typebox/value";
+import {
+	parseToolResult,
+	isBusyResult,
+	TextContentBlock,
+	type ToolProgress,
+	type ToolResult,
+} from "@pixies/core";
+
+type TextBlock = Static<typeof TextContentBlock>;
 
 export type TimelineItem =
 	| { kind: "user-message"; text: string; responseTimeMs?: number }
@@ -139,14 +149,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 export function joinContentText(content: unknown, separator = ""): string {
 	if (typeof content === "string") return content;
 	if (!Array.isArray(content)) return "";
-	return (content as Array<unknown>)
-		.filter(
-			(block): block is { text: string } =>
-				block !== null &&
-				typeof block === "object" &&
-				(block as { type?: unknown }).type === "text" &&
-				typeof (block as { text?: unknown }).text === "string",
-		)
+	return (content as unknown[])
+		.filter((block): block is TextBlock => Value.Check(TextContentBlock, block))
 		.map((block) => block.text)
 		.join(separator);
 }

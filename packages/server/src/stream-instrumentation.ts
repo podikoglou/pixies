@@ -1,4 +1,6 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 import { isBusyResult, isTaggedError, toolResultCount, type ToolProgress } from "@pixies/core";
 import type { Logger } from "@pixies/core/logging";
 import { captureServerEvent, type ToolCallOutcome } from "./analytics-events.ts";
@@ -25,9 +27,16 @@ interface TurnToolResult {
 	details?: unknown;
 }
 
+/**
+ * Minimal TypeBox schema for the only field `recordToolEnd` reads off the raw
+ * tool result. `details` itself is intentionally {@link Type.Unknown} — the
+ * per-tool shape is interpreted by `isBusyResult` / `toolResultCount`, not here.
+ */
+const ToolResultDetailsSchema = Type.Object({ details: Type.Optional(Type.Unknown()) });
+
 /** Narrow a `turn_end` message to its assistant-message slice. */
 function isAssistantTurn(message: AgentMessage): message is AgentMessage & AssistantTurnMessage {
-	return (message as { role?: unknown }).role === "assistant";
+	return message.role === "assistant";
 }
 
 /**
@@ -58,7 +67,7 @@ export interface StreamErrorFrame {
 	/** `err.message` (or stringified) — goes to the wire, NOT to analytics. */
 	message: string;
 	/** Safe `toJSON()` payload for a `TaggedError`, else `undefined`. Wire-only. */
-	details: Record<string, unknown> | undefined;
+	details: object | undefined;
 }
 
 /**
@@ -271,8 +280,10 @@ export class StreamInstrumentation {
 		const startedAt = entry?.startedAt ?? this.startTime;
 		this.toolStarts.delete(toolCallId);
 		// Only `result.details` is read — never `result.content` (carries text
-		// / error messages that embed place names for OSM errors).
-		const details = (result as { details?: unknown } | null | undefined)?.details;
+		// / error messages that embed place names for OSM errors). Parsed through
+		// {@link ToolResultDetailsSchema} so a non-object result collapses to
+		// `undefined` details instead of an `as`-cast assuming the shape.
+		const details = Value.Check(ToolResultDetailsSchema, result) ? result.details : undefined;
 		const isBusy = isBusyResult(details);
 		const count = toolResultCount(toolName, details);
 		const outcome = deriveOutcome(isError, isBusy, count);
@@ -346,12 +357,14 @@ export class StreamInstrumentation {
 			tag !== undefined ? { error_tag: tag } : {},
 		);
 		const message = err instanceof Error ? err.message : String(err);
-		// `isTaggedError` narrows to the loose `AnyTaggedError` shape (which
-		// omits `toJSON` from its type), but every TaggedError instance
-		// carries a safe `toJSON()` serializer at runtime.
-		const details = isTaggedError(err)
-			? ((err as unknown as { toJSON(): object }).toJSON() as Record<string, unknown>)
-			: undefined;
+		// better-result's `AnyTaggedError` type omits `toJSON`, but every
+		// TaggedError instance carries a safe `toJSON()` serializer — verify the
+		// capability at runtime (`in` + `typeof`) rather than asserting the shape.
+		// TypeBox can't express this: `toJSON` is a method, not data.
+		const details =
+			isTaggedError(err) && "toJSON" in err && typeof err.toJSON === "function"
+				? err.toJSON()
+				: undefined;
 		return { tag, message, details };
 	}
 }
