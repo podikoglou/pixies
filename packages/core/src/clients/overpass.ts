@@ -384,28 +384,19 @@ async function fetchOverpassResponse(
 ): Promise<Response> {
 	const { signal, timeoutMs, ...rest } = opts;
 	const merged = mergeSignals(signal, AbortSignal.timeout(timeoutMs));
-	try {
-		const res = await fetchFn(url, { ...rest, signal: merged });
-		if (!res.ok) {
-			const body = await res.text();
-			if (isOverpassBusyResponse(res.status, body)) {
-				throw new OverpassBusyError({ status: res.status });
-			}
-			throw new OverpassHttpError({
-				status: res.status,
-				body,
-				message: `Overpass: ${res.status}: ${body}`,
-			});
+	const res = await fetchFn(url, { ...rest, signal: merged });
+	if (!res.ok) {
+		const body = await res.text();
+		if (isOverpassBusyResponse(res.status, body)) {
+			throw new OverpassBusyError({ status: res.status });
 		}
-		return res;
-	} catch (e) {
-		if (OverpassBusyError.is(e) || OverpassHttpError.is(e)) throw e;
-		if (isAbortError(e)) throw e;
 		throw new OverpassHttpError({
-			message: `network error: ${e instanceof Error ? e.message : String(e)}`,
-			cause: e,
+			status: res.status,
+			body,
+			message: `Overpass: ${res.status}: ${body}`,
 		});
 	}
+	return res;
 }
 
 function isOverpassBusyResponse(status: number, body: string): boolean {
