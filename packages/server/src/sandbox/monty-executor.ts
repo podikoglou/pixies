@@ -29,6 +29,7 @@ import {
 	type SpatialPair,
 } from "@pixies/core/tools";
 import type { CodeExecutor, CodeExecutionSuccess } from "@pixies/core";
+import { StdoutCollector } from "./stdout-collector.ts";
 
 export interface MontyExecutorOptions {
 	nominatim: NominatimClient;
@@ -45,6 +46,13 @@ const DEFAULT_LIMITS: ResourceLimits = {
 	maxMemory: 64 * 1024 * 1024,
 	maxRecursionDepth: 100,
 };
+
+/**
+ * Per-cell char budget on the model's own `print()` output. Host-function
+ * summaries are server-authored and unbounded; this bounds only the model's
+ * stdout (which tends to be `print(features)` floods). See {@link StdoutCollector}.
+ */
+const DEFAULT_USER_STDOUT_BUDGET = 1500;
 
 /**
  * Per-conversation Monty executor with variable persistence.
@@ -85,7 +93,13 @@ export class MontyExecutor implements CodeExecutor {
 			: `${this.codeHistory.join("\n")}\n__pixies_replay_end__()\n${code}`;
 
 		const state = { isReplaying: !isFirstCall };
-		const stdoutParts: string[] = [];
+		// Two channels, split at the executor (Principle 3): curated host-function
+		// summaries (model-visible, server-authored, unbounded) and the model's
+		// own print() (bounded — the model tends to print(features) and flood its
+		// context). The model's print never re-enters unbounded; StdoutCollector
+		// caps it per cell and appends a marker steering to profile()/filter().
+		const summaryParts: string[] = [];
+		const userStdout = new StdoutCollector(DEFAULT_USER_STDOUT_BUDGET);
 		const displays: DisplayData[] = [];
 
 		const wallSignal = mergeSignals(
@@ -100,13 +114,13 @@ export class MontyExecutor implements CodeExecutor {
 		};
 
 		const printCallback = (_stream: string, text: string) => {
-			if (!state.isReplaying) stdoutParts.push(text);
+			if (!state.isReplaying) userStdout.push(text);
 		};
 
 		const externalFunctions = this.buildExternalFunctions(
 			ctx,
 			(text) => {
-				if (!state.isReplaying) stdoutParts.push(text);
+				if (!state.isReplaying) summaryParts.push(text);
 			},
 			(data) => {
 				if (state.isReplaying) return;
@@ -127,11 +141,15 @@ export class MontyExecutor implements CodeExecutor {
 
 			this.codeHistory.push(code);
 			return Result.ok({
-				stdout: stdoutParts.join(""),
+				summary: summaryParts.join(""),
+				stdout: userStdout.finish(),
 				displays,
 			});
 		} catch (err) {
-			const stdout = stdoutParts.join("");
+			// On error, surface both channels as pre-error context so the model
+			// can see what ran before it failed (summaries + its own prints).
+			const summary = summaryParts.join("");
+			const stdout = `${summary}${userStdout.finish()}`;
 			const { errorType, message } = formatMontyError(err);
 			return Result.err(
 				new CodeExecutionError({
@@ -175,7 +193,7 @@ export class MontyExecutor implements CodeExecutor {
 			},
 
 			filter: (...args: unknown[]) => {
-				const features = (Array.isArray(args[0]) ? args[0] : []) as Feature[];
+				const features = requireFeatureList(args[0], "features");
 				const kwargs = (args[args.length - 1] ?? {}) as Record<string, unknown>;
 				const result = filterHost(features, normalizeFilterParams(kwargs));
 				print(
@@ -225,7 +243,7 @@ export class MontyExecutor implements CodeExecutor {
 			},
 
 			bounds_of: (...args: unknown[]) => {
-				const features = (Array.isArray(args[0]) ? args[0] : []) as Feature[];
+				const features = requireFeatureList(args[0], "features");
 				return computeBounds(features);
 			},
 		};
@@ -429,6 +447,38 @@ function truncatedSuffix(result: FindFeaturesResult): string {
 	return result.truncated ? ` (showing ${result.features.length})` : "";
 }
 
+/**
+ * Coerce an argument that must be a `list[Feature]`, throwing a clear,
+ * model-actionable error when it isn't. The common mistake is passing a
+ * `FeaturesEnvelope` (`find_features`/`search`/`overpass_query` return value)
+ * where a bare list is expected:
+ *
+ *     result = find_features(types=["pharmacy"], area={...})
+ *     spatial_join(points=result, ...)   # envelope, not list
+ *
+ * Previously this silently became `[]` → "0 pairs" with no explanation. The
+ * thrown error names the wrong shape and the fix; it surfaces as a RuntimeError
+ * the model corrects in one retry.
+ */
+function requireFeatureList(value: unknown, name: string): Feature[] {
+	if (Array.isArray(value)) return value as Feature[];
+	const got = describeShape(value);
+	const hint = got === "FeaturesEnvelope" ? ` — use ${name}["features"]` : "";
+	throw new Error(`${name} must be a list[Feature], got ${got}${hint}`);
+}
+
+/** Describe a runtime value's shape in Python terms, recognizing the envelope. */
+function describeShape(value: unknown): string {
+	if (value === null || value === undefined) return "None";
+	if (Array.isArray(value)) return "list";
+	if (typeof value === "object") {
+		const v = value as Record<string, unknown>;
+		if ("features" in v && "count" in v) return "FeaturesEnvelope";
+		return "dict";
+	}
+	return typeof value;
+}
+
 function normalizeFindFeaturesParams(
 	params: Record<string, unknown>,
 ): Parameters<typeof findFeaturesHost>[1] {
@@ -484,8 +534,8 @@ function normalizeSpatialJoinParams(
 	params: Record<string, unknown>,
 ): Parameters<typeof spatialJoinHost>[0] {
 	return {
-		points: (Array.isArray(params.points) ? params.points : []) as Feature[],
-		targets: (Array.isArray(params.targets) ? params.targets : []) as Feature[],
+		points: requireFeatureList(params.points, "points"),
+		targets: requireFeatureList(params.targets, "targets"),
 		operation: params.operation === "nearest" ? "nearest" : "near",
 		radius: typeof params.radius === "number" ? params.radius : 1000,
 	};

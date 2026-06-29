@@ -225,8 +225,17 @@ const CODING_ERROR_PATTERN = /^(Type|Syntax|Name|Key|Value|ModuleNotFound|Import
 const QUERY_ERROR_PATTERN =
 	/\b(Invalid Overpass query|bounding box area.*exceeds safe limit|area must specify one of)\b/;
 
+/** Shape-misuse sub-patterns: passing a FeaturesEnvelope where a bare list is
+ *  expected (the most common list/envelope confusion). The thrown error names
+ *  the wrong type and the fix; this makes it immediately retryable. */
+const SHAPE_ERROR_PATTERN = /\bmust be a list\[Feature\]\b/;
+
 function isRetryableError(text: string): boolean {
-	return CODING_ERROR_PATTERN.test(text) || QUERY_ERROR_PATTERN.test(text);
+	return (
+		CODING_ERROR_PATTERN.test(text) ||
+		QUERY_ERROR_PATTERN.test(text) ||
+		SHAPE_ERROR_PATTERN.test(text)
+	);
 }
 
 /**
