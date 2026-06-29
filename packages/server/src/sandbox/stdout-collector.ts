@@ -28,7 +28,11 @@ export class StdoutCollector {
 		if (this.truncated) return;
 		const remaining = this.budget - this.stored;
 		if (remaining <= 0) {
-			this.truncated = true;
+			// The budget is full, but truncation is a claim about CONTENT overflow
+			// (total > budget), not about storage being full. An empty fragment
+			// when stored == budget == total does not grow the total, so it must
+			// not flip the marker on its own (else we emit "~0 chars omitted").
+			if (this.total > this.budget) this.truncated = true;
 			return;
 		}
 		if (text.length <= remaining) {
