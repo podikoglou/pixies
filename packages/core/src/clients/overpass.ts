@@ -1,4 +1,4 @@
-import { Result, TaggedError } from "better-result";
+import { Result, TaggedError, matchErrorPartial } from "better-result";
 import PQueue from "p-queue";
 import { Type } from "typebox";
 import type { Static } from "typebox";
@@ -399,7 +399,10 @@ async function fetchOverpassResponse(
 		}
 		return res;
 	} catch (e) {
-		if (e instanceof OverpassBusyError || e instanceof OverpassHttpError) throw e;
+		matchErrorPartial(e as OverpassBusyError | OverpassHttpError, {
+			OverpassBusy: () => { throw e; },
+			OverpassHttp: () => { throw e; },
+		});
 		if (isAbortError(e)) throw e;
 		throw new OverpassHttpError({
 			message: `network error: ${e instanceof Error ? e.message : String(e)}`,
@@ -414,13 +417,14 @@ function isOverpassBusyResponse(status: number, body: string): boolean {
 }
 
 function toOverpassError(e: unknown): OverpassError {
-	if (e instanceof OverpassBusyError) return e;
-	if (e instanceof OverpassHttpError) return e;
-	if (e instanceof OverpassParseError) return e;
-	if (e instanceof OverpassRemarkError) return e;
-	if (e instanceof ToolAbortedError) return e;
 	if (isAbortError(e)) return new ToolAbortedError({ message: "Operation aborted", cause: e });
-	return new OverpassHttpError({ message: String(e), cause: e });
+	return matchErrorPartial(e as OverpassBusyError | OverpassHttpError | OverpassParseError | OverpassRemarkError | ToolAbortedError, {
+		OverpassBusy: (e) => e,
+		OverpassHttp: (e) => e,
+		OverpassParse: (e) => e,
+		OverpassRemark: (e) => e,
+		ToolAborted: (e) => e,
+	}) ?? new OverpassHttpError({ message: String(e), cause: e });
 }
 
 function formatCoord(lat: number, lon: number): string {
