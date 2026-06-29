@@ -1,0 +1,14 @@
+id: require-exported-function-return-type
+language: TypeScript
+rule:
+  all:
+    - kind: function_declaration
+      inside:
+        kind: export_statement
+        stopBy: end
+    - not:
+        has:
+          pattern: ') :'
+          stopBy: end
+message: "Exported functions must have explicit return type annotations."
+severity: warning

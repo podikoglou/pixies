@@ -1,0 +1,8 @@
+id: no-test-imports-in-src
+language: TypeScript
+rule:
+  all:
+    - kind: import_statement
+    - regex: '\.(test|spec)\.'
+message: "Don't import test files into src — pin behavior via public contract tests."
+severity: error

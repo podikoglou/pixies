@@ -1,0 +1,14 @@
+id: no-for-loop-array-build
+language: TypeScript
+rule:
+  any:
+    - kind: for_in_statement
+      has:
+        pattern: $ARR.push($$$VALS)
+        stopBy: end
+    - kind: for_statement
+      has:
+        pattern: $ARR.push($$$VALS)
+        stopBy: end
+message: "Use `map`/`filter` pipelines for collection→collection transforms, not for loops with push."
+severity: warning

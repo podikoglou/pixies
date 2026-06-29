@@ -1,0 +1,8 @@
+id: no-readonly-modifier
+language: TypeScript
+rule:
+  all:
+    - kind: public_field_definition
+    - regex: '^\s*(public|private|protected)?\s*readonly\s'
+message: "No `readonly` modifier on class fields — immutability is a convention, not a type constraint."
+severity: warning

@@ -1,0 +1,6 @@
+id: no-reduce
+language: TypeScript
+rule:
+  pattern: $$$X.reduce($$$ARGS)
+message: "Never use `.reduce()` for folds/aggregations — use plain `for` loops instead."
+severity: warning

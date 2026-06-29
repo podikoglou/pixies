@@ -1,0 +1,7 @@
+id: no-any
+language: TypeScript
+rule:
+  kind: predefined_type
+  regex: ^any$
+message: "Never use `any` — use `unknown` as a stopgap or redesign so you can type it."
+severity: warning

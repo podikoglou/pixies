@@ -1,0 +1,12 @@
+id: no-instanceof-error-narrowing
+language: TypeScript
+rule:
+  all:
+    - pattern: $ERROR instanceof $ERROR_TYPE
+    - not:
+        any:
+          - pattern: $VAL instanceof (Map|Set|WeakMap|WeakSet|Date|RegExp|Array|Function)
+          - pattern: $VAL instanceof DOMException
+          - pattern: $VAL instanceof Error
+message: "Narrow errors via `matchError`/`matchErrorPartial` (exhaustive, structural), not `instanceof`."
+severity: warning
