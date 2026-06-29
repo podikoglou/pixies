@@ -7,8 +7,13 @@ pre-commit:
       glob: "*.{js,jsx,ts,tsx,mjs,cjs}"
       run: node_modules/.bin/oxfmt --write {staged_files}
       stage_fixed: true
+
     - name: typecheck
       run: bun run typecheck
+
     - name: lint
       glob: "*.{js,jsx,ts,tsx,mjs,cjs}"
       run: node_modules/.bin/oxlint {staged_files}
+
+    - name: lint:ast-grep
+      run: bun run lint:ast-grep
