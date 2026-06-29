@@ -149,3 +149,30 @@ print(bus_stops["count"])`;
 	expect(result.value.displays[0]?.features).toHaveLength(1);
 	expect(result.value.displays[0]?.features?.[0]?.name).toBe("Stop A");
 });
+
+test("execute — overpass_query auto-displays features without explicit display() call", async () => {
+	// Regression: overpass_query was the only fetch primitive that did NOT
+	// auto-display. With assistant text suppressed on the wire, a miscount
+	// there rendered nothing (blank screen). It now auto-displays like the
+	// other fetch primitives and returns a FeaturesEnvelope (features/count,
+	// not elements).
+	const executor = new MontyExecutor({
+		nominatim: fakeNominatim([]),
+		overpass: fakeOverpass([
+			{
+				type: "node",
+				id: 7,
+				lat: 53.48,
+				lon: -2.24,
+				tags: { name: "Node Seven", amenity: "cafe" },
+			},
+		]),
+	});
+	const code = `result = overpass_query("[out:json][timeout:5];node(7);out center;")
+print(result["count"])`;
+	const result = await executor.execute(code, {});
+	if (Result.isError(result)) throw result.error;
+	expect(result.value.displays).toHaveLength(1);
+	expect(result.value.displays[0]?.features).toHaveLength(1);
+	expect(result.value.displays[0]?.features?.[0]?.name).toBe("Node Seven");
+});

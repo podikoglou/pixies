@@ -208,7 +208,10 @@ export class MontyExecutor implements CodeExecutor {
 			overpass_query: async (...args: unknown[]) => {
 				const query = String(args[0] ?? "");
 				const result = await overpassQueryHost(ctx, query);
-				print(`overpass_query() → ${result.count} element(s)\n`);
+				print(`overpass_query() → ${result.count}\n`);
+				if (result.features.length > 0) {
+					onDisplay({ features: result.features });
+				}
 				return result;
 			},
 
