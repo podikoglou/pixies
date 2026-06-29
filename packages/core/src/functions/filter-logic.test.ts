@@ -1,4 +1,5 @@
 import { test, expect } from "bun:test";
+import fc from "fast-check";
 import { compileWhere, applyTagsFilter, applySortBy, parseOsmNumber } from "./filter-logic.ts";
 
 interface FilterableElement {
@@ -505,33 +506,57 @@ test("applySortBy: name key reads el.name", () => {
 // ---------------------------------------------------------------------------
 // parseOsmNumber
 // ---------------------------------------------------------------------------
+//
+// OSM stores numbers as strings in many loose but equivalent formats. The
+// contract: every accepted representation of a given integer parses to that
+// SAME number — plain, thousands-separated (',' or ' '), and the approximate
+// prefixes (~, ≈, c.). The hand-picked examples below only witness a couple of
+// values; the properties assert the equivalence for ANY integer, which is where
+// a fiddly grouping regex (`\d{1,3}(?:[ ,]?\d{3})*`) actually breaks — boundary
+// digit counts and separator placement that 30000 / 1234567 never exercise.
 
-test("parseOsmNumber: plain number", () => {
-	expect(parseOsmNumber("30000")).toBe(30000);
+/** Format |n| with `sep` grouping every three digits from the right (sign kept). */
+function withThousandsSep(n: number, sep: string): string {
+	const sign = n < 0 ? "-" : "";
+	const digits = String(Math.abs(n));
+	let out = "";
+	for (let i = 0; i < digits.length; i++) {
+		if (i > 0 && (digits.length - i) % 3 === 0) out += sep;
+		out += digits[i]!;
+	}
+	return sign + out;
+}
+
+test("parseOsmNumber: plain, comma, and space forms all equal the integer, for any integer", () => {
+	fc.assert(
+		fc.property(fc.integer({ min: -1_000_000_000, max: 1_000_000_000 }), (n) => {
+			const got = new Set([
+				parseOsmNumber(String(n)),
+				parseOsmNumber(withThousandsSep(n, ",")),
+				parseOsmNumber(withThousandsSep(n, " ")),
+			]);
+			return got.size === 1 && got.has(n);
+		}),
+	);
 });
 
-test("parseOsmNumber: space-separated thousands", () => {
-	expect(parseOsmNumber("30 000")).toBe(30000);
+test("parseOsmNumber: ~, ≈, and c. prefixes equal the plain value, for any non-negative integer", () => {
+	fc.assert(
+		fc.property(fc.integer({ min: 0, max: 1_000_000_000 }), (n) => {
+			const plain = String(n);
+			return (
+				parseOsmNumber(`~${plain}`) === n &&
+				parseOsmNumber(`≈${plain}`) === n &&
+				parseOsmNumber(`c. ${plain}`) === n
+			);
+		}),
+	);
 });
 
-test("parseOsmNumber: comma-separated thousands", () => {
-	expect(parseOsmNumber("30,000")).toBe(30000);
-});
-
-test("parseOsmNumber: approximate tilde prefix", () => {
-	expect(parseOsmNumber("~30000")).toBe(30000);
-});
-
-test("parseOsmNumber: approximate 'c.' prefix", () => {
-	expect(parseOsmNumber("c. 30000")).toBe(30000);
-});
+// Rejection / distinct-contract cases (not covered by the equivalence property):
 
 test("parseOsmNumber: uppercase 'C.' prefix is rejected (acceptable regex requires lowercase c.)", () => {
 	expect(parseOsmNumber("C. 30000")).toBeNull();
-});
-
-test("parseOsmNumber: negative number", () => {
-	expect(parseOsmNumber("-100")).toBe(-100);
 });
 
 test("parseOsmNumber: decimal number", () => {
@@ -558,18 +583,6 @@ test("parseOsmNumber: whitespace padding", () => {
 	expect(parseOsmNumber("  30000  ")).toBe(30000);
 });
 
-test("parseOsmNumber: approx symbol (≈) prefix", () => {
-	expect(parseOsmNumber("≈30000")).toBe(30000);
-});
-
-test("parseOsmNumber: multi-digit thousands separator", () => {
-	expect(parseOsmNumber("1 234 567")).toBe(1234567);
-});
-
-test("parseOsmNumber: comma and space mixed thousands", () => {
-	expect(parseOsmNumber("1,234,567")).toBe(1234567);
-});
-
 test("parseOsmNumber: empty string returns null", () => {
 	expect(parseOsmNumber("")).toBeNull();
 });
@@ -581,8 +594,4 @@ test("parseOsmNumber: negative decimal", () => {
 test("parseOsmNumber: number with trailing unit is rejected", () => {
 	// The regex ends with \s*$ so trailing non-whitespace chars are not accepted
 	expect(parseOsmNumber("42 m")).toBeNull();
-});
-
-test("parseOsmNumber: negative space-separated thousands", () => {
-	expect(parseOsmNumber("-1 234")).toBe(-1234);
 });
