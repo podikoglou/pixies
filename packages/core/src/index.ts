@@ -26,7 +26,7 @@ export {
 export type { NominatimError } from "./clients/nominatim.ts";
 export type { OverpassError } from "./clients/overpass.ts";
 export type { StreamPromptError, PixiesError, PixiesErrorTag } from "./errors.ts";
-export { PixiesErrorTagSchema } from "./errors.ts";
+export { PixiesErrorTagSchema, BudgetExceededDetailsSchema } from "./errors.ts";
 
 export {
 	createAgent,

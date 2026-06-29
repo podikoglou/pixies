@@ -70,6 +70,17 @@ export class BudgetExceededError extends TaggedError("BudgetExceeded")<{
 	}
 }
 
+/**
+ * TypeBox mirror of the {@link BudgetExceededError}`toJSON()` payload's
+ * used/budget fields (ADR-0002). The web client parses the SSE `error` event's
+ * `details` through this schema instead of `as`-casting the shape, so a
+ * malformed payload deterministically yields `undefined` rather than a type-lie.
+ */
+export const BudgetExceededDetailsSchema = Type.Object({
+	used: Type.Number(),
+	budget: Type.Number(),
+});
+
 // --- HTTP request parsing ---
 
 /** Request body was not valid JSON. */
