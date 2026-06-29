@@ -152,7 +152,7 @@ export function joinContentText(content: unknown, separator = ""): string {
 }
 
 export function transcriptToItems(transcript: ConversationTranscript): TimelineItem[] {
-	return transcript.messages.flatMap((msg) => {
+	return transcript.messages.flatMap((msg): TimelineItem[] => {
 		switch (msg.role) {
 			case "user":
 				return [{ kind: "user-message" as const, text: joinContentText(msg.content, "") }];
