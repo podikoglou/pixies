@@ -250,14 +250,18 @@ function captureBudgetExceeded(
 	});
 }
 
-// Bun augments route handler Request objects with `params`. Use a permissive
-// input type so the wrapper works for both plain and parametric routes.
-type RouteHandler = (req: any, server: Bun.Server<undefined>) => Response | Promise<Response>;
+// Bun augments route handler Request objects with `params`. Use a broader
+// Request type so the wrapper works for both plain and parametric routes.
+type RouteHandler = (req: Request, server: Bun.Server<undefined>) => Response | Promise<Response>;
+
+function params(req: Request): Record<string, string> {
+	return (req as Request & { params: Record<string, string> }).params;
+}
 
 function withRequestLogging(
 	logger: Logger,
 	handler: RouteHandler,
-): (req: any, server: Bun.Server<undefined>) => Promise<Response> {
+): (req: Request, server: Bun.Server<undefined>) => Promise<Response> {
 	return async (req, server) => {
 		const start = Date.now();
 		const res = await handler(req, server);
@@ -390,7 +394,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 						captureRateLimitDenied(posthog, ip, "/conversations/:id/messages");
 						return denied;
 					}
-					const id = req.params.id;
+					const id = params(req).id!;
 					const parsed = await readMessage(req);
 					if (!parsed.ok) return Response.json({ error: parsed.error }, { status: parsed.status });
 					server.timeout(req, 0);
@@ -407,7 +411,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 			},
 			"/conversations/:id": {
 				GET: withRequestLogging(logger, async (req) => {
-					const id = req.params.id;
+					const id = params(req).id!;
 					const conv = await store.get(id);
 					if (!conv)
 						return Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
@@ -417,7 +421,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 					return Response.json({ id, messages });
 				}),
 				DELETE: withRequestLogging(logger, (req) => {
-					const id = req.params.id;
+					const id = params(req).id!;
 					const ok = store.delete(id);
 					if (ok) captureServerEvent(posthog, id, "conversation deleted", {});
 					return ok
