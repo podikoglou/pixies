@@ -1,5 +1,11 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { isBusyResult, isTaggedError, toolResultCount, type ToolProgress } from "@pixies/core";
+import {
+	isBusyResult,
+	isTaggedError,
+	toolResultCount,
+	type PrimitiveTraceEntry,
+	type ToolProgress,
+} from "@pixies/core";
 import type { Logger } from "@pixies/core/logging";
 import { captureServerEvent, type ToolCallOutcome } from "./analytics-events.ts";
 import type { PostHogAnalyticsClient } from "./posthog.ts";
@@ -49,6 +55,36 @@ function deriveOutcome(
 	if (isBusy) return "busy";
 	if (count === 0) return "empty";
 	return "success";
+}
+
+/**
+ * Extract the primitive trace from `details.primitives` and derive the two
+ * analytics properties: an ordered name list (preserves repetition + order)
+ * and a collapsed timing map (primitive name → total ms).
+ *
+ * Returns `undefined` when no trace is present (non-execute_code tools,
+ * errored cells where pi-agent-core flattens details to `{}`).
+ */
+function extractPrimitiveTrace(
+	details: unknown,
+): { names: string[]; timings: Record<string, number> } | undefined {
+	const raw = (details as { primitives?: unknown } | null | undefined)?.primitives;
+	if (!Array.isArray(raw) || raw.length === 0) return undefined;
+	const names: string[] = [];
+	const timings: Record<string, number> = {};
+	for (const entry of raw as unknown[]) {
+		if (
+			typeof entry === "object" &&
+			entry !== null &&
+			typeof (entry as PrimitiveTraceEntry).name === "string" &&
+			typeof (entry as PrimitiveTraceEntry).duration_ms === "number"
+		) {
+			const { name, duration_ms } = entry as PrimitiveTraceEntry;
+			names.push(name);
+			timings[name] = (timings[name] ?? 0) + duration_ms;
+		}
+	}
+	return names.length > 0 ? { names, timings } : undefined;
 }
 
 /** Ingredients for the byte-identical `error` SSE wire frame, from {@link StreamInstrumentation.fail}. */
@@ -123,6 +159,10 @@ export class StreamInstrumentation {
 	// `turn_start` ({@link recordTurnStart}).
 	private turnIndex = 0;
 	private turnStartAt: number = this.startTime;
+	// Running sum of all tool-execution durations. Shipped on `done` and
+	// `disconnect` so PostHog can split wall-clock into tool time vs LLM time
+	// (llm_ms = duration_ms - total_tool_ms) without a cross-event join.
+	private totalToolMs = 0;
 	// Per-tool-execution tracking, keyed by `toolCallId`. Each entry stamps the
 	// `tool_execution_start` time and (optionally) the rate-limiter queue-wait
 	// window from `tool_execution_update` progress. Cleaned up at
@@ -276,12 +316,19 @@ export class StreamInstrumentation {
 		const isBusy = isBusyResult(details);
 		const count = toolResultCount(toolName, details);
 		const outcome = deriveOutcome(isError, isBusy, count);
+		const duration = Date.now() - startedAt;
+		this.totalToolMs += duration;
+		// Derive primitive-trace analytics from details.primitives (set by the
+		// executor for execute_code). Privacy: only names (fixed-vocab ids) and
+		// integer durations — never args, results, or error messages.
+		const trace = extractPrimitiveTrace(details);
 		captureServerEvent(this.posthog, this.distinctId, "tool call", {
 			tool_name: toolName,
 			outcome,
-			duration_ms: Date.now() - startedAt,
+			duration_ms: duration,
 			...(entry?.queuedAt !== undefined ? { queue_wait_ms: entry.queuedAt } : {}),
 			...(count !== undefined && !isError && !isBusy ? { result_count: count } : {}),
+			...(trace ? { primitives: trace.names, primitive_timings_ms: trace.timings } : {}),
 		});
 	}
 
@@ -299,6 +346,7 @@ export class StreamInstrumentation {
 		const durationMs = Date.now() - this.startTime;
 		captureServerEvent(this.posthog, this.distinctId, "agent stream done", {
 			duration_ms: durationMs,
+			total_tool_ms: this.totalToolMs,
 			...(this.firstTokenMs !== undefined ? { ttft_ms: this.firstTokenMs } : {}),
 		});
 		this.state = "completed";
@@ -321,6 +369,7 @@ export class StreamInstrumentation {
 		captureServerEvent(this.posthog, this.distinctId, "agent stream disconnect", {
 			elapsed_ms: Date.now() - this.startTime,
 			had_output: this.firstOutputAt !== undefined,
+			total_tool_ms: this.totalToolMs,
 		});
 	}
 
