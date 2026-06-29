@@ -231,13 +231,14 @@ export function spatialJoinHost(params: SpatialJoinParams): SpatialPair[] {
 	return pairs;
 }
 
-/** Run a raw Overpass QL query and return features. Escape hatch — prefer find_featuresHost. */
+/** Run a raw Overpass QL query and return features. Escape hatch — prefer find_featuresHost. Returns the same envelope shape as the other fetch primitives: `features`, `count` (== len(features)), and `truncated` (always false — the raw QL string's `out N` limit is inside the query text, unparsed by the executor, so truncation cannot be detected here). */
 export async function overpassQueryHost(
 	ctx: HostContext,
 	query: string,
 ): Promise<{
-	elements: Feature[];
+	features: Feature[];
 	count: number;
+	truncated: boolean;
 }> {
 	const result = await ctx.overpass.query(query, ctx.signal);
 	if (Result.isError(result)) {
@@ -245,7 +246,7 @@ export async function overpassQueryHost(
 		throw new Error(result.error.message);
 	}
 	const features = elementsToFeatures(result.value.elements ?? []);
-	return { elements: features, count: features.length };
+	return { features, count: features.length, truncated: false };
 }
 
 /** Map a raw Nominatim hit to the canonical GeocodeResult. Extracts bbox and up to 3 alternatives. */
