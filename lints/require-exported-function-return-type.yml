@@ -7,8 +7,6 @@ rule:
         kind: export_statement
         stopBy: end
     - not:
-        any:
-          - pattern: 'function $_($$$): $_ { $$$ }'
-          - pattern: 'function $_<$$$>($$$): $_ { $$$ }'
+        regex: "\\):"
 message: "Exported functions must have explicit return type annotations."
 severity: warning
