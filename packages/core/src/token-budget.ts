@@ -1,5 +1,19 @@
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { BudgetExceededError } from "./errors.ts";
+
+/**
+ * Permissive shape of a persisted assistant message's `usage` field. A LIVE
+ * assistant message declares `usage: Usage` (with `totalTokens: number`) as
+ * required, but the messages summed here are persisted, untrusted data
+ * (ADR-0008) that may lack it — every field is optional so a row written by an
+ * older binary still checks, and the count path signals the gap via
+ * `missingUsage` instead of mis-typing the agent state.
+ */
+const AssistantUsageSchema = Type.Object({
+	usage: Type.Optional(Type.Object({ totalTokens: Type.Optional(Type.Number()) })),
+});
 
 /**
  * Token-budget enforcement for conversations — the single typed home for the
@@ -39,16 +53,17 @@ export interface TranscriptTokenCount {
  * Count tokens consumed by a transcript.
  *
  * Narrows on `role === "assistant"` (the `AgentMessage` union's discriminant)
- * and reads `usage.totalTokens` through a permissive structural shape. A LIVE
+ * and reads `usage.totalTokens` through {@link AssistantUsageSchema}. A LIVE
  * assistant message declares `usage: Usage` (with `totalTokens: number`) as
  * required, so typed narrowing alone would suffice for in-memory data — but
  * the messages summed here are `conv.agent.state.messages`, which after
  * rehydration is **persisted, untrusted** data (ADR-0008): an assistant row
- * written by an older binary may lack `usage` entirely. Reading the field
- * through `{ usage?: { totalTokens?: unknown } }` is type-safe (the optional
- * is explicit) and documents that contract, replacing the prior
- * `(msg as any).usage` cast — the only `any` on the budget path — while
- * keeping the exact same arithmetic (a usage-less message counts as 0).
+ * written by an older binary may lack `usage` entirely. Validating it with
+ * `Value.Check` against a permissive schema (every field optional) is the
+ * type-safe way to honor that contract — a missing/`undefined`/non-number
+ * field becomes a typed branch (counted in `missingUsage`) instead of a
+ * runtime hole — while keeping the exact same arithmetic (a usage-less
+ * message counts as 0).
  *
  * Non-assistant messages (user, toolResult) carry no usage and are skipped.
  */
@@ -57,12 +72,17 @@ export function countTranscriptTokens(messages: readonly AgentMessage[]): Transc
 	let missingUsage = 0;
 	for (const msg of messages) {
 		if (msg.role !== "assistant") continue;
-		// Permissive structural read: persisted data may omit `usage` (ADR-0008).
-		// `as any` is deliberately avoided — this cast is to an explicit optional
-		// shape, so a missing/`undefined`/non-number field is a typed branch.
-		const usage = (msg as { usage?: { totalTokens?: unknown } }).usage;
-		if (typeof usage?.totalTokens === "number") {
-			total += usage.totalTokens;
+		// Persisted, untrusted data (ADR-0008): read `usage.totalTokens` through
+		// the permissive {@link AssistantUsageSchema} rather than the live
+		// `AgentMessage` type, so a missing/undefined field is a typed branch
+		// (counted in `missingUsage`) instead of a runtime hole.
+		if (!Value.Check(AssistantUsageSchema, msg)) {
+			missingUsage += 1;
+			continue;
+		}
+		const totalTokens = msg.usage?.totalTokens;
+		if (typeof totalTokens === "number") {
+			total += totalTokens;
 		} else {
 			// Undercount by design (0 tokens), but signaled via missingUsage so the
 			// rehydrate path can warn once instead of silently mis-budgeting.
