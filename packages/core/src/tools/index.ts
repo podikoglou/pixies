@@ -33,6 +33,9 @@ export {
 	overpassQueryHost,
 } from "../functions/host-functions.ts";
 
+export { renderDiagnosisLines, computeDiagnosis, levenshtein } from "../functions/diagnosis.ts";
+export type { Diagnosis, ResolvedKind, ResolvedPlace } from "../functions/diagnosis.ts";
+
 const TOOL_MODULES = {
 	execute_code: executeCodeModule,
 } as const;
