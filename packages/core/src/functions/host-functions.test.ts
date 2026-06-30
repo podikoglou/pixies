@@ -9,6 +9,11 @@ import {
 	NominatimHttpError,
 } from "../clients/nominatim.ts";
 import type { OverpassClient } from "../clients/overpass.ts";
+import {
+	OVERPASS_BUSY_MESSAGE,
+	OverpassBusyError,
+	OverpassHttpError,
+} from "../clients/overpass.ts";
 import { haversineMeters } from "./haversine.ts";
 
 import {
@@ -17,6 +22,7 @@ import {
 	geocodeHost,
 	findFeaturesHost,
 	searchHost,
+	overpassQueryHost,
 	type HostContext,
 	type Feature,
 } from "./host-functions.ts";
@@ -421,13 +427,15 @@ test("geocodeHost — NominatimBusy error throws with busy message", async () =>
 	await expect(geocodeHost(ctx, "anywhere")).rejects.toThrow(NOMINATIM_BUSY_MESSAGE);
 });
 
-test("geocodeHost — other errors throw with error message", async () => {
+test("geocodeHost — non-busy errors throw the original TaggedError (preserve _tag/cause)", async () => {
 	const ctx = mockCtx({
 		nominatim: {
 			search: () => Promise.resolve(Result.err(new NominatimHttpError({ message: "Bad request" }))),
 		},
 	});
 	await expect(geocodeHost(ctx, "anywhere")).rejects.toThrow("Bad request");
+	await expect(geocodeHost(ctx, "anywhere")).rejects.toBeInstanceOf(NominatimHttpError);
+	await expect(geocodeHost(ctx, "anywhere")).rejects.toMatchObject({ _tag: "NominatimHttp" });
 });
 
 test("geocodeHost — alternatives are populated from extra hits", async () => {
@@ -751,4 +759,24 @@ test("searchHost — NominatimBusy error throws with busy message", async () => 
 		},
 	});
 	await expect(searchHost(ctx, "x")).rejects.toThrow(NOMINATIM_BUSY_MESSAGE);
+});
+
+test("overpassQueryHost — OverpassBusy error throws with busy message", async () => {
+	const ctx = mockCtx({
+		overpass: {
+			query: () => Promise.resolve(Result.err(new OverpassBusyError({ status: 503 }))),
+		},
+	});
+	await expect(overpassQueryHost(ctx, "node")).rejects.toThrow(OVERPASS_BUSY_MESSAGE);
+});
+
+test("overpassQueryHost — non-busy errors throw the original TaggedError (preserve _tag)", async () => {
+	const ctx = mockCtx({
+		overpass: {
+			query: () => Promise.resolve(Result.err(new OverpassHttpError({ message: "Bad gateway" }))),
+		},
+	});
+	await expect(overpassQueryHost(ctx, "node")).rejects.toThrow("Bad gateway");
+	await expect(overpassQueryHost(ctx, "node")).rejects.toBeInstanceOf(OverpassHttpError);
+	await expect(overpassQueryHost(ctx, "node")).rejects.toMatchObject({ _tag: "OverpassHttp" });
 });
