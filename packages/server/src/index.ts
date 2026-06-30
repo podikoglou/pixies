@@ -358,6 +358,50 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 		trustedProxyHops: config.trustedProxyHops,
 		logger,
 	});
+
+	type StreamAnalyticsEvent = "conversation started" | "message sent";
+
+	interface StreamMessageHandlerOpts {
+		rateLimitPath: string;
+		analyticsEvent: StreamAnalyticsEvent;
+		resolveId: (req: BunRequest) => string;
+		onOpen?: (writer: SseWriter, id: string) => void;
+	}
+
+	function streamMessageHandler(
+		opts: StreamMessageHandlerOpts,
+	): (req: BunRequest, server: Bun.Server<undefined>) => Promise<Response> {
+		const { rateLimitPath, analyticsEvent, resolveId, onOpen } = opts;
+		return async (req, server) => {
+			const ip = getClientIp(req, server, rateLimiter.trustProxy, rateLimiter.trustedProxyHops);
+			const denied = checkRateLimit(ip, rateLimiter);
+			if (denied) {
+				captureRateLimitDenied(posthog, ip, rateLimitPath);
+				return denied;
+			}
+			const parsed = await readMessage(req);
+			if (Result.isError(parsed)) return rejectMessageError(parsed.error);
+			const id = resolveId(req);
+			server.timeout(req, 0);
+			const result = await store.streamPrompt(id, parsed.value.message);
+			if (Result.isError(result)) {
+				captureBudgetExceeded(posthog, id, result.error);
+				return rejectStream(result.error);
+			}
+			captureServerEvent(posthog, id, analyticsEvent, {
+				message_length: parsed.value.message.length,
+			});
+			return pipeAgentStream(
+				store,
+				result.value,
+				id,
+				logger,
+				posthog,
+				onOpen && ((w) => onOpen(w, id)),
+			);
+		};
+	}
+
 	const hostname = opts.host ?? config.host;
 	const port = opts.port ?? config.port;
 
@@ -369,52 +413,27 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 				Response.json({ status: "ok", conversations: store.size() }),
 			),
 			"/conversations": {
-				POST: withRequestLogging(logger, async (req, server) => {
-					const ip = getClientIp(req, server, rateLimiter.trustProxy, rateLimiter.trustedProxyHops);
-					const denied = checkRateLimit(ip, rateLimiter);
-					if (denied) {
-						captureRateLimitDenied(posthog, ip, "/conversations");
-						return denied;
-					}
-					const parsed = await readMessage(req);
-					if (Result.isError(parsed)) return rejectMessageError(parsed.error);
-					const id = store.create();
-					server.timeout(req, 0);
-					const result = await store.streamPrompt(id, parsed.value.message);
-					if (Result.isError(result)) {
-						captureBudgetExceeded(posthog, id, result.error);
-						return rejectStream(result.error);
-					}
-					captureServerEvent(posthog, id, "conversation started", {
-						message_length: parsed.value.message.length,
-					});
-					return pipeAgentStream(store, result.value, id, logger, posthog, (w) =>
-						w.write("conversation_created", { id }),
-					);
-				}),
+				POST: withRequestLogging(
+					logger,
+					streamMessageHandler({
+						rateLimitPath: "/conversations",
+						analyticsEvent: "conversation started",
+						resolveId: (_req) => store.create(),
+						onOpen: (w, id) => {
+							w.write("conversation_created", { id });
+						},
+					}),
+				),
 			},
 			"/conversations/:id/messages": {
-				POST: withRequestLogging(logger, async (req, server) => {
-					const ip = getClientIp(req, server, rateLimiter.trustProxy, rateLimiter.trustedProxyHops);
-					const denied = checkRateLimit(ip, rateLimiter);
-					if (denied) {
-						captureRateLimitDenied(posthog, ip, "/conversations/:id/messages");
-						return denied;
-					}
-					const id = req.params.id!;
-					const parsed = await readMessage(req);
-					if (Result.isError(parsed)) return rejectMessageError(parsed.error);
-					server.timeout(req, 0);
-					const result = await store.streamPrompt(id, parsed.value.message);
-					if (Result.isError(result)) {
-						captureBudgetExceeded(posthog, id, result.error);
-						return rejectStream(result.error);
-					}
-					captureServerEvent(posthog, id, "message sent", {
-						message_length: parsed.value.message.length,
-					});
-					return pipeAgentStream(store, result.value, id, logger, posthog);
-				}),
+				POST: withRequestLogging(
+					logger,
+					streamMessageHandler({
+						rateLimitPath: "/conversations/:id/messages",
+						analyticsEvent: "message sent",
+						resolveId: (req) => req.params.id!,
+					}),
+				),
 			},
 			"/conversations/:id": {
 				GET: withRequestLogging(logger, async (req) => {
