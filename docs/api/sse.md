@@ -255,9 +255,23 @@ Emitted exactly once at the end of every successful stream, after all agent even
 
 Emitted when the agent encounters a fatal error during the prompt (provider failure, etc.). The stream terminates after this event.
 
+`message` is always present (the wire contract since launch). `errorTag` and `details` are **additive** and optional: when the server catches a tagged error it forwards its tag and a snapshot of its props so clients can render tag-specific copy. Old clients ignore the unknown fields; new clients fall back to `message` when `errorTag` is absent.
+
 ```json
 { "message": "provider rate limit exceeded" }
 ```
+
+A tagged error carries its tag and details:
+
+```json
+{
+  "message": "conversation token budget (2) exceeded: used 2",
+  "errorTag": "BudgetExceeded",
+  "details": { "used": 2, "budget": 2 }
+}
+```
+
+`errorTag` is one of the `PixiesErrorTag` literals — e.g. `OverpassBusy`, `NominatimBusy`, `BudgetExceeded`, `ToolAborted`, `ConversationNotFound`, `InvalidTranscript`. `details` is a per-tag snapshot (the error's `toJSON()`); its shape is tag-specific and clients should narrow on `errorTag` before reading it. Forward-compatibility: new tags may be added; clients must treat an unknown `errorTag` as a generic error (render `message`).
 
 Tool errors do **not** fire this event — they fire `tool_execution_end` with `isError: true`, and the agent continues normally to the next turn.
 
