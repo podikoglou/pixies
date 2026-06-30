@@ -154,6 +154,12 @@ export const PixiesConfigSchema = Type.Object({
 		description:
 			"Max tokens (input + output) a single conversation may consume across all turns. 0 = unlimited.",
 	}),
+	maxPromptChars: Type.Integer({
+		minimum: 1,
+		default: 20000,
+		description:
+			"Max characters accepted in a single incoming prompt (env: PIXIES_MAX_PROMPT_CHARS). Over-long prompts are rejected at the HTTP boundary with 400 before reaching the agent. Always-on (minimum 1, no 0 sentinel).",
+	}),
 });
 
 export type ResolvedPixiesConfig = Static<typeof PixiesConfigSchema>;

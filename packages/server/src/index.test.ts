@@ -48,6 +48,7 @@ const config: ResolvedPixiesConfig = {
 	overpassTimeoutMs: 60_000,
 	posthogHost: "https://eu.i.posthog.com",
 	conversationTokenBudget: 0,
+	maxPromptChars: 20000,
 };
 
 const instance: ServerInstance = startServer({

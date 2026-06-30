@@ -303,6 +303,7 @@ const NUMERIC_FIELD_SPECS: readonly NumericFieldSpec[] = [
 		defaultValue: 10_000,
 		min: 1,
 	},
+	{ envKey: "PIXIES_MAX_PROMPT_CHARS", field: "maxPromptChars", defaultValue: 20000, min: 1 },
 ];
 
 for (const spec of NUMERIC_FIELD_SPECS) {

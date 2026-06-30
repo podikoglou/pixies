@@ -117,6 +117,7 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 			posthogHost: env("PIXIES_POSTHOG_HOST"),
 			posthogApiKey: env("PIXIES_POSTHOG_API_KEY"),
 			conversationTokenBudget: num("PIXIES_CONVERSATION_TOKEN_BUDGET"),
+			maxPromptChars: num("PIXIES_MAX_PROMPT_CHARS"),
 		}),
 	);
 }
