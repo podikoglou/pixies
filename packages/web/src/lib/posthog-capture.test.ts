@@ -57,9 +57,9 @@ test("captureEvent no-ops when PostHog is disabled (client undefined)", () => {
 		captureEvent(undefined, "message_sent", { is_new_conversation: true }),
 	).not.toThrow();
 	expect(() => captureEvent(undefined, "map_opened", { marker_count: 3 })).not.toThrow();
-	expect(() => captureEvent(undefined, "tool_error", { tool_name: "query_osm" })).not.toThrow();
+	expect(() => captureEvent(undefined, "tool_error", { tool_name: "execute_code" })).not.toThrow();
 	expect(() =>
-		captureEvent(undefined, "tool_empty", { tool_name: "query_osm", result_count: 0 }),
+		captureEvent(undefined, "tool_empty", { tool_name: "execute_code", result_count: 0 }),
 	).not.toThrow();
 	expect(() => captureEvent(undefined, "user_stop", { had_output: true })).not.toThrow();
 });
@@ -87,18 +87,18 @@ test("captureEvent emits map_opened with the marker count", () => {
 test("captureEvent emits tool_error with the tool name only", () => {
 	const { client, captured } = recordingClient();
 
-	captureEvent(client, "tool_error", { tool_name: "query_osm" });
+	captureEvent(client, "tool_error", { tool_name: "execute_code" });
 
-	expect(captured).toEqual([{ event: "tool_error", props: { tool_name: "query_osm" } }]);
+	expect(captured).toEqual([{ event: "tool_error", props: { tool_name: "execute_code" } }]);
 });
 
 test("captureEvent emits tool_empty with the tool name and feature count", () => {
 	const { client, captured } = recordingClient();
 
-	captureEvent(client, "tool_empty", { tool_name: "query_osm", result_count: 0 });
+	captureEvent(client, "tool_empty", { tool_name: "execute_code", result_count: 0 });
 
 	expect(captured).toEqual([
-		{ event: "tool_empty", props: { tool_name: "query_osm", result_count: 0 } },
+		{ event: "tool_empty", props: { tool_name: "execute_code", result_count: 0 } },
 	]);
 });
 
@@ -115,37 +115,46 @@ test("captureEvent emits user_stop with the had_output flag", () => {
 });
 
 // ---- toolResultCount --------------------------------------------------------
-// `details` stubs mirror the real tool `details` shapes: query_osm/geocode use
-// `{ data: entries }`; reverse_geocode uses `{ data: entry }` (or undefined on
-// no result); busy soft-failures use `{ busy: true, data: [] }` (geocode) /
-// `{ busy: true }` (query_osm). See parse-result.test.ts.
+// `details` mirrors the execute_code `details` shape: `{ stdout, displays }`
+// where each display may carry `features` or `markers`. Busy soft-failures use
+// `{ busy: true }`. See parse-result.test.ts.
 
-const osmEntry = { type: "node" as const, id: 1, lat: 1, lon: 2, name: "A" };
+const feature = { id: "node/1", lat: 1, lon: 2, name: "A" };
 
-test("toolResultCount query_osm — empty data is 0", () => {
-	expect(toolResultCount("query_osm", { data: [] })).toBe(0);
+test("toolResultCount execute_code — empty displays is 0", () => {
+	expect(toolResultCount("execute_code", { stdout: "", displays: [] })).toBe(0);
 });
 
-test("toolResultCount query_osm — raw entry count (not bucketed)", () => {
-	expect(toolResultCount("query_osm", { data: Array.from({ length: 6 }, () => osmEntry) })).toBe(6);
-});
-
-test("toolResultCount reverse_geocode — success is 1", () => {
+test("toolResultCount execute_code — counts features across displays", () => {
 	expect(
-		toolResultCount("reverse_geocode", { data: { placeId: 9, lat: 1, lon: 2, name: "X" } }),
-	).toBe(1);
+		toolResultCount("execute_code", {
+			stdout: "",
+			displays: [{ features: [feature, feature, feature] }],
+		}),
+	).toBe(3);
 });
 
-test("toolResultCount reverse_geocode — no result (undefined details) is 0", () => {
-	expect(toolResultCount("reverse_geocode", undefined)).toBe(0);
+test("toolResultCount execute_code — falls back to markers when no features", () => {
+	expect(
+		toolResultCount("execute_code", {
+			stdout: "",
+			displays: [
+				{
+					markers: [
+						{ lat: 1, lon: 2 },
+						{ lat: 3, lon: 4 },
+					],
+				},
+			],
+		}),
+	).toBe(2);
 });
 
-test("toolResultCount — busy soft-failure does not fire", () => {
-	expect(toolResultCount("geocode", { busy: true, data: [] })).toBeUndefined();
-	expect(toolResultCount("query_osm", { busy: true })).toBeUndefined();
+test("toolResultCount execute_code — busy soft-failure does not fire", () => {
+	expect(toolResultCount("execute_code", { busy: true })).toBeUndefined();
 });
 
 test("toolResultCount — non-data-fetch and unknown tools do not fire", () => {
 	expect(toolResultCount("display_map", { data: { markers: [] } })).toBeUndefined();
-	expect(toolResultCount("some_other_tool", { data: [osmEntry] })).toBeUndefined();
+	expect(toolResultCount("some_other_tool", { data: [feature] })).toBeUndefined();
 });

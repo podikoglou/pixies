@@ -1,0 +1,182 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: >
+  Pixies agent evals. Probes the place agent (geocode / find_features / search /
+  spatial_join / profile / filter) for answer accuracy AND for the failure mode
+  the suite exists to catch: the agent giving up before reaching a displayed
+  answer. Each case hits the live SSE endpoint via a custom provider; an
+  `answered` javascript assert gates on a real displayed result, and an
+  llm-rubric grades quality. Runs each case `repeat` times to tame variance.
+
+# Passthrough prompt: the test's `message` var is rendered and POSTed by the provider.
+prompts:
+  - "{{message}}"
+
+providers:
+  - file://src/pixies_provider.mjs
+
+# Defaults applied to every test case.
+defaultTest:
+  assert:
+    # Primary gate — deterministic. The agent must reach a real displayed map
+    # answer. This is what catches "it gives up": status=gave_up means it wrote
+    # code but never produced a display, and the run is marked a failure with a
+    # reason pointing at the transcript for debugging.
+    - type: javascript
+      metric: answered
+      value: |
+        const m = context.providerResponse?.metadata;
+        if (!m) return { pass: false, score: 0, reason: "no metadata returned by provider" };
+        if (m.status === "answered")
+          return { pass: true, score: 1, reason: `status=answered (${m.displaysCount} item(s) shown, ${m.retryCount} retry(ies))` };
+        const detail = m.errorEvent ? ` — ${JSON.stringify(m.errorEvent)}` : "";
+        return {
+          pass: false,
+          score: 0,
+          reason: `status=${m.status}${detail} (toolCalls=${m.toolCallCount}, displays=${m.displaysCount}) — see transcript`,
+        };
+    # Shared quality rubric — graded only meaningfully once `answered` passes.
+    # The Pixies agent emits NO prose; judge purely from the tool transcript.
+    - type: llm-rubric
+      metric: quality
+      value: |
+        You are grading a Pixies agent run. The agent answers place questions
+        using OpenStreetMap data and emits NO prose — its entire answer is in
+        the DISPLAYS section (real OSM features/markers/pairs) and the stdout
+        of its execute_code calls in the transcript.
+        Pass ONLY if ALL hold:
+          (a) DISPLAYS actually address the user's question — right place AND
+              right feature kind, drawn from the tool results (not invented).
+          (b) No fabricated or hallucinated places; coordinates cluster in the
+              region the user asked about.
+          (c) The agent does not pass off an error, an empty result, or an
+              intermediate step (e.g. geocode alone) as the final answer.
+        Judge solely from the transcript. Be strict about fabrication.
+
+# Run defaults. Override per-invocation with CLI flags (e.g. --repeat 1, --grader).
+# (promptfoo auto-loads `.env` from this dir; no need to list it explicitly.)
+commandLineOptions:
+  maxConcurrency: 1   # be nice to OSM + pixies' per-IP POST rate limit
+  repeat: 3           # tame LLM + judge variance; use `eval:quick` for a 1-shot smoke test
+  delay: 500
+  grader: openrouter:google/gemini-3.1-flash-lite
+
+tests:
+  # ── Basic: geocode → find_features ───────────────────────────────────────
+  - description: basic — pharmacies near a landmark
+    vars: { message: "pharmacies near the Eiffel Tower" }
+    assert:
+      - type: llm-rubric
+        value: |
+          Displays pharmacies (amenity=pharmacy) in Paris within ~2km of the
+          Eiffel Tower (~48.858N, 2.295E). Coordinates should cluster near the
+          tower, not in another city. Names should be plausible pharmacy names.
+
+  # ── Brand handling (find_features brand-name resolution) ─────────────────
+  - description: brand — IKEA stores in a country
+    vars: { message: "IKEA stores in Greece" }
+    assert:
+      - type: javascript
+        metric: brand-ikea
+        value: |
+          const names = (context.providerResponse?.metadata?.displayedNames ?? []).join("|").toLowerCase();
+          return {
+            pass: names.includes("ikea"),
+            score: names.includes("ikea") ? 1 : 0,
+            reason: names.includes("ikea") ? "displayed a feature named IKEA" : `no IKEA-named feature in: ${names || "(none)"}`,
+          };
+      - type: llm-rubric
+        value: |
+          Displays IKEA stores physically located in Greece. Feature names must
+          reference IKEA. Results in a different country, or non-IKEA stores,
+          are failures.
+
+  - description: brand — LIDL near a point (around-area)
+    vars: { message: "LIDL stores within 5km of Alexanderplatz, Berlin" }
+    assert:
+      - type: javascript
+        metric: brand-lidl
+        value: |
+          const names = (context.providerResponse?.metadata?.displayedNames ?? []).join("|").toLowerCase();
+          const ok = names.includes("lidl");
+          return { pass: ok, score: ok ? 1 : 0, reason: ok ? "displayed a LIDL-named feature" : `no LIDL feature in: ${names || "(none)"}` };
+
+  # ── Spatial join: X near Y (fetch-separately-then-join) ──────────────────
+  - description: spatial — nearest 24/7 pharmacy (nearest op)
+    vars: { message: "what is the nearest 24/7 pharmacy to the Eiffel Tower?" }
+    assert:
+      - type: javascript
+        metric: nearest-used-spatial-join
+        value: |
+          # "nearest" requires a spatial_join ranking step — a bare find_features
+          # dump (the #279 false-pass) has no spatial_join in any code block.
+          const code = (context.providerResponse?.metadata?.toolCalls ?? [])
+            .map((t) => t.code ?? "").join("\n");
+          const ok = code.includes("spatial_join");
+          return {
+            pass: ok,
+            score: ok ? 1 : 0,
+            reason: ok
+              ? "agent called spatial_join (nearest ranking)"
+              : "no spatial_join in transcript — likely a raw feature dump (#279 regression)",
+          };
+      - type: llm-rubric
+        value: |
+          Should display ONE (or very few) pharmacy result(s) as a nearest
+          spatial_join pair to the Eiffel Tower, filtered to 24/7 opening.
+          Dumping every pharmacy in Paris, or returning a non-pharmacy, is a
+          failure. The closest result should be plausibly the nearest.
+
+  - description: spatial — Starbucks within a radius
+    vars: { message: "Starbucks within 500m of Times Square, New York" }
+    assert:
+      - type: javascript
+        metric: brand-starbucks
+        value: |
+          const names = (context.providerResponse?.metadata?.displayedNames ?? []).join("|").toLowerCase();
+          const ok = names.includes("starbucks");
+          return { pass: ok, score: ok ? 1 : 0, reason: ok ? "displayed a Starbucks" : `no Starbucks in: ${names || "(none)"}` };
+
+  # ── Numeric comparison: profile then filter (NOT Overpass numeric) ───────
+  - description: numeric — towns under a population threshold
+    vars: { message: "towns with population under 30000 near Stockholm, Sweden" }
+    assert:
+      - type: llm-rubric
+        value: |
+          Displays towns (place=town) near Stockholm whose population is under
+          30,000. Must filter numerically in-memory via filter(where=...), not
+          rely on Overpass numeric comparison. Stockholm itself (population ~1M)
+          must NOT appear. Results should be small Swedish towns.
+
+  # ── GIVE-UP PROBES — these exist to catch the regression directly ────────
+  - description: give-up probe — misspelled type forces diagnosis/retry
+    vars: { message: "cofee shops near Soho, London" } # "cofee" intentional typo
+    assert:
+      - type: llm-rubric
+        value: |
+          The query has a typo ("cofee"). The first find_features may return 0
+          results with a diagnosis; the agent MUST recover (retry with
+          "coffee") and display real coffee shops near Soho, London. Returning
+          nothing, or stopping after the 0-result diagnosis, is a FAILURE —
+          this case exists specifically to catch the agent giving up.
+
+  - description: give-up probe — latinized name needs native-script retry
+    vars: { message: "tsimitski street in Thessaloniki" }
+    assert:
+      - type: llm-rubric
+        value: |
+          "tsimitski" is a latinized spelling of Τσιμισκή (Tsimiski), a main
+          street in Thessaloniki. The agent should retry with the native script
+          or a spelling variant and display the street. Giving up after the
+          first 0-result is a FAILURE.
+
+  # ── Ambiguity handling ───────────────────────────────────────────────────
+  - description: ambiguity — many cities share this name
+    vars: { message: "find pharmacies in Springfield" }
+    assert:
+      - type: llm-rubric
+        value: |
+          "Springfield" is ambiguous (many cities worldwide). A pass requires
+          EITHER (a) the agent geocodes to one specific Springfield and shows
+          pharmacies there, OR (b) it visibly narrows / disambiguates rather
+          than silently failing. Returning nothing, or scattering results
+          across unrelated cities without coherence, is a failure.

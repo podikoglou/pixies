@@ -11,12 +11,12 @@ test("STREAM_DONE with responseTimeMs attaches to last item", () => {
 			{
 				kind: "tool-call" as const,
 				toolCallId: "tc-1",
-				toolName: "query_osm",
-				args: { q: "cafe" },
+				toolName: "execute_code",
+				args: { code: "print('hi')" },
 				status: "done" as const,
 				queued: false,
-				resultText: "3 results",
-				result: { kind: "query_osm" as const, entries: [], count: 3 },
+				resultText: "hi",
+				result: { kind: "execute_code" as const, stdout: "hi", displays: [] },
 			},
 		],
 	};

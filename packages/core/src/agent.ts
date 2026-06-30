@@ -1,12 +1,14 @@
-import { Agent } from "@earendil-works/pi-agent-core";
+import { Agent, type AfterToolCallContext } from "@earendil-works/pi-agent-core";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { getModels, getProviders } from "@earendil-works/pi-ai";
-import type { Api, KnownProvider, Model } from "@earendil-works/pi-ai";
+import type { Api, KnownProvider, Model, TextContent } from "@earendil-works/pi-ai";
 import { Value } from "typebox/value";
 import { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
 import { silentLogger, type Logger } from "./logging/index.ts";
 import { NominatimClient } from "./clients/nominatim.ts";
 import { OverpassClient } from "./clients/overpass.ts";
 import { createTools } from "./tools/index.ts";
+import type { CodeExecutor } from "./tools/tool-execute-code.ts";
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 
 export type { ResolvedPixiesConfig } from "./config-schema.ts";
@@ -115,6 +117,7 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 			posthogHost: env("PIXIES_POSTHOG_HOST"),
 			posthogApiKey: env("PIXIES_POSTHOG_API_KEY"),
 			conversationTokenBudget: num("PIXIES_CONVERSATION_TOKEN_BUDGET"),
+			maxPromptChars: num("PIXIES_MAX_PROMPT_CHARS"),
 		}),
 	);
 }
@@ -122,19 +125,8 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 export interface CreateAgentOptions {
 	config: ResolvedPixiesConfig;
 	fetch?: typeof globalThis.fetch;
-	/**
-	 * Pre-built Nominatim client. When omitted, the client is constructed
-	 * inside this call via {@link createNominatimClient} (the path used by
-	 * single-user adapters and tests). Multi-tenant adapters (e.g. the server)
-	 * MUST inject a single shared instance so the Nominatim rate-limit chain is
-	 * process-global — see ADR-0004.
-	 */
-	nominatim?: NominatimClient;
-	/**
-	 * Pre-built Overpass client; see {@link CreateAgentOptions.nominatim} for
-	 * the injection / fallback contract.
-	 */
-	overpass?: OverpassClient;
+	/** Sandboxed Python executor (Monty) for the `execute_code` tool. Required — there is no built-in fallback. */
+	codeExecutor: CodeExecutor;
 }
 
 /**
@@ -225,16 +217,47 @@ export function createOverpassClient(
 	});
 }
 
+/** Python error types produced by incorrect LLM-written code. */
+const CODING_ERROR_PATTERN = /^(Type|Syntax|Name|Key|Value|ModuleNotFound|Import)Error\b/m;
+
+/** RuntimeError sub-patterns that indicate the LLM wrote a bad query, not a service outage. */
+const QUERY_ERROR_PATTERN =
+	/\b(Invalid Overpass query|bounding box area.*exceeds safe limit|area must specify one of)\b/;
+
+/** Shape-misuse sub-patterns: passing a FeaturesEnvelope where a bare list is
+ *  expected (the most common list/envelope confusion). The thrown error names
+ *  the wrong type and the fix; this makes it immediately retryable. */
+const SHAPE_ERROR_PATTERN = /\bmust be a list\[Feature\]\b/;
+
+function isRetryableError(text: string): boolean {
+	return (
+		CODING_ERROR_PATTERN.test(text) ||
+		QUERY_ERROR_PATTERN.test(text) ||
+		SHAPE_ERROR_PATTERN.test(text)
+	);
+}
+
+/**
+ * Prepend a retry directive so the LLM never gives up on its own mistakes.
+ * Includes RuntimeError sub-patterns for query-construction errors (e.g.
+ * bounding-box too large) that the LLM can fix by narrowing its search.
+ */
+function prependRetryDirective(errorText: string): TextContent[] {
+	const match = errorText.match(/^(\w+):/);
+	const errorType = match?.[1] ?? "error";
+	return [
+		{
+			type: "text",
+			text: `Your code produced a ${errorType}. Fix the issue and call execute_code again.\n\n${errorText}`,
+		},
+	];
+}
+
 export function createAgent(options: CreateAgentOptions): Agent {
 	const { config } = options;
 	const model = resolveModel(config.model);
-	// Inject callers own the client lifetime (server: one per process). When
-	// not injected, build a fresh pair — this preserves the single-user/test
-	// path. See ADR-0004.
-	const nominatim = options.nominatim ?? createNominatimClient(config, { fetch: options.fetch });
-	const overpass = options.overpass ?? createOverpassClient(config, { fetch: options.fetch });
-	const tools = createTools(nominatim, overpass);
-	return new Agent({
+	const tools = createTools({ executor: options.codeExecutor });
+	const agent = new Agent({
 		initialState: {
 			systemPrompt: SYSTEM_PROMPT,
 			model,
@@ -243,4 +266,40 @@ export function createAgent(options: CreateAgentOptions): Agent {
 		},
 		getApiKey: () => config.apiKey,
 	});
+
+	let lastToolWasError = false;
+
+	agent.afterToolCall = async (ctx: AfterToolCallContext) => {
+		if (!ctx.isError) {
+			lastToolWasError = false;
+			return;
+		}
+		lastToolWasError = true;
+		const textContent = ctx.result.content.map((c) => ("text" in c ? c.text : "")).join("\n");
+		if (isRetryableError(textContent)) {
+			return { content: prependRetryDirective(textContent) };
+		}
+	};
+
+	agent.subscribe((event: AgentEvent) => {
+		if (event.type === "turn_end" && lastToolWasError) {
+			const msg = event.message;
+			const content = msg.role === "assistant" ? msg.content : undefined;
+			const toolCalls = content?.filter((c: { type: string }) => c.type === "toolCall");
+			if (!toolCalls || toolCalls.length === 0) {
+				agent.steer({
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "You got an error. Retry with a different approach — narrow the area, fix arguments, or simplify the query.",
+						},
+					],
+					timestamp: Date.now(),
+				});
+			}
+		}
+	});
+
+	return agent;
 }

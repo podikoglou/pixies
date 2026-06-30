@@ -27,11 +27,7 @@ export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 	const rootRef = useRef<HTMLDivElement>(null);
 	const isPinnedRef = useRef(true);
 
-	const isEmpty =
-		state.items.length === 0 &&
-		state.streamingText.length === 0 &&
-		!state.isStreaming &&
-		state.conversationId === null;
+	const isEmpty = state.items.length === 0 && !state.isStreaming && state.conversationId === null;
 
 	const handleSubmit = () => {
 		const trimmed = text.trim();
@@ -69,7 +65,7 @@ export function ChatView({ onConversationCreated }: ChatViewProps = {}) {
 		const el = getViewport();
 		if (!el || !isPinnedRef.current) return;
 		el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
-	}, [state.items.length, state.streamingText, getViewport]);
+	}, [state.items.length, getViewport]);
 
 	useEffect(() => {
 		if (state.error) toast.error(state.error);

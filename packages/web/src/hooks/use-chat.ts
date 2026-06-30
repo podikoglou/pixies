@@ -31,7 +31,6 @@ export function useChat(): UseChatReturn {
 	const stateRef = useRef(state);
 	stateRef.current = state;
 	const abortRef = useRef<AbortController | null>(null);
-	const startTimeRef = useRef<number>(0);
 	const hadOutputRef = useRef(false);
 
 	const sendMessage = useCallback(
@@ -46,7 +45,6 @@ export function useChat(): UseChatReturn {
 			if (!message.trim()) return;
 			const controller = new AbortController();
 			abortRef.current = controller;
-			startTimeRef.current = Date.now();
 			hadOutputRef.current = false;
 			dispatch({ type: "SEND_MESSAGE", text: message });
 
@@ -80,7 +78,7 @@ export function useChat(): UseChatReturn {
 								}
 							}
 						}
-						dispatchSseEvent(evt, dispatch, opts?.onConversationCreated, startTimeRef.current);
+						dispatchSseEvent(evt, dispatch, opts?.onConversationCreated);
 					}
 				},
 				catch: (e) => e,

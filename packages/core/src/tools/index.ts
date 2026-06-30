@@ -1,58 +1,61 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
-import type { NominatimClient } from "../clients/nominatim.ts";
-import type { OverpassClient } from "../clients/overpass.ts";
-import { geocodeModule } from "./tool-geocode.ts";
-import { reverseGeocodeModule } from "./tool-reverse-geocode.ts";
-import { queryOsmModule } from "./tool-query-osm.ts";
-import { displayMapModule } from "./tool-display-map.ts";
+import { executeCodeModule } from "./tool-execute-code.ts";
 import type { ToolModule } from "./tool-module.ts";
-
-const TOOL_MODULES = {
-	geocode: geocodeModule,
-	reverse_geocode: reverseGeocodeModule,
-	query_osm: queryOsmModule,
-	display_map: displayMapModule,
-} as const;
-
-type ToolName = keyof typeof TOOL_MODULES;
+import type { CodeExecutor } from "./tool-execute-code.ts";
 
 export type { ToolProgress } from "./progress.ts";
 export { ToolProgressSchema, isToolProgress } from "./progress.ts";
 
-export {
-	GeocodeResultEntrySchema,
-	OverpassResultEntrySchema,
-	GeocodeToolDetailsSchema,
-	ReverseGeocodeToolDetailsSchema,
-	QueryOsmToolDetailsSchema,
-	DisplayMapDataSchema,
-	DisplayMapToolDetailsSchema,
-} from "./schemas.ts";
+export { ExecuteCodeDetailsSchema } from "./tool-execute-code.ts";
 export type {
-	GeocodeResultEntry,
-	OverpassResultEntry,
-	GeocodeToolDetails,
-	ReverseGeocodeToolDetails,
-	QueryOsmToolDetails,
-	DisplayMapData,
-	DisplayMapToolDetails,
-} from "./schemas.ts";
+	CodeExecutor,
+	CodeExecutionSuccess,
+	ExecuteCodeDetails,
+	PrimitiveTraceEntry,
+} from "./tool-execute-code.ts";
+export { haversineMeters } from "../functions/haversine.ts";
+export { computeBounds } from "../functions/geometry.ts";
 
-/**
- * Build every tool's `AgentTool` from its backing service clients. Each tool's
- * `build` takes just the context it depends on (or nothing, for context-less
- * tools) — the two clients are passed through, not bundled.
- *
- * `builds` is keyed by tool name with a mapped type over `TOOL_MODULES`, so the
- * build path and the parse path cannot silently drift — adding a tool requires
- * touching both, enforced at compile time.
- */
-export function createTools(nominatim: NominatimClient, overpass: OverpassClient): AgentTool[] {
+export type {
+	HostContext,
+	Feature,
+	GeocodeResult,
+	FindFeaturesResult,
+	FeaturesEnvelope,
+	SpatialPair,
+	DisplayData,
+} from "../functions/host-functions.ts";
+
+export {
+	geocodeHost,
+	reverseGeocodeHost,
+	findFeaturesHost,
+	filterHost,
+	spatialJoinHost,
+	overpassQueryHost,
+	searchHost,
+} from "../functions/host-functions.ts";
+
+export { renderDiagnosisLines, computeDiagnosis, levenshtein } from "../functions/diagnosis.ts";
+export type { Diagnosis, ResolvedKind, ResolvedPlace } from "../functions/diagnosis.ts";
+
+export { profileHost, formatProfileSummary } from "../functions/profile.ts";
+export type { ProfileResult, TagProfile, NumericProfile } from "../functions/profile.ts";
+
+const TOOL_MODULES = {
+	execute_code: executeCodeModule,
+} as const;
+
+type ToolName = keyof typeof TOOL_MODULES;
+
+export interface CreateToolsInputs {
+	executor: CodeExecutor;
+}
+
+/** Build the agent tool set from injected dependencies. */
+export function createTools(inputs: CreateToolsInputs): AgentTool[] {
 	const builds: { [K in keyof typeof TOOL_MODULES]: AgentTool } = {
-		geocode: geocodeModule.build({ nominatim }),
-		reverse_geocode: reverseGeocodeModule.build({ nominatim }),
-		query_osm: queryOsmModule.build({ overpass }),
-		display_map: displayMapModule.build(),
+		execute_code: executeCodeModule.build(inputs.executor),
 	};
 	return Object.values(builds);
 }
@@ -63,59 +66,25 @@ type ToolResultFromModules = ExtractResult<(typeof TOOL_MODULES)[keyof typeof TO
 
 export type ToolResult = ToolResultFromModules | { kind: "empty" };
 
+/** Parse tool details into a typed result. Unknown tools return `{ kind: "empty" }`. */
 export function parseToolResult(toolName: string, details: unknown): ToolResult {
 	const mod = TOOL_MODULES[toolName as ToolName];
 	if (!mod) return { kind: "empty" };
 	return mod.parse(details) ?? { kind: "empty" };
 }
 
-/**
- * True when a tool result's `details` marks an OSM-busy soft-failure
- * (`{ busy: true, ... }`). Busy is a SUCCESS (`isError: false`) but a transient
- * server issue, not a genuine zero-feature outcome — both the chat UI and the
- * empty-rate analytics exclude it, so the predicate lives next to
- * `parseToolResult` (the single interpreter of tool-result `details`).
- */
 export function isBusyResult(details: unknown): boolean {
 	return (details as Record<string, unknown> | null | undefined)?.busy === true;
 }
 
-/**
- * Data-fetch tools whose empty / zero-result outcome is a product signal.
- * `display_map` is excluded: it is a UI tool whose emptiness is already
- * observed via the `map_opened`/`marker_count` event, and its
- * `details.data.markers` is empty for `queryRef` maps so it would misclassify.
- */
-const DATA_FETCH_TOOLS = ["query_osm", "geocode", "reverse_geocode"] as const;
+const DATA_FETCH_TOOLS = ["execute_code"] as const;
 
-/**
- * Count the features a successful data-fetch tool call returned, or return
- * `undefined` when the count is not applicable.
- *
- * Returns `undefined` (count not applicable) when:
- * - `toolName` is not a data-fetch tool (e.g. `display_map`, unknown tools); or
- * - `isBusyResult(details)` — the OSM-busy soft-failure is a SUCCESS
- *   (`isError: false`) that signals a transient server issue, not a genuine
- *   zero-feature outcome, and would pollute the empty-rate.
- *
- * Count is derived from the canonical `parseToolResult` parser so it can never
- * drift from the tool's own `details` shape. Shared by the web `tool_empty`
- * event and the server `tool call` event — two consumers of the same
- * count-derivation logic, hence the extraction to core.
- */
 export function toolResultCount(toolName: string, details: unknown): number | undefined {
 	if (!(DATA_FETCH_TOOLS as readonly string[]).includes(toolName)) return undefined;
 	if (isBusyResult(details)) return undefined;
-
 	const parsed = parseToolResult(toolName, details);
-	switch (parsed.kind) {
-		case "query_osm":
-		case "geocode":
-			return parsed.entries.length;
-		case "reverse_geocode":
-			return 1;
-		default:
-			// `empty` (parse failure / no result) and any other kind → 0.
-			return 0;
+	if (parsed.kind === "execute_code") {
+		return parsed.displays.reduce((n, d) => n + (d.features?.length ?? d.markers?.length ?? 0), 0);
 	}
+	return 0;
 }

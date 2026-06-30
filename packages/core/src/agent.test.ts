@@ -106,11 +106,11 @@ test("readConfigFromEnv applies the default-instance policy when OSM rate env va
 	expect(config.nominatimIntervalMs).toBe(1100);
 	expect(config.nominatimCacheTtlMs).toBe(86_400_000);
 	expect(config.nominatimCacheMaxEntries).toBe(1000);
-	expect(config.nominatimTimeoutMs).toBe(60_000);
+	expect(config.nominatimTimeoutMs).toBe(5_000);
 	expect(config.overpassConcurrency).toBe(2);
 	expect(config.overpassIntervalCap).toBe(2);
 	expect(config.overpassIntervalMs).toBe(1000);
-	expect(config.overpassTimeoutMs).toBe(60_000);
+	expect(config.overpassTimeoutMs).toBe(10_000);
 });
 
 test("readConfigFromEnv applies the descriptive default User-Agent when PIXIES_USER_AGENT is unset", () => {
@@ -286,7 +286,7 @@ const NUMERIC_FIELD_SPECS: readonly NumericFieldSpec[] = [
 	{
 		envKey: "PIXIES_NOMINATIM_TIMEOUT_MS",
 		field: "nominatimTimeoutMs",
-		defaultValue: 60_000,
+		defaultValue: 5_000,
 		min: 1,
 	},
 	{ envKey: "PIXIES_OVERPASS_CONCURRENCY", field: "overpassConcurrency", defaultValue: 2, min: 1 },
@@ -300,9 +300,10 @@ const NUMERIC_FIELD_SPECS: readonly NumericFieldSpec[] = [
 	{
 		envKey: "PIXIES_OVERPASS_TIMEOUT_MS",
 		field: "overpassTimeoutMs",
-		defaultValue: 60_000,
+		defaultValue: 10_000,
 		min: 1,
 	},
+	{ envKey: "PIXIES_MAX_PROMPT_CHARS", field: "maxPromptChars", defaultValue: 20000, min: 1 },
 ];
 
 for (const spec of NUMERIC_FIELD_SPECS) {

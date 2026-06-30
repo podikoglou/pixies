@@ -23,10 +23,12 @@ import {
 } from "@pixies/core";
 import { conversations as conversationsTable, type DbClient } from "@pixies/core/db";
 import { silentLogger, type Logger } from "@pixies/core/logging";
+import { MontyExecutor } from "./sandbox/monty-executor.ts";
 
 interface Conversation {
 	readonly id: string;
 	readonly agent: Agent;
+	readonly executor: MontyExecutor;
 	lastActivity: number;
 	inFlight: boolean;
 	tokensUsed: number;
@@ -35,15 +37,15 @@ interface Conversation {
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 export class ConversationStore {
-	private map = new Map<string, Conversation>();
-	private sweeper: ReturnType<typeof setInterval>;
-	private config: ResolvedPixiesConfig;
-	private nominatim: NominatimClient;
-	private overpass: OverpassClient;
-	private db: DbClient;
-	private maxSize: number;
-	private agentFactory: (opts: CreateAgentOptions) => Agent;
-	private logger: Logger;
+	private readonly map = new Map<string, Conversation>();
+	private readonly sweeper: ReturnType<typeof setInterval>;
+	private readonly config: ResolvedPixiesConfig;
+	private readonly nominatim: NominatimClient;
+	private readonly overpass: OverpassClient;
+	private readonly db: DbClient;
+	private readonly maxSize: number;
+	private readonly agentFactory: (opts: CreateAgentOptions) => Agent;
+	private readonly logger: Logger;
 
 	constructor(
 		config: ResolvedPixiesConfig,
@@ -66,19 +68,7 @@ export class ConversationStore {
 
 	create(): string {
 		const id = uuidv7();
-		const conv: Conversation = {
-			id,
-			agent: this.agentFactory({
-				config: this.config,
-				nominatim: this.nominatim,
-				overpass: this.overpass,
-			}),
-			lastActivity: Date.now(),
-			inFlight: false,
-			tokensUsed: 0,
-		};
-		this.map.set(conv.id, conv);
-		this.evictIfNeeded();
+		this.buildConversation(id);
 		void Result.tryPromise(() =>
 			this.db.insert(conversationsTable).values({ id, transcript: [] }),
 		).then((r) =>
@@ -89,7 +79,7 @@ export class ConversationStore {
 				}),
 			),
 		);
-		return conv.id;
+		return id;
 	}
 
 	async get(id: string): Promise<Conversation | undefined> {
@@ -97,23 +87,15 @@ export class ConversationStore {
 	}
 
 	/**
-	 * Resolve a conversation by id from cache or DB — the single owner of the
-	 * cache-miss load path previously duplicated by `get()` and `streamPrompt()`.
+	 * Load a conversation from cache or DB.
 	 *
-	 * On a cache hit it touches the LRU (move to tail + bump `lastActivity`)
-	 * and returns the live conversation, replicating the prior `get()` cache-hit
-	 * behavior. On a miss it loads the persisted row, builds a fresh
-	 * `Conversation`, rehydrates its transcript, and inserts it under eviction.
-	 * A missing row yields `undefined`, leaving the not-found mapping to each
-	 * caller: `get()` returns `undefined`; `streamPrompt()` maps it to
-	 * `Err(ConversationNotFoundError)` at its own call site.
+	 * Cache hit: LRU-touches and returns. Cache miss: queries DB, builds a
+	 * fresh `Conversation`, rehydrates the transcript, inserts into the map
+	 * under eviction, and returns. A missing row yields `undefined` — the
+	 * caller maps that to a domain error.
 	 *
-	 * `streamPrompt()` pre-checks the cache and only routes the *miss* through
-	 * here, so its separate LRU re-touch (after the in-flight/budget guards) is
-	 * unchanged. Centralizing the miss path means the ADR-0008 persisted-
-	 * transcript guard (`isPersistedTranscript`, called once inside
-	 * `rehydrateTranscript`) is trusted from exactly one read site instead of
-	 * two duplicated copies that had to stay in lockstep.
+	 * Single read-site for the ADR-0008 persisted-transcript guard
+	 * (`isPersistedTranscript`). Callers must not bypass.
 	 */
 	private async loadConversation(id: string): Promise<Conversation | undefined> {
 		let conv = this.map.get(id);
@@ -134,24 +116,10 @@ export class ConversationStore {
 		if (rows.length === 0) return undefined;
 
 		const row = rows[0]!;
-		conv = {
-			id,
-			agent: this.agentFactory({
-				config: this.config,
-				nominatim: this.nominatim,
-				overpass: this.overpass,
-			}),
-			lastActivity: Date.now(),
-			inFlight: false,
-			tokensUsed: 0,
-		};
-
+		conv = this.buildConversation(id);
 		if (row.transcript && row.transcript.length > 0) {
 			this.rehydrateTranscript(conv, row.transcript, id);
 		}
-
-		this.map.set(id, conv);
-		this.evictIfNeeded();
 		return conv;
 	}
 
@@ -261,6 +229,24 @@ export class ConversationStore {
 
 	stop(): void {
 		clearInterval(this.sweeper);
+	}
+
+	private buildConversation(id: string): Conversation {
+		const executor = new MontyExecutor({ nominatim: this.nominatim, overpass: this.overpass });
+		const conv: Conversation = {
+			id,
+			agent: this.agentFactory({
+				config: this.config,
+				codeExecutor: executor,
+			}),
+			executor,
+			lastActivity: Date.now(),
+			inFlight: false,
+			tokensUsed: 0,
+		};
+		this.map.set(id, conv);
+		this.evictIfNeeded();
+		return conv;
 	}
 
 	private abortConversation(conv: Conversation): void {
