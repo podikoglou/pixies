@@ -18,6 +18,7 @@
 		"@base-ui/react": "latest",
 		"@fontsource/geist-sans": "^5.2.5",
 		"@pixies/core": "workspace:*",
+		"@pixies/protocol": "workspace:*",
 		"@posthog/react": "^1.10.3",
 		"@tanstack/react-query": "^5.101.0",
 		"@tanstack/react-router": "^1.170.15",

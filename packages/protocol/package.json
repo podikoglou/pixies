@@ -1,0 +1,31 @@
+{
+  "name": "@pixies/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsgo",
+    "format": "oxfmt src",
+    "format:check": "oxfmt --check src",
+    "lint": "oxlint src",
+    "lint:fix": "oxlint --fix src",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "0.79.3",
+    "@earendil-works/pi-ai": "0.79.3",
+    "@pixies/core": "workspace:*",
+    "typebox": "1.1.38"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.54.0",
+    "oxlint": "^1.69.0"
+  }
+}

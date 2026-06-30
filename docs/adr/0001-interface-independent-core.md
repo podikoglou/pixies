@@ -51,3 +51,9 @@ The `core` package exposes a factory `createAgent(): Agent` plus the system prom
 **Pixies-specific `Conversation` abstraction over `Agent` (rejected).** Fails the deletion test — adapters lose nothing by using `Agent` directly. Introducing an abstraction layer that mirrors `Agent`'s API is premature; only introduce it if Pixies develops real cross-cutting concerns that `Agent` doesn't address.
 
 **Monolithic single binary with feature flag (rejected).** A single package where a `--server` flag flips to server mode. Conflates deployment with architecture; same adapter code, less clear ownership. A monorepo with separate packages provides clearer boundaries.
+
+## Revision — 2026-06-30
+
+This decision's title — "interface-independent core, not SSE-fitted" — is now literally true. The SSE wire format and the wire-projection of transcripts have been extracted out of `@pixies/core` into a new package `@pixies/protocol` (issue #258). `core` no longer exports any SSE event types or client-facing transcript shapes; it owns the agent factory, tools, OSM clients, and the *persistence* transcript guard (`persisted-transcript.ts`) only.
+
+The dependency arrow is `@pixies/protocol → @pixies/core`: protocol imports `ToolProgressSchema` (and only that) from core to express the `tool_execution_update` payload. Both `server` and `web` now depend on `protocol` for the wire contract. Core is once again free of any transport coupling, exactly as rationale #6 ("couples the contract to a single transport") warned — the contract lives in `protocol`, not `core`.

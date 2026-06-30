@@ -1,7 +1,7 @@
 # Pixies SSE API Specification
 
 **Version:** 0.1.0
-**Status:** Draft
+**Status:** Live
 
 ## Overview
 
@@ -109,7 +109,7 @@ Returned when a previous prompt on this conversation is still streaming. Clients
 GET /conversations/:id
 ```
 
-Returns the transcript of a conversation. Each entry in `messages` has role `user` or `toolResult`. Assistant messages are not included — clients reconstruct assistant text from the streaming SSE events. Tool result messages carry `toolCallId`, `toolName`, `isError`, and the structured `details` payload.
+Returns the transcript of a conversation. Each entry in `messages` has role `user` or `toolResult`. Assistant messages are not included — the agent responds with tool calls only (no text), and the client renders map data from tool result details. Tool result messages carry `toolCallId`, `toolName`, `isError`, and the structured `details` payload.
 
 **Response (200):** `application/json`
 
@@ -117,13 +117,18 @@ Returns the transcript of a conversation. Each entry in `messages` has role `use
 {
   "id": "01901234-5678-7abc-def0-1234567890ab",
   "messages": [
-    { "role": "user", "content": "vegan cafés near camden" },
+    { "role": "user", "content": "pharmacies near the Eiffel Tower" },
     {
       "role": "toolResult",
       "toolCallId": "call_abc123",
-      "toolName": "query_osm",
-      "content": [{ "type": "text", "text": "node/123 | ..." }],
-      "details": { "count": 47, "data": [...] },
+      "toolName": "execute_code",
+      "content": [{ "type": "text", "text": "OK" }],
+      "details": {
+        "stdout": "geocode(\"Eiffel Tower, Paris\") -> Tour Eiffel (48.858, 2.295)\nfind_features(types=[\"pharmacy\"], around={\"lat\":48.858,\"lon\":2.295,\"radius\":2000}) -> 47 feature(s)\n  top: Pharma 1, Pharma 2, Pharma 3\n",
+        "displays": [
+          { "features": [{ "id": "node/123", "name": "Pharma 1", "lat": 48.85, "lon": 2.30, "tags": { "amenity": "pharmacy" } }, "..." ] }
+        ]
+      },
       "isError": false
     }
   ]
@@ -172,13 +177,13 @@ Conversation IDs are UUIDv7 (time-ordered, sortable, URL-safe).
 
 ### `tool_execution_start`
 
-Emitted when a tool begins executing. `args` is the validated tool input object.
+Emitted when a tool begins executing. `args` is the validated tool input object. The only tool is `execute_code`; `args.code` is the Python code the model wrote.
 
 ```json
 {
   "toolCallId": "call_abc123",
-  "toolName": "geocode",
-  "args": { "query": "Camden, London" }
+  "toolName": "execute_code",
+  "args": { "code": "tower = geocode(\"Eiffel Tower, Paris\")\npharmacies = find_features(types=[\"pharmacy\"], area={\"around\": {\"lat\": tower[\"lat\"], \"lon\": tower[\"lon\"], \"radius\": 2000}})" }
 }
 ```
 
@@ -203,31 +208,40 @@ New progress variants may be added to the union; clients should narrow on `detai
 
 ### `tool_execution_end`
 
-Emitted when a tool finishes. `result` is the full tool result; `result.content[].text` is the model-facing text (clients can render this as a multi-line card). On error, `isError === true` and the error message is in `result.content[].text`.
+Emitted when a tool finishes. `result` is the full tool result; `result.content[].text` is the model-facing text. On error, `isError === true` and the error message is in `result.content[].text`.
 
 ```json
 {
   "toolCallId": "call_abc123",
   "isError": false,
   "result": {
-    "content": [{ "type": "text", "text": "node/123 | ..." }],
-    "details": { "count": 47, "data": [...] }
+    "content": [{ "type": "text", "text": "OK" }],
+    "details": {
+      "stdout": "geocode(\"Eiffel Tower, Paris\") -> Tour Eiffel (48.858, 2.295)\n",
+      "displays": [{ "features": [{ "id": "node/123", "name": "Pharma 1", "lat": 48.85, "lon": 2.30 }] }]
+    }
   }
 }
 ```
 
-The `details` shape is tool-specific:
+There is one tool: `execute_code`. Its `details` shape:
 
 | Tool | `details` shape |
 |---|---|
-| `geocode` | `{ data: GeocodeResultEntry[] }` — empty `data: []` when no results; `{ busy: true, data: [] }` when Nominatim reports a transient overload |
-| `reverse_geocode` | `{ data: GeocodeResultEntry }`, `{ busy: true }`, or `undefined` (no result) |
-| `query_osm` | `{ data: OverpassResultEntry[] }` — empty `data: []` when no results; `{ busy: true }` when Overpass reports a transient overload |
-| `display_map` | `{ data: { markers: [{lat,lon,label?}], queryRef?, elementIds?, bounds? } }` — `queryRef` references a prior `query_osm` tool call ID |
+| `execute_code` | `{ stdout: string, displays: DisplayData[] }` — `stdout` is the captured output of the Python code (summary lines from each host function call). `displays` is an array of map-renderable payloads produced by `find_features` (auto-display features), `spatial_join` (auto-display pairs), and explicit `display()` calls. |
 
-Clients that want structured results should consume `details.data` directly instead of reverse-parsing the pipe-delimited `content[].text`.
+Each element in `displays` has type `DisplayData`:
 
-**Busy soft-failure.** When an OSM service reports a transient overload condition, the data-fetch tools (`geocode`, `reverse_geocode`, `query_osm`) return a normal result (`isError: false`) whose `details` carries `busy: true` and whose text is a model-facing "try again" message, rather than failing the tool. This is a success on the wire but a transient condition: clients may surface a "service busy" indicator, and the model is expected to retry or relax its query.
+```typescript
+{ markers?: { lat: number; lon: number; label?: string }[]
+  features?: { id: string; name?: string; lat: number; lon: number; tags?: Record<string, string> }[]
+  pairs?: { point: Feature; target: Feature; distance: number }[]
+  bounds?: { minlat: number; minlon: number; maxlat: number; maxlon: number } }
+```
+
+Clients render map data from `details.displays` directly — `content[].text` is the constant string `"OK"` and carries no structured data.
+
+**Busy soft-failure.** When an OSM service reports a transient overload, the host function throws an error. This surfaces as `tool_execution_end` with `isError: true` and the error message in `result.content[].text`. The model is instructed not to retry on service-unavailable errors — it treats them as terminal for that query.
 
 ### `done`
 
@@ -241,21 +255,35 @@ Emitted exactly once at the end of every successful stream, after all agent even
 
 Emitted when the agent encounters a fatal error during the prompt (provider failure, etc.). The stream terminates after this event.
 
+`message` is always present (the wire contract since launch). `errorTag` and `details` are **additive** and optional: when the server catches a tagged error it forwards its tag and a snapshot of its props so clients can render tag-specific copy. Old clients ignore the unknown fields; new clients fall back to `message` when `errorTag` is absent.
+
 ```json
 { "message": "provider rate limit exceeded" }
 ```
+
+A tagged error carries its tag and details:
+
+```json
+{
+  "message": "conversation token budget (2) exceeded: used 2",
+  "errorTag": "BudgetExceeded",
+  "details": { "used": 2, "budget": 2 }
+}
+```
+
+`errorTag` is one of the `PixiesErrorTag` literals — e.g. `OverpassBusy`, `NominatimBusy`, `BudgetExceeded`, `ToolAborted`, `ConversationNotFound`, `InvalidTranscript`. `details` is a per-tag snapshot (the error's `toJSON()`); its shape is tag-specific and clients should narrow on `errorTag` before reading it. Forward-compatibility: new tags may be added; clients must treat an unknown `errorTag` as a generic error (render `message`).
 
 Tool errors do **not** fire this event — they fire `tool_execution_end` with `isError: true`, and the agent continues normally to the next turn.
 
 ### Future events
 
-The following event types are defined in the schema but not yet emitted to clients. They are never sent:
+The following event types are defined in the schema but not currently emitted. The agent responds with tool calls only (no assistant text), so `message_start`/`text_delta`/`message_end` are present for future use but have no current trigger path:
 
-- `message_start` — planned for when the agent begins streaming a new assistant message
+- `message_start` — planned for when the agent begins streaming an assistant message
 - `text_delta` — planned for per-token streaming of assistant text
 - `message_end` — planned for when an assistant message is complete (full authoritative payload)
 
-Currently, assistant text is available only through tool result cards and in-stream `tool_execution_end.result.content` blocks. Full text streaming will be added when the agent's message events are forwarded to SSE.
+Currently, all information reaches the client through `tool_execution_end` details — map data in `displays` and execution output in `stdout`.
 
 ## Lifecycle
 
@@ -267,10 +295,10 @@ Client                                 Server
   |------------------------------------->|
   |                                      | create conversation
   |<- - - - - - - - - - - - - - - - - - | conversation_created { id }
-  |<- - - - - - - - - - - - - - - - - - | tool_execution_start { ... }
+  |<- - - - - - - - - - - - - - - - - - | tool_execution_start { toolName: "execute_code", args: { code } }
   |<- - - - - - - - - - - - - - - - - - | tool_execution_update { details: { type: "queued" } }
   |<- - - - - - - - - - - - - - - - - - | tool_execution_update { details: { type: "running" } }
-  |<- - - - - - - - - - - - - - - - - - | tool_execution_end { ... }
+  |<- - - - - - - - - - - - - - - - - - | tool_execution_end { result: { details: { stdout, displays } } }
   |<- - - - - - - - - - - - - - - - - - | done { durationMs: 1234 }
   |                                      | [stream ends]
   |                                      |
@@ -278,11 +306,13 @@ Client                                 Server
   | { message: "..." }                   |
   |------------------------------------->|
   |                                      | lookup, check not streaming
-  |<- - - - - - - - - - - - - - - - - - | tool_execution_start { ... }
+  |<- - - - - - - - - - - - - - - - - - | tool_execution_start { toolName: "execute_code", args: { code } }
   |                               ...    |
   |<- - - - - - - - - - - - - - - - - - | done { durationMs: 1234 }
   |                                      | [stream ends]
 ```
+
+Multiple `tool_execution_start`/`tool_execution_end` pairs per prompt occur when the model retries after a coding error — each retry is a separate `execute_code` call within the same stream.
 
 ## Abort semantics
 
@@ -293,7 +323,7 @@ There is no abort endpoint. Closing the connection IS the abort.
 ## Concurrency
 
 - One in-flight prompt per conversation. Concurrent prompt attempts return **409**.
-- **OSM data sources are shared and rate-limited server-wide.** There is no per-conversation isolation from this throttle — under concurrent load your tool calls may queue (surfaced as `queued` → `running` progress) or return a transient `busy` result (see Busy soft-failure).
+- **OSM data sources are shared and rate-limited server-wide.** There is no per-conversation isolation from this throttle — under concurrent load tool calls may queue (surfaced as `queued` → `running` progress) or the host functions may throw service-busy errors (surfaced as `tool_execution_end` with `isError: true`).
 - **HTTP layer:** the two LLM-cost POST endpoints (`POST /conversations`, `POST /conversations/:id/messages`) are rate-limited per IP in-process. Over the limit → **429** with an integer `Retry-After` (seconds). GET/DELETE are not rate-limited (no LLM cost). See `PIXIES_HTTP_RATE_LIMIT*` in [docs/DOCKER.md](../DOCKER.md).
 
 ## Durability
@@ -348,5 +378,5 @@ while (true) {
 - **Authentication.** v0 has none. Likely API-key-per-user before public launch.
 - **CORS.** Not enabled; configuration planned.
 - **WebSocket transport.** Possible alternative to SSE for bidirectional needs (none currently).
-- **Assistant text streaming.** `message_start`/`text_delta`/`message_end` events are defined in the schema but not yet wired at the translation layer — the agent events exist internally but are dropped before reaching SSE clients.
+- **Mid-execution display streaming.** Currently, map data is delivered atomically at `tool_execution_end`. Live display during code execution (e.g. rendering markers as each `find_features` call completes inside the Monty session) would require SSE events from the Monty executor during the snapshot loop — possible but not yet wired.
 - **Rate limiting on the API surface.** Implemented in-process per IP on the two LLM-cost POST endpoints (`PIXIES_HTTP_RATE_LIMIT*`); GET/DELETE are not limited. Caddy-side limiting (defense-in-depth) is a possible future addition — stock Caddy has no rate-limit plugin.

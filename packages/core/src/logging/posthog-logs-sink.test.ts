@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
+import fc from "fast-check";
 import type { LogRecord } from "@logtape/logtape";
 import { allowlistRecord, DEFAULT_ALLOW_KEYS, getPostHogLogsSink } from "./posthog-logs-sink.ts";
 
@@ -114,4 +115,74 @@ test("getPostHogLogsSink constructs without throwing (import compat)", () => {
 		token: "test",
 	});
 	expect(typeof sink).toBe("function");
+});
+
+// ---------------------------------------------------------------------------
+// allowlistRecord — property-based
+// ---------------------------------------------------------------------------
+// This is the PII egress boundary (#220/#221/#222). For ANY record properties
+// and ANY allowlist the contract is: an allowed key ships verbatim (=== same
+// value), every other key ships "[redacted]", the key set is preserved, and the
+// input is never mutated. Additionally the same record reference is returned
+// (no allocation) iff every property key is allowed. fast-check draws random
+// property/allowlist pairs; the example tests above only witness three.
+
+/**
+ * Identifier-shaped keys. `__proto__`/`constructor`/`prototype` are excluded:
+ * they carry Object.prototype accessor/data semantics, so a bracket assignment
+ * (`filtered[key] = …` in the redactor) does not define a normal own property —
+ * these are not realistic LogRecord.properties keys, and including them would
+ * test a JS object-model quirk, not the redaction contract.
+ */
+const PROTOTYPE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+const keyArb = fc
+	.string({ minLength: 1, maxLength: 16 })
+	.filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k) && !PROTOTYPE_KEYS.has(k));
+
+/** Scalar values where === identity is meaningful for the redaction contract. */
+const valArb = fc.oneof(
+	fc.string(),
+	fc.integer(),
+	fc.double({ noNaN: true }),
+	fc.constant(null),
+	fc.boolean(),
+);
+
+const propsArb = fc
+	.uniqueArray(fc.tuple(keyArb, valArb), { selector: ([k]) => k })
+	.map((entries) => Object.fromEntries(entries) as Record<string, unknown>);
+
+const allowKeysArb = fc.uniqueArray(keyArb);
+
+test("allowlistRecord — allowed keys pass verbatim, others redacted, key set preserved, input unmutated, for any record", () => {
+	fc.assert(
+		fc.property(propsArb, allowKeysArb, (props, allowKeys) => {
+			const allow = new Set(allowKeys);
+			const r = record("info", "msg", { ...props });
+			const inputSnapshot = JSON.parse(JSON.stringify(r.properties));
+			const out = allowlistRecord(r, allowKeys);
+
+			// key set preserved
+			if (Object.keys(out.properties).length !== Object.keys(r.properties).length) return false;
+			// per-key contract: allowed → same value (===), else "[redacted]"
+			for (const [k, v] of Object.entries(r.properties)) {
+				const expected = allow.has(k) ? v : "[redacted]";
+				if (out.properties[k] !== expected) return false;
+			}
+			// input never mutated
+			return JSON.stringify(r.properties) === JSON.stringify(inputSnapshot);
+		}),
+	);
+});
+
+test("allowlistRecord — returns the same reference iff every property key is allowed", () => {
+	fc.assert(
+		fc.property(propsArb, allowKeysArb, (props, allowKeys) => {
+			const allow = new Set(allowKeys);
+			const r = record("info", "msg", { ...props });
+			const out = allowlistRecord(r, allowKeys);
+			const allAllowed = Object.keys(props).every((k) => allow.has(k));
+			return (out === r) === allAllowed;
+		}),
+	);
 });
