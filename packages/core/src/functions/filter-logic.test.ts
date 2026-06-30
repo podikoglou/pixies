@@ -273,6 +273,68 @@ test("compileWhere: unknown operator throws", () => {
 // ---------------------------------------------------------------------------
 // applyTagsFilter
 // ---------------------------------------------------------------------------
+//
+// The filter's universal laws, asserted for ANY elements and tag spec list: an
+// empty tag list returns the SAME array reference; the result is always a
+// subset of the input by reference; and re-filtering the filtered set is a
+// no-op (the per-element predicate is deterministic). Operator *semantics*
+// (what each op matches) stay pinned by the examples below.
+
+const tfKeyArb = fc
+	.string({ minLength: 1, maxLength: 6 })
+	.filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));
+const tfValArb = fc.string({ maxLength: 6 });
+const tfTagsArb = fc.array(
+	fc.record({
+		key: tfKeyArb,
+		value: fc.option(tfValArb).map((v) => v ?? undefined),
+		op: fc
+			.option(fc.constantFrom("eq", "neq", "regex", "iregex", "exists", "notexists"))
+			.map((v) => v ?? undefined),
+	}),
+	{ maxLength: 4 },
+);
+const tfElementArb = fc
+	.record({
+		id: fc.string({ minLength: 1, maxLength: 6 }),
+		name: fc.option(tfValArb),
+		tags: fc
+			.uniqueArray(fc.tuple(tfKeyArb, tfValArb), { selector: ([k]) => k, maxLength: 4 })
+			.map((entries) => Object.fromEntries(entries) as Record<string, string>),
+	})
+	.map((f) => ({
+		id: f.id,
+		...(f.name !== null ? { name: f.name } : {}),
+		...(f.tags !== null && Object.keys(f.tags).length > 0 ? { tags: f.tags } : {}),
+	}));
+
+test("applyTagsFilter: an empty tag list returns the input unchanged (same reference), for any elements", () => {
+	fc.assert(
+		fc.property(
+			fc.array(tfElementArb, { maxLength: 10 }),
+			(elements) => applyTagsFilter(elements, []) === elements,
+		),
+	);
+});
+
+test("applyTagsFilter: result is a subset of the input by reference, for any elements/tags", () => {
+	fc.assert(
+		fc.property(fc.array(tfElementArb, { maxLength: 15 }), tfTagsArb, (elements, tags) => {
+			const result = applyTagsFilter(elements, tags);
+			return result.every((r) => elements.includes(r));
+		}),
+	);
+});
+
+test("applyTagsFilter: idempotent — re-filtering the filtered set is a no-op, for any elements/tags", () => {
+	fc.assert(
+		fc.property(fc.array(tfElementArb, { maxLength: 15 }), tfTagsArb, (elements, tags) => {
+			const once = applyTagsFilter(elements, tags);
+			const twice = applyTagsFilter(once, tags);
+			return once.length === twice.length && once.every((e, i) => twice[i] === e);
+		}),
+	);
+});
 
 test("applyTagsFilter: eq matches matching value", () => {
 	const result = applyTagsFilter(
@@ -370,11 +432,6 @@ test("applyTagsFilter: invalid regex returns false instead of throwing", () => {
 		[{ key: "name", op: "regex", value: "[unclosed" }],
 	);
 	expect(result).toHaveLength(0);
-});
-
-test("applyTagsFilter: empty tags array returns all elements", () => {
-	const elements = [mk("1", { amenity: "pharmacy" })];
-	expect(applyTagsFilter(elements, [])).toBe(elements);
 });
 
 test("applyTagsFilter: unknown op returns false (element excluded)", () => {
