@@ -115,19 +115,25 @@ export interface ValidationResult {
 export function validateOverpassQL(query: string, area: ResolvedArea): ValidationResult {
 	const errors: string[] = [];
 
-	const open = (query.match(/\[/g) ?? []).length;
-	const close = (query.match(/\]/g) ?? []).length;
+	// Balance and keyword checks run on the query with quoted string literals
+	// stripped: bracket/paren/keyword characters that legitimately appear inside
+	// a value (e.g. a name regex `"]"`) must not be counted as structural, or the
+	// validator would reject the trusted generator's own output.
+	const unquoted = stripQuoted(query);
+
+	const open = (unquoted.match(/\[/g) ?? []).length;
+	const close = (unquoted.match(/\]/g) ?? []).length;
 	if (open !== close) errors.push(`unbalanced brackets: ${open} '[' vs ${close} ']'`);
 
-	const openP = (query.match(/\(/g) ?? []).length;
-	const closeP = (query.match(/\)/g) ?? []).length;
+	const openP = (unquoted.match(/\(/g) ?? []).length;
+	const closeP = (unquoted.match(/\)/g) ?? []).length;
 	if (openP !== closeP) errors.push(`unbalanced parentheses: ${openP} '(' vs ${closeP} ')'`);
 
-	if (!/\b(?:out|node|way|relation)\b/.test(query)) {
+	if (!/\b(?:out|node|way|relation)\b/.test(unquoted)) {
 		errors.push("query has no node/way/relation statements");
 	}
 
-	if (!/\bout\b/.test(query)) errors.push("query missing 'out' statement");
+	if (!/\bout\b/.test(unquoted)) errors.push("query missing 'out' statement");
 
 	if (area.kind === "bbox") {
 		const km2 = boundsAreaKm2(area.bounds);
@@ -139,6 +145,17 @@ export function validateOverpassQL(query: string, area: ResolvedArea): Validatio
 	}
 
 	return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Strip Overpass double-quoted string literals (`"..."` with `\"` escapes) so
+ * the structural balance checks ignore characters inside values. The generator's
+ * {@link escapeString} quotes every value but leaves brackets/parens untouched
+ * inside the quotes (they are not special in quoted Overpass strings), so a
+ * value like `"]"` must not unbalance the count.
+ */
+function stripQuoted(s: string): string {
+	return s.replace(/"(?:[^"\\]|\\.)*"/g, "");
 }
 
 /**
