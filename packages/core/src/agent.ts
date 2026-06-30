@@ -1,12 +1,14 @@
-import { Agent } from "@earendil-works/pi-agent-core";
+import { Agent, type AfterToolCallContext } from "@earendil-works/pi-agent-core";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { getModels, getProviders } from "@earendil-works/pi-ai";
-import type { Api, KnownProvider, Model } from "@earendil-works/pi-ai";
+import type { Api, KnownProvider, Model, TextContent } from "@earendil-works/pi-ai";
 import { Value } from "typebox/value";
 import { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
 import { silentLogger, type Logger } from "./logging/index.ts";
 import { NominatimClient } from "./clients/nominatim.ts";
 import { OverpassClient } from "./clients/overpass.ts";
 import { createTools } from "./tools/index.ts";
+import type { CodeExecutor } from "./tools/tool-execute-code.ts";
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 
 export type { ResolvedPixiesConfig } from "./config-schema.ts";
@@ -115,6 +117,7 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 			posthogHost: env("PIXIES_POSTHOG_HOST"),
 			posthogApiKey: env("PIXIES_POSTHOG_API_KEY"),
 			conversationTokenBudget: num("PIXIES_CONVERSATION_TOKEN_BUDGET"),
+			maxPromptChars: num("PIXIES_MAX_PROMPT_CHARS"),
 		}),
 	);
 }
@@ -122,19 +125,8 @@ export function readConfigFromEnv(): ResolvedPixiesConfig {
 export interface CreateAgentOptions {
 	config: ResolvedPixiesConfig;
 	fetch?: typeof globalThis.fetch;
-	/**
-	 * Pre-built Nominatim client. When omitted, the client is constructed
-	 * inside this call via {@link createNominatimClient} (the path used by
-	 * single-user adapters and tests). Multi-tenant adapters (e.g. the server)
-	 * MUST inject a single shared instance so the Nominatim rate-limit chain is
-	 * process-global — see ADR-0004.
-	 */
-	nominatim?: NominatimClient;
-	/**
-	 * Pre-built Overpass client; see {@link CreateAgentOptions.nominatim} for
-	 * the injection / fallback contract.
-	 */
-	overpass?: OverpassClient;
+	/** Sandboxed Python executor (Monty) for the `execute_code` tool. Required — there is no built-in fallback. */
+	codeExecutor: CodeExecutor;
 }
 
 /**
@@ -225,16 +217,105 @@ export function createOverpassClient(
 	});
 }
 
+/** Python error types produced by incorrect LLM-written code. */
+const CODING_ERROR_PATTERN = /^(Type|Syntax|Name|Key|Value|ModuleNotFound|Import)Error\b/m;
+
+/** RuntimeError sub-patterns that indicate the LLM wrote a bad query, not a service outage. */
+const QUERY_ERROR_PATTERN =
+	/\b(Invalid Overpass query|bounding box area.*exceeds safe limit|area must specify one of)\b/;
+
+/** Shape-misuse sub-patterns: passing a FeaturesEnvelope where a bare list is
+ *  expected (the most common list/envelope confusion). The thrown error names
+ *  the wrong type and the fix; this makes it immediately retryable.
+ *
+ *  NOTE: no trailing `\b` — `]` is a non-word char, so `\b` after it would only
+ *  match if a word char followed `[Feature]`, which never happens in the real
+ *  throw (`${name} must be a list[Feature], got ${got}` at host-call-shapes.ts).
+ *  The leading `\b` is sufficient and matches the documented contract in
+ *  system-prompt.ts ("shape error → fix and retry"). */
+const SHAPE_ERROR_PATTERN = /\bmust be a list\[Feature\]/;
+
+function isRetryableError(text: string): boolean {
+	return (
+		CODING_ERROR_PATTERN.test(text) ||
+		QUERY_ERROR_PATTERN.test(text) ||
+		SHAPE_ERROR_PATTERN.test(text)
+	);
+}
+
+/**
+ * Prepend a retry directive so the LLM never gives up on its own mistakes.
+ * Includes RuntimeError sub-patterns for query-construction errors (e.g.
+ * bounding-box too large) that the LLM can fix by narrowing its search.
+ */
+function prependRetryDirective(errorText: string): TextContent[] {
+	const match = errorText.match(/^(\w+):/);
+	const errorType = match?.[1] ?? "error";
+	return [
+		{
+			type: "text",
+			text: `Your code produced a ${errorType}. Fix the issue and call execute_code again.\n\n${errorText}`,
+		},
+	];
+}
+
+/**
+ * Transient network/timeout failures. Both OSM clients wrap any uncaught throw
+ * that is not a caller-abort as `network error: <reason>` (overpass.ts /
+ * nominatim.ts), so this prefix is the stable, server-authored signal that the
+ * request never completed — distinct from the non-retryable busy message
+ * (OVERPASS_BUSY_MESSAGE / NOMINATIM_BUSY_MESSAGE), which this does not match.
+ */
+const TRANSIENT_NETWORK_PATTERN = /\bnetwork error\b/i;
+
+/** The kind of tool error, deciding which retry directive (if any) to inject. */
+export type ToolErrorKind = "coding" | "transient" | "other";
+
+/**
+ * Classify a tool-error text into the retry strategy that applies. Pure and
+ * unit-testable. "other" covers the non-retryable busy/overload signal and
+ * anything unrecognized — the caller must not inject a retry directive for it.
+ */
+export function classifyToolError(text: string): ToolErrorKind {
+	if (TRANSIENT_NETWORK_PATTERN.test(text)) return "transient";
+	if (isRetryableError(text)) return "coding";
+	return "other";
+}
+
+/**
+ * Build the retry directive to inject in place of the raw error, or null when
+ * the kind is non-retryable. Pure and unit-testable.
+ */
+export function retryDirectiveFor(kind: ToolErrorKind, errorText: string): TextContent[] | null {
+	if (kind === "coding") return prependRetryDirective(errorText);
+	if (kind === "transient") {
+		return [
+			{
+				type: "text",
+				text: `The previous call failed with a transient network error — the OSM endpoint timed out or dropped the connection mid-request. This is temporary and not a problem with your query or arguments. Retry the SAME call, unchanged, in a new execute_code block.\n\n${errorText}`,
+			},
+		];
+	}
+	return null;
+}
+
+/** Max consecutive transient-error retries per conversation before giving up gracefully. */
+export const MAX_TRANSIENT_RETRIES = 2;
+
+/**
+ * Directive injected when the transient retry budget is exhausted: the backing
+ * service appears to be down. Phrased to match the busy-message convention
+ * ("tell the user … temporarily unavailable") — the agent is prose-less by
+ * design, so this directive carries the user-facing wording.
+ */
+const TRANSIENT_GIVE_UP_TEXT =
+	"The backing service has failed with a transient network error several times in a row and appears to be down. Stop retrying. Tell the user that the map service is temporarily unavailable and suggest they try again shortly.";
+
 export function createAgent(options: CreateAgentOptions): Agent {
 	const { config } = options;
 	const model = resolveModel(config.model);
-	// Inject callers own the client lifetime (server: one per process). When
-	// not injected, build a fresh pair — this preserves the single-user/test
-	// path. See ADR-0004.
-	const nominatim = options.nominatim ?? createNominatimClient(config, { fetch: options.fetch });
-	const overpass = options.overpass ?? createOverpassClient(config, { fetch: options.fetch });
-	const tools = createTools(nominatim, overpass);
-	return new Agent({
+	const tools = createTools({ executor: options.codeExecutor });
+	const agent = new Agent({
 		initialState: {
 			systemPrompt: SYSTEM_PROMPT,
 			model,
@@ -243,4 +324,51 @@ export function createAgent(options: CreateAgentOptions): Agent {
 		},
 		getApiKey: () => config.apiKey,
 	});
+
+	let lastToolWasError = false;
+	let lastErrorKind: ToolErrorKind = "other";
+	let transientRetryCount = 0;
+
+	agent.afterToolCall = async (ctx: AfterToolCallContext) => {
+		if (!ctx.isError) {
+			lastToolWasError = false;
+			lastErrorKind = "other";
+			transientRetryCount = 0;
+			return;
+		}
+		lastToolWasError = true;
+		const textContent = ctx.result.content.map((c) => ("text" in c ? c.text : "")).join("\n");
+		lastErrorKind = classifyToolError(textContent);
+		if (lastErrorKind === "transient" && transientRetryCount >= MAX_TRANSIENT_RETRIES) {
+			return { content: [{ type: "text", text: TRANSIENT_GIVE_UP_TEXT }] };
+		}
+		const directive = retryDirectiveFor(lastErrorKind, textContent);
+		if (directive) {
+			if (lastErrorKind === "transient") transientRetryCount++;
+			return { content: directive };
+		}
+	};
+
+	agent.subscribe((event: AgentEvent) => {
+		if (event.type === "turn_end" && lastToolWasError) {
+			const msg = event.message;
+			const content = msg.role === "assistant" ? msg.content : undefined;
+			const toolCalls = content?.filter((c: { type: string }) => c.type === "toolCall");
+			if (!toolCalls || toolCalls.length === 0) {
+				const steerText =
+					lastErrorKind === "transient"
+						? transientRetryCount >= MAX_TRANSIENT_RETRIES
+							? "The map service appears to be down after repeated network errors. Stop retrying and end the turn."
+							: "The previous call hit a transient network error, not a bad query. Retry the SAME call unchanged in a new execute_code block."
+						: "You got an error. Retry with a different approach — narrow the area, fix arguments, or simplify the query.";
+				agent.steer({
+					role: "user",
+					content: [{ type: "text", text: steerText }],
+					timestamp: Date.now(),
+				});
+			}
+		}
+	});
+
+	return agent;
 }

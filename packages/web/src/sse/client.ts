@@ -1,8 +1,9 @@
 import { Type } from "typebox";
 import type { Static } from "typebox";
 import { Value } from "typebox/value";
-import { Result, SSE_EVENT_DATA_SCHEMAS } from "@pixies/core";
-import type { SSEEvent, SSEEventName } from "@pixies/core";
+import { Result } from "@pixies/core";
+import { SSE_EVENT_DATA_SCHEMAS } from "@pixies/protocol";
+import type { SSEEvent, SSEEventName } from "@pixies/protocol";
 
 export class ApiError extends Error {
 	status: number;

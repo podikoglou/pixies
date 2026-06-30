@@ -112,7 +112,7 @@ const toolStartEvent = (): AgentEvent =>
 	({
 		type: "tool_execution_start",
 		toolCallId: "t1",
-		toolName: "query_osm",
+		toolName: "execute_code",
 		args: {},
 	}) as unknown as AgentEvent;
 
@@ -155,7 +155,7 @@ const toolProgressEvent = (toolCallId: string, type: "queued" | "running"): Agen
 	({
 		type: "tool_execution_update",
 		toolCallId,
-		toolName: "query_osm",
+		toolName: "execute_code",
 		args: {},
 		partialResult: { details: { type } },
 	}) as unknown as AgentEvent;
@@ -270,7 +270,7 @@ test("pipeAgentStream captures `agent stream disconnect` (had_output=true) when 
 	const posthog = spyPostHog();
 	const { store, abortSpy } = stubStoreWithSpy();
 	const { stream, end } = hangingStream([
-		{ type: "tool_execution_start", toolCallId: "t1", toolName: "query_osm", args: {} },
+		{ type: "tool_execution_start", toolCallId: "t1", toolName: "execute_code", args: {} },
 	]);
 	const response = pipeAgentStream(store, { stream }, "conv-1", logger, posthog);
 
@@ -459,7 +459,7 @@ test("pipeAgentStream consumes turn_end and captures one `agent turn` per turn (
 			stream: closingStream([
 				turnEndEvent([{ toolName: "geocode", isError: false, details: { features: 2 } }]),
 				turnStartEvent(),
-				turnEndEvent([{ toolName: "query_osm", isError: true, details: { boom: true } }]),
+				turnEndEvent([{ toolName: "execute_code", isError: true, details: { boom: true } }]),
 			]),
 		},
 		"conv-turn",
@@ -490,7 +490,7 @@ test("pipeAgentStream consumes turn_end and captures one `agent turn` per turn (
 	expect(turns[1]!.properties).toMatchObject({
 		turn_index: 1,
 		tool_calls: 1,
-		tool_names: ["query_osm"],
+		tool_names: ["execute_code"],
 		had_tool_error: true,
 	});
 });
@@ -507,13 +507,14 @@ test("pipeAgentStream consumes tool_execution events and captures one `tool call
 				{
 					type: "tool_execution_start",
 					toolCallId: "t1",
-					toolName: "query_osm",
+					toolName: "execute_code",
 					args: {},
 				} as unknown as AgentEvent,
 				toolProgressEvent("t1", "queued"),
 				toolProgressEvent("t1", "running"),
-				toolEndEvent("t1", "query_osm", {
-					data: [{ type: "node", id: 1, lat: 0, lon: 0, name: "a" }],
+				toolEndEvent("t1", "execute_code", {
+					stdout: "stub",
+					displays: [{ markers: [{ lat: 0, lon: 0, label: "a" }] }],
 				}),
 			]),
 		},
@@ -529,7 +530,7 @@ test("pipeAgentStream consumes tool_execution events and captures one `tool call
 	expect(calls[0]).toMatchObject({ distinctId: "conv-tool" });
 	expect(calls[0]!.properties).toMatchObject({
 		$process_person_profile: false,
-		tool_name: "query_osm",
+		tool_name: "execute_code",
 		outcome: "success",
 		result_count: 1,
 	});

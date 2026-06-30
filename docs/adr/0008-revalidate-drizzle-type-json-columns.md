@@ -12,7 +12,7 @@ transcript: text("transcript", { mode: "json" }).$type<AgentMessage[]>(),
 
 Drizzle's `$type<T>()` is a **TypeScript-only** annotation: it tells the ORM that the deserialized JSON should be treated as `AgentMessage[]` at compile time, but it performs **no runtime validation**. The bytes that come back from SQLite are `JSON.parse`d into an untyped value and then exposed to the rest of the program as if they were already `AgentMessage[]` — any shape SQLite happens to hold (a `null`, a string, an object missing `role`, a row written by an older schema version) flows straight into the in-memory agent state with zero checking.
 
-A prior fix closed the gap for this one column by adding `PersistedTranscriptSchema` / `isPersistedTranscript` (in `packages/core/src/transcript-schema.ts`) and calling it at the `ConversationStore` read boundary (`packages/server/src/conversations.ts`, `rehydrateTranscript`). That fix lives at the read site, not in the schema — which is correct, since `$type<>` is compile-time by design. **But nothing in the codebase records the rule that every `$type<>` JSON column must have such a guard.** A future JSON column added to `schema.ts` with `$type<>` and no read-site check would reintroduce that exact gap, silently, because the type system would claim the data is already validated.
+A prior fix closed the gap for this one column by adding `PersistedTranscriptSchema` / `isPersistedTranscript` (in `packages/core/src/persisted-transcript.ts`) and calling it at the `ConversationStore` read boundary (`packages/server/src/conversations.ts`, `rehydrateTranscript`). That fix lives at the read site, not in the schema — which is correct, since `$type<>` is compile-time by design. **But nothing in the codebase records the rule that every `$type<>` JSON column must have such a guard.** A future JSON column added to `schema.ts` with `$type<>` and no read-site check would reintroduce that exact gap, silently, because the type system would claim the data is already validated.
 
 This is a cross-cutting storage-boundary rule with long-term consequences (it binds every future schema change), not a one-off fix — so it is recorded as an ADR rather than left as a comment.
 
@@ -87,5 +87,5 @@ Revisit if Pixies adopts a storage layer with its own decoding step (e.g. a repo
 - Documenting the convention (this ADR).
 - Closed the `transcript` read-site gap; its "Scope discovery" section filed the convention follow-up.
 - `packages/core/src/db/schema.ts:6` — the `transcript` column and its pointer comment.
-- `packages/core/src/transcript-schema.ts` — `PersistedAgentMessageSchema`, `PersistedTranscriptSchema`, `isPersistedTranscript` (the permissive guard).
+- `packages/core/src/persisted-transcript.ts` — `PersistedAgentMessageSchema`, `PersistedTranscriptSchema`, `isPersistedTranscript` (the permissive guard).
 - `packages/server/src/conversations.ts:260` — `rehydrateTranscript`, the read-site guard call.

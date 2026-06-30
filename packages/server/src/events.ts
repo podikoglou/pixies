@@ -1,13 +1,9 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { isToolProgress } from "@pixies/core";
-import type { SSEEvent } from "@pixies/core";
+import type { SSEEvent } from "@pixies/protocol";
 
 export function translateAgentEvent(event: AgentEvent): SSEEvent[] {
 	switch (event.type) {
-		case "message_start":
-		case "message_update":
-		case "message_end":
-			return [];
 		case "tool_execution_start":
 			return [
 				{

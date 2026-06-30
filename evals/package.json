@@ -1,0 +1,15 @@
+{
+  "name": "pixies-evals",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "LLM-as-judge evals for the Pixies place agent (SSE → promptfoo).",
+  "scripts": {
+    "eval": "promptfoo eval",
+    "eval:quick": "promptfoo eval --repeat 1",
+    "view": "promptfoo view"
+  },
+  "dependencies": {
+    "promptfoo": "^0.121.0"
+  }
+}

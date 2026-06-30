@@ -20,6 +20,10 @@
     "./logging/posthog-logs-sink": {
       "types": "./src/logging/posthog-logs-sink.ts",
       "default": "./src/logging/posthog-logs-sink.ts"
+    },
+    "./tools": {
+      "types": "./src/tools/index.ts",
+      "default": "./src/tools/index.ts"
     }
   },
   "scripts": {
@@ -43,6 +47,7 @@
   },
   "devDependencies": {
     "better-sqlite3": "^12.11.1",
+    "fast-check": "^4.8.0",
     "oxfmt": "^0.54.0",
     "oxlint": "^1.69.0"
   }

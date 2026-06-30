@@ -14,7 +14,7 @@ export {
 } from "./clients/overpass.ts";
 export {
 	ToolAbortedError,
-	DisplayMapValidationError,
+	CodeExecutionError,
 	ConversationNotFoundError,
 	PromptConflictError,
 	BudgetExceededError,
@@ -39,77 +39,37 @@ export type { CreateAgentOptions } from "./agent.ts";
 export { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
 export { SYSTEM_PROMPT } from "./system-prompt.ts";
 export {
-	ConversationCreatedData,
-	MessageStartData,
-	TextDeltaData,
-	TextContentBlock,
-	UnknownContentBlock,
-	ContentBlock,
-	AssistantMessageSchema,
-	toClientAssistantMessage,
-	MessageEndData,
-	ToolExecutionStartData,
-	ToolExecutionUpdateData,
-	ToolResultSchema,
-	ToolExecutionEndData,
-	DoneData,
-	ErrorData,
-	SSEEventSchema,
-	SSE_EVENT_DATA_SCHEMAS,
-} from "./sse-events.ts";
-export type {
-	ContentBlockType,
-	SSEEvent,
-	SSEEventName,
-	ClientAssistantMessage,
-} from "./sse-events.ts";
-export {
 	createTools,
 	ToolProgressSchema,
 	isToolProgress,
-	GeocodeResultEntrySchema,
-	OverpassResultEntrySchema,
-	GeocodeToolDetailsSchema,
-	ReverseGeocodeToolDetailsSchema,
-	QueryOsmToolDetailsSchema,
-	DisplayMapDataSchema,
-	DisplayMapToolDetailsSchema,
 	parseToolResult,
 	isBusyResult,
 	toolResultCount,
 } from "./tools/index.ts";
 export type {
-	GeocodeToolDetails,
-	ReverseGeocodeToolDetails,
-	QueryOsmToolDetails,
-	DisplayMapData,
-	DisplayMapToolDetails,
+	CodeExecutor,
+	CodeExecutionSuccess,
+	ExecuteCodeDetails,
+	PrimitiveTraceEntry,
 	ToolProgress,
 	ToolResult,
-	GeocodeResultEntry,
-	OverpassResultEntry,
+	HostContext,
+	Feature,
+	GeocodeResult,
+	FindFeaturesResult,
+	SpatialPair,
+	DisplayData,
 } from "./tools/index.ts";
 export {
-	ConversationTranscriptSchema,
-	isConversationTranscript,
 	PersistedTranscriptSchema,
 	PersistedAgentMessageSchema,
 	isPersistedTranscript,
-	toClientTranscriptMessage,
-} from "./transcript-schema.ts";
+} from "./persisted-transcript.ts";
 export {
 	countTranscriptTokens,
 	budgetExceeded,
 	type TranscriptTokenCount,
 } from "./token-budget.ts";
-export type {
-	ConversationTranscript,
-	TranscriptContentBlock,
-	TranscriptUserMessage,
-	TranscriptAssistantMessage,
-	TranscriptToolResultMessage,
-	TranscriptMessage,
-} from "./transcript-schema.ts";
 
 export {
 	NominatimClient,
@@ -130,4 +90,4 @@ export type {
 } from "./clients/overpass.ts";
 export { NOMINATIM_BUSY_MESSAGE } from "./clients/nominatim.ts";
 export { OVERPASS_BUSY_MESSAGE } from "./clients/overpass.ts";
-export { isAbortError } from "./utils/abort.ts";
+export { isAbortError, mergeSignals } from "./utils/abort.ts";

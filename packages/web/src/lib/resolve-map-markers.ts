@@ -1,5 +1,4 @@
-import type { OverpassResultEntry } from "@pixies/core";
-import type { TimelineItem } from "@/state/chat-reducer";
+import type { DisplayData } from "@pixies/core";
 
 export interface MapMarker {
 	lat: number;
@@ -7,52 +6,76 @@ export interface MapMarker {
 	label?: string;
 }
 
-export function resolveMapMarkers(
-	queryRef: string,
-	elementIds: string[] | undefined,
-	items: TimelineItem[],
-	currentIndex?: number,
-): MapMarker[] | null {
-	let queryItem = items.find(
-		(it): it is Extract<TimelineItem, { kind: "tool-call" }> =>
-			it.kind === "tool-call" && it.toolCallId === queryRef,
-	);
-	if (queryItem && queryItem.result.kind !== "query_osm") queryItem = undefined;
+/** A pair of markers connected by a polyline (for spatial_join display). */
+export interface MapPolyline {
+	from: MapMarker;
+	to: MapMarker;
+}
 
-	// Fallback: small models may not reproduce long provider-assigned tool-call
-	// IDs verbatim. Resolve to the nearest preceding query_osm call instead.
-	if (!queryItem) {
-		const upperBound = currentIndex ?? items.length;
-		for (let i = upperBound - 1; i >= 0; i--) {
-			const it = items[i];
-			if (
-				it &&
-				it.kind === "tool-call" &&
-				it.toolName === "query_osm" &&
-				it.result.kind === "query_osm"
-			) {
-				queryItem = it;
-				break;
+type Bounds = { minlat: number; minlon: number; maxlat: number; maxlon: number };
+
+function featureToMarker(feature: { lat?: number; lon?: number; name?: string }): MapMarker | null {
+	if (feature.lat === undefined || feature.lon === undefined) return null;
+	return { lat: feature.lat, lon: feature.lon, ...(feature.name ? { label: feature.name } : {}) };
+}
+
+/**
+ * Flatten every display in an `execute_code` result into a flat marker list.
+ * Markers come from three sources, in order: explicit `markers`, `features`
+ * (those with coordinates), and `pairs` (both point and target, deduped by id
+ * within each display so a reused target renders once).
+ */
+export function displaysToMarkers(displays: DisplayData[]): MapMarker[] {
+	const markers: MapMarker[] = [];
+	for (const display of displays) {
+		if (display.markers) {
+			for (const m of display.markers) {
+				markers.push({ lat: m.lat, lon: m.lon, ...(m.label ? { label: m.label } : {}) });
+			}
+		}
+		if (display.features) {
+			for (const feature of display.features) {
+				const marker = featureToMarker(feature);
+				if (marker) markers.push(marker);
+			}
+		}
+		if (display.pairs) {
+			const seen = new Set<string>();
+			for (const pair of display.pairs) {
+				for (const feature of [pair.point, pair.target]) {
+					const marker = featureToMarker(feature);
+					if (!marker) continue;
+					if (feature.id) {
+						if (seen.has(feature.id)) continue;
+						seen.add(feature.id);
+					}
+					markers.push(marker);
+				}
 			}
 		}
 	}
-	if (!queryItem || queryItem.result.kind !== "query_osm") return null;
+	return markers;
+}
 
-	let entries: OverpassResultEntry[] = queryItem.result.entries;
-
-	if (elementIds) {
-		const idSet = new Set(elementIds);
-		entries = entries.filter((e) => idSet.has(`${e.type}/${e.id}`));
+/** Extract one polyline per `pairs` entry across all displays. */
+export function displaysToPolylines(displays: DisplayData[]): MapPolyline[] {
+	const polylines: MapPolyline[] = [];
+	for (const display of displays) {
+		if (!display.pairs) continue;
+		for (const pair of display.pairs) {
+			const from = featureToMarker(pair.point);
+			const to = featureToMarker(pair.target);
+			if (!from || !to) continue;
+			polylines.push({ from, to });
+		}
 	}
+	return polylines;
+}
 
-	return entries
-		.filter(
-			(e): e is OverpassResultEntry & { lat: number; lon: number } =>
-				e.lat != null && e.lon != null,
-		)
-		.map((e) => ({
-			lat: e.lat,
-			lon: e.lon,
-			...(e.name ? { label: e.name } : {}),
-		}));
+/** Return the first bounds carried by any display, or `null` when none. */
+export function displaysToBounds(displays: DisplayData[]): Bounds | null {
+	for (const display of displays) {
+		if (display.bounds) return display.bounds;
+	}
+	return null;
 }

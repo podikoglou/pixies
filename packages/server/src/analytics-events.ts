@@ -42,8 +42,8 @@ export type ToolCallOutcome = "error" | "busy" | "empty" | "success";
 export type ServerAnalyticsEvent = {
 	// Stream lifecycle events (captured by `StreamInstrumentation`).
 	"agent stream first token": { ttft_ms: number };
-	"agent stream done": { duration_ms: number; ttft_ms?: number };
-	"agent stream disconnect": { elapsed_ms: number; had_output: boolean };
+	"agent stream done": { duration_ms: number; ttft_ms?: number; total_tool_ms: number };
+	"agent stream disconnect": { elapsed_ms: number; had_output: boolean; total_tool_ms: number };
 	"agent stream error": { error_tag?: string };
 	// Per-turn agent-loop telemetry (captured by `StreamInstrumentation.recordTurnEnd`).
 	"agent turn": {
@@ -91,6 +91,18 @@ export type ServerAnalyticsEvent = {
 		 * outcomes. Derived via `toolResultCount` from `@pixies/core`.
 		 */
 		result_count?: number;
+		/**
+		 * Ordered list of primitive names called inside the cell (e.g.
+		 * `["geocode", "find_features", "profile"]`). Fixed-vocabulary ids —
+		 * never args or content. Omitted when the cell produced no trace
+		 * (errored cells, non-execute_code tools).
+		 */
+		primitives?: string[];
+		/**
+		 * Primitive name → total wall-clock ms, collapsed across repeated calls
+		 * of the same primitive in one cell. Omitted when `primitives` is.
+		 */
+		primitive_timings_ms?: Record<string, number>;
 	};
 	// Route-handler events (captured at the handler boundary in `index.ts`).
 	"conversation started": { message_length: number };

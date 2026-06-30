@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import type { SSEEvent } from "@pixies/core";
+import type { SSEEvent } from "@pixies/protocol";
 import { dispatchSseEvent } from "./sse-dispatch.ts";
 import type { ChatAction } from "./chat-reducer.ts";
 
@@ -39,7 +39,7 @@ test("tool_execution_start does not fire callback and dispatches TOOL_START", ()
 	const { dispatch, actions } = capture();
 	const evt: SSEEvent = {
 		event: "tool_execution_start",
-		data: { toolCallId: "tc-1", toolName: "query_osm", args: { q: "*" } },
+		data: { toolCallId: "tc-1", toolName: "execute_code", args: { code: "print(1)" } },
 	};
 
 	dispatchSseEvent(evt, dispatch, () => {
@@ -47,7 +47,12 @@ test("tool_execution_start does not fire callback and dispatches TOOL_START", ()
 	});
 
 	expect(actions).toEqual([
-		{ type: "TOOL_START", toolCallId: "tc-1", toolName: "query_osm", args: { q: "*" } },
+		{
+			type: "TOOL_START",
+			toolCallId: "tc-1",
+			toolName: "execute_code",
+			args: { code: "print(1)" },
+		},
 	]);
 });
 
@@ -115,45 +120,6 @@ test("done with durationMs dispatches STREAM_DONE with responseTimeMs", () => {
 	expect(actions).toEqual([{ type: "STREAM_DONE", responseTimeMs: 1234 }]);
 });
 
-test("message_end without startTime dispatches MESSAGE_END with undefined responseTimeMs", () => {
-	const { dispatch, actions } = capture();
-	const evt: SSEEvent = {
-		event: "message_end",
-		data: { message: { role: "assistant", content: [{ type: "text", text: "hi" }] } },
-	};
-
-	dispatchSseEvent(evt, dispatch, () => {
-		throw new Error("should not fire");
-	});
-
-	expect(actions).toEqual([{ type: "MESSAGE_END", text: "hi", responseTimeMs: undefined }]);
-});
-
-test("message_end with startTime dispatches MESSAGE_END carrying a computed responseTimeMs", () => {
-	const { dispatch, actions } = capture();
-	const evt: SSEEvent = {
-		event: "message_end",
-		data: { message: { role: "assistant", content: [{ type: "text", text: "hi" }] } },
-	};
-	// Pin startTime well in the past so the elapsed computation is non-trivial and
-	// resilient to CI clock jitter.
-	const startTime = Date.now() - 1234;
-
-	dispatchSseEvent(
-		evt,
-		dispatch,
-		() => {
-			throw new Error("should not fire");
-		},
-		startTime,
-	);
-
-	expect(actions).toHaveLength(1);
-	expect(actions[0]).toMatchObject({ type: "MESSAGE_END", text: "hi" });
-	const { responseTimeMs } = actions[0] as { responseTimeMs?: number };
-	expect(responseTimeMs).toBeGreaterThanOrEqual(1234);
-});
-
 test("error does not fire callback and dispatches SET_ERROR", () => {
 	const { dispatch, actions } = capture();
 	const evt: SSEEvent = { event: "error", data: { message: "boom" } };
@@ -178,7 +144,6 @@ test("error with errorTag dispatches friendly copy from errorToToastCopy", () =>
 
 	expect(actions).toHaveLength(1);
 	expect(actions[0]).toMatchObject({ type: "SET_ERROR" });
-	// OverpassBusy copy from the error-copy table — NOT the raw server message.
 	expect((actions[0] as { message: string }).message).toContain("OpenStreetMap");
 	expect((actions[0] as { message: string }).message).not.toBe("raw msg");
 });
@@ -196,6 +161,5 @@ test("error with unknown errorTag falls back to the raw message (wire-trust boun
 
 	expect(actions).toHaveLength(1);
 	expect(actions[0]).toMatchObject({ type: "SET_ERROR" });
-	// Unknown tag is rejected at the read boundary → undefined → defaultMessage.
 	expect((actions[0] as { message: string }).message).toBe("raw msg");
 });

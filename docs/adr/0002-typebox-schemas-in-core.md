@@ -9,12 +9,21 @@ The original decision below holds **for the domains it covered: tool parameter s
 | Domain | Library | Why |
 | --- | --- | --- |
 | Tool parameter schemas (`packages/core/src/tools/*.ts`) | TypeBox | Required by the `AgentTool` contract from `@earendil-works/pi-agent-core`, which expects TypeBox `TSchema` params. |
-| SSE event schemas (`packages/core/src/sse-events.ts`) | TypeBox | No input/output distinction needed; JSON Schema-derivable for the wire contract. Original rationale (single source of truth, `Value.Check()` runtime validation, inferred `Static<T>`) still applies. |
+| SSE event schemas (`packages/protocol/src/sse-events.ts` — moved out of core 2026-06-30, see Revision below) | TypeBox | No input/output distinction needed; JSON Schema-derivable for the wire contract. Original rationale (single source of truth, `Value.Check()` runtime validation, inferred `Static<T>`) still applies. |
 | Config schema (`packages/core/src/config-schema.ts`) | Zod | Config needs **two** types — input (defaults not yet applied, `PixiesConfig`) and resolved (defaults filled, `ResolvedPixiesConfig`). Zod expresses this directly via `z.input<typeof Schema>` / `z.output<typeof Schema>`; TypeBox's `Static<T>` yields a single type and cannot model the defaults transform. |
 
 The "Zod instead of TypeBox (rejected)" alternative below is therefore retained for historical accuracy but is **superseded for the config domain** by this revision. The rejection still holds for tool params and SSE events — those domains have no input/output split and (for tool params) are constrained by the upstream `AgentTool` contract.
 
 > **Note (added 2026-06-17):** `PixiesConfig` (the `z.input` type) is no longer exported. Zod's input/output capability remains the reason for the library choice, but the input type was dead surface area — no consumer ever read it. It will be re-exported when a config-file loader with truly optional fields lands. `ResolvedPixiesConfig` (`z.output`) is the only config type exported today.
+
+## Revision — 2026-06-30
+
+The SSE event schemas and the client-facing transcript wire schemas have moved out of `@pixies/core` into the new `@pixies/protocol` package (issue #258). The TypeBox-over-Zod choice for these domains is unchanged — only their *home* moved. Two notes on the original rationale:
+
+- **Rationale #1 ("core already depends on TypeBox")** is no longer load-bearing for the SSE/transcript domains. `protocol` declares its own `typebox` dependency; it does not lean on core's. The argument still holds for *tool parameter* schemas, which remain in `core` because the `AgentTool` contract from `@earendil-works/pi-agent-core` requires TypeBox there.
+- **The Consequences section's "core now carries SSE-specific types" caveat** is resolved: core no longer carries them. ADR-0001's interface-independence is restored. The single-source-of-truth benefit is preserved — it now lives in `protocol`, shared by `server` and `web`.
+
+Core keeps one TypeBox schema that is *not* a wire contract: the permissive `PersistedAgentMessageSchema` guard for the SQLite `transcript` column (`packages/core/src/persisted-transcript.ts`). It stays in core because it guards a persistence boundary, not a cross-package wire format.
 
 ## Context
 
