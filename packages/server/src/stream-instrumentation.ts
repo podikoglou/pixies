@@ -148,14 +148,13 @@ export class StreamInstrumentation {
 	// Modelled as one state, not separate booleans, so the impossible
 	// "completed && aborted" can't be represented.
 	private state: "running" | "completed" | "aborted" = "running";
-	// First user-facing output timestamp. Assistant text SSE events are
-	// deliberately suppressed on the wire (see `translateAgentEvent`), so the
-	// earliest sign of life is the first `tool_execution_start` frame — that is
-	// what `had_output` reports.
+	// First user-facing output timestamp. The server emits tool-execution + terminal
+	// frames only (no assistant text on the wire), so the earliest sign of life is
+	// the first `tool_execution_start` frame — that is what `had_output` reports.
 	private firstOutputAt: number | undefined;
 	// TTFT: ms from stream start to the LLM's first user-facing TEXT token. The
 	// raw agent event is seen in the loop BEFORE translation, so this is
-	// measurable even though assistant text is suppressed on the wire.
+	// measurable even though no assistant text is emitted on the wire.
 	// `thinking_*` variants are excluded (internal reasoning), but their elapsed
 	// time is still folded into `duration_ms` / `ttft_ms` since both are
 	// measured from `startTime`.
