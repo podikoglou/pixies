@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
-import type { SSEEvent } from "@pixies/core";
+import type { SSEEvent } from "@pixies/protocol";
 import { dispatchSseEvent } from "./sse-dispatch.ts";
 import type { ChatAction } from "./chat-reducer.ts";
 

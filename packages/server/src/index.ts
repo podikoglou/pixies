@@ -1,7 +1,6 @@
 import {
 	createAgent,
 	readConfigFromEnv,
-	toClientTranscriptMessage,
 	Result,
 	matchError,
 	isToolProgress,
@@ -10,6 +9,7 @@ import {
 	type ResolvedPixiesConfig,
 	type StreamPromptError,
 } from "@pixies/core";
+import { toClientTranscriptMessage } from "@pixies/protocol";
 import { createDb } from "@pixies/core/db";
 import { createLogger, dispose, type Logger } from "@pixies/core/logging";
 import { getPostHogLogsSink } from "@pixies/core/logging/posthog-logs-sink";
