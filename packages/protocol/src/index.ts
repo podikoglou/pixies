@@ -1,13 +1,8 @@
 export {
 	ConversationCreatedData,
-	MessageStartData,
-	TextDeltaData,
 	TextContentBlock,
 	UnknownContentBlock,
 	ContentBlock,
-	AssistantMessageSchema,
-	toClientAssistantMessage,
-	MessageEndData,
 	ToolExecutionStartData,
 	ToolExecutionUpdateData,
 	ToolResultSchema,
@@ -17,12 +12,7 @@ export {
 	SSEEventSchema,
 	SSE_EVENT_DATA_SCHEMAS,
 } from "./sse-events.ts";
-export type {
-	ContentBlockType,
-	SSEEvent,
-	SSEEventName,
-	ClientAssistantMessage,
-} from "./sse-events.ts";
+export type { ContentBlockType, SSEEvent, SSEEventName } from "./sse-events.ts";
 export {
 	TranscriptContentBlockSchema,
 	TranscriptUserMessageSchema,

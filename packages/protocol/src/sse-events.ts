@@ -1,17 +1,9 @@
 import { Type } from "typebox";
 import type { Static, TSchema } from "typebox";
-import { Value } from "typebox/value";
-import type { AssistantMessage as PiAiAssistantMessage } from "@earendil-works/pi-ai";
 import { ToolProgressSchema } from "@pixies/core";
 
 export const ConversationCreatedData = Type.Object({
 	id: Type.String(),
-});
-
-export const MessageStartData = Type.Object({});
-
-export const TextDeltaData = Type.Object({
-	delta: Type.String(),
 });
 
 export const TextContentBlock = Type.Object(
@@ -29,35 +21,6 @@ export const UnknownContentBlock = Type.Object(
 
 export const ContentBlock = Type.Union([TextContentBlock, UnknownContentBlock]);
 export type ContentBlockType = Static<typeof ContentBlock>;
-
-export const AssistantMessageSchema = Type.Object(
-	{
-		role: Type.Literal("assistant"),
-		content: Type.Array(ContentBlock),
-		stopReason: Type.Optional(Type.String()),
-	},
-	{ additionalProperties: false },
-);
-
-export type ClientAssistantMessage = Static<typeof AssistantMessageSchema>;
-
-/**
- * Strip internal call metadata (api/provider/model/responseModel/responseId/
- * usage/diagnostics/errorMessage/timestamp) from a pi-ai AssistantMessage before
- * sending it to clients over SSE.
- *
- * Schema-driven via {@link AssistantMessageSchema} so it stays in sync with the
- * wire contract. `Value.Clean` mutates its input, so we clone first
- * — the incoming object is the agent's own internal reference (also persisted to
- * SQLite) and must not be corrupted.
- */
-export function toClientAssistantMessage(msg: PiAiAssistantMessage): ClientAssistantMessage {
-	return Value.Clean(AssistantMessageSchema, Value.Clone(msg)) as ClientAssistantMessage;
-}
-
-export const MessageEndData = Type.Object({
-	message: AssistantMessageSchema,
-});
 
 export const ToolExecutionStartData = Type.Object({
 	toolCallId: Type.String(),
@@ -114,9 +77,6 @@ export const ErrorData = Type.Object({
 
 export const SSEEventSchema = Type.Union([
 	Type.Object({ event: Type.Literal("conversation_created"), data: ConversationCreatedData }),
-	Type.Object({ event: Type.Literal("message_start"), data: MessageStartData }),
-	Type.Object({ event: Type.Literal("text_delta"), data: TextDeltaData }),
-	Type.Object({ event: Type.Literal("message_end"), data: MessageEndData }),
 	Type.Object({ event: Type.Literal("tool_execution_start"), data: ToolExecutionStartData }),
 	Type.Object({ event: Type.Literal("tool_execution_update"), data: ToolExecutionUpdateData }),
 	Type.Object({ event: Type.Literal("tool_execution_end"), data: ToolExecutionEndData }),
@@ -126,9 +86,6 @@ export const SSEEventSchema = Type.Union([
 
 export type SSEEventName =
 	| "conversation_created"
-	| "message_start"
-	| "text_delta"
-	| "message_end"
 	| "tool_execution_start"
 	| "tool_execution_update"
 	| "tool_execution_end"
@@ -137,9 +94,6 @@ export type SSEEventName =
 
 export type SSEEvent =
 	| { event: "conversation_created"; data: Static<typeof ConversationCreatedData> }
-	| { event: "message_start"; data: Static<typeof MessageStartData> }
-	| { event: "text_delta"; data: Static<typeof TextDeltaData> }
-	| { event: "message_end"; data: Static<typeof MessageEndData> }
 	| { event: "tool_execution_start"; data: Static<typeof ToolExecutionStartData> }
 	| { event: "tool_execution_update"; data: Static<typeof ToolExecutionUpdateData> }
 	| { event: "tool_execution_end"; data: Static<typeof ToolExecutionEndData> }
@@ -148,9 +102,6 @@ export type SSEEvent =
 
 export const SSE_EVENT_DATA_SCHEMAS: Record<SSEEventName, TSchema> = {
 	conversation_created: ConversationCreatedData,
-	message_start: MessageStartData,
-	text_delta: TextDeltaData,
-	message_end: MessageEndData,
 	tool_execution_start: ToolExecutionStartData,
 	tool_execution_update: ToolExecutionUpdateData,
 	tool_execution_end: ToolExecutionEndData,
