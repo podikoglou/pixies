@@ -29,10 +29,11 @@ defaultTest:
         if (m.status === "answered")
           return { pass: true, score: 1, reason: `status=answered (${m.displaysCount} item(s) shown, ${m.retryCount} retry(ies))` };
         const detail = m.errorEvent ? ` — ${JSON.stringify(m.errorEvent)}` : "";
+        const hint = m.status === "empty_stream" ? " — stream cut before completion (likely infra, not the agent)" : "";
         return {
           pass: false,
           score: 0,
-          reason: `status=${m.status}${detail} (toolCalls=${m.toolCallCount}, displays=${m.displaysCount}) — see transcript`,
+          reason: `status=${m.status}${detail}${hint} (toolCalls=${m.toolCallCount}, displays=${m.displaysCount}) — see transcript`,
         };
     # Shared quality rubric — graded only meaningfully once `answered` passes.
     # The Pixies agent emits NO prose; judge purely from the tool transcript.
@@ -57,7 +58,8 @@ defaultTest:
 commandLineOptions:
   maxConcurrency: 1   # be nice to OSM + pixies' per-IP POST rate limit
   repeat: 3           # tame LLM + judge variance; use `eval:quick` for a 1-shot smoke test
-  delay: 500
+  delay: 500          # applied as a post-response sleep (promptfoo index.cjs:6794); skipped on cache hits
+  cache: false        # live evals must hit the server fresh; cache hits also bypass `delay`
   grader: openrouter:google/gemini-3.1-flash-lite
 
 tests:

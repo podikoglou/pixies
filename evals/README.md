@@ -66,6 +66,7 @@ Per test case the provider returns two things:
 | `answered`         | reached a displayed map result — the only passing status        |
 | `gave_up`          | wrote code but produced zero displays (the regression signal)   |
 | `no_tool_call`     | agent ended without writing any code                            |
+| `empty_stream`     | stream ended with no terminal `done`/`error` — cut before completion (infra, not the agent) |
 | `service_busy`     | OSM backing service overloaded (transient, not the agent's fault) |
 | `budget_exceeded`  | hit the conversation turn/token cap                             |
 | `error`            | other fatal `error` event                                       |

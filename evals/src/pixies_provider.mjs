@@ -154,14 +154,16 @@ function summarize(message, events, fatal) {
 	const toolCalls = [];
 	let conversationId = null;
 	let durationMs = null;
+	let sawDone = false; // a `done` frame => the stream reached a normal end
 
 	for (const ev of events) {
 		const d = ev.data ?? {};
 
 		if (ev.event === "conversation_created" && d.id) {
 			conversationId = d.id;
-		} else if (ev.event === "done" && typeof d.durationMs === "number") {
-			durationMs = d.durationMs;
+		} else if (ev.event === "done") {
+			sawDone = true;
+			if (typeof d.durationMs === "number") durationMs = d.durationMs;
 		} else if (ev.event === "tool_execution_start") {
 			toolCalls.push({
 				id: d.toolCallId,
@@ -223,7 +225,10 @@ function summarize(message, events, fatal) {
 	//   answered         — agent reached a displayed map result
 	//   gave_up          — made tool calls but produced zero displays (the failure
 	//                      mode this suite exists to catch)
-	//   no_tool_call     — agent answered without ever writing code
+	//   no_tool_call     — agent finished (done) without ever writing code
+	//   empty_stream     — stream ended with NO terminal `done`/`error` and so was
+	//                      cut before a normal end (infra: deploy, proxy timeout,
+	//                      cache-skipped spacing…). Not the agent's fault.
 	//   service_busy     — OSM backing service overloaded (transient, not agent's fault)
 	//   budget_exceeded  — hit the conversation turn/token cap
 	//   error            — other fatal error event
@@ -231,6 +236,7 @@ function summarize(message, events, fatal) {
 	if (tag && SERVICE_BUSY_TAGS.has(tag)) status = "service_busy";
 	else if (tag === "BudgetExceeded") status = "budget_exceeded";
 	else if (fatal) status = "error";
+	else if (!sawDone) status = "empty_stream";
 	else if (hadAnswer) status = "answered";
 	else if (!madeToolCalls) status = "no_tool_call";
 	else status = "gave_up";
@@ -296,7 +302,7 @@ function renderTranscript(s) {
 	return L.join("\n");
 }
 
-export { callApi };
+export { callApi, summarize };
 
 // promptfoo's file-provider loader does `new (importModule(path))(...)` on the
 // default export, so it must be a class with an instance `callApi`. This thin
