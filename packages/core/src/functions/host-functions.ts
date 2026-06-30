@@ -1,7 +1,7 @@
-import { Result } from "better-result";
-import type { NominatimClient, NominatimResult } from "../clients/nominatim.ts";
+import { Result, matchErrorPartial } from "better-result";
+import type { NominatimClient, NominatimError, NominatimResult } from "../clients/nominatim.ts";
 import { NOMINATIM_BUSY_MESSAGE } from "../clients/nominatim.ts";
-import type { OverpassClient, OverpassElement } from "../clients/overpass.ts";
+import type { OverpassClient, OverpassElement, OverpassError } from "../clients/overpass.ts";
 import { OVERPASS_BUSY_MESSAGE, getElementCoords } from "../clients/overpass.ts";
 import { isBrand, resolveBrand } from "./find-features-brands.ts";
 import { resolveType, type TagClause, type ResolvedType } from "./find-features-types.ts";
@@ -80,13 +80,55 @@ export interface DisplayData {
 const DEFAULT_LIMIT = 200;
 const DEFAULT_MAX_PAIRS = 1000;
 
+/**
+ * Terminal for a {@link NominatimError} at the JS→sandbox (Monty) boundary,
+ * where `Result` cannot cross. Throws at this layer is correct; *what* is
+ * thrown is the concern. The busy variant's raw `.message`
+ * ("Nominatim: OSM server busy (HTTP 429)") does not tell the model to stop
+ * retrying, so substitute {@link NOMINATIM_BUSY_MESSAGE}. Every other variant
+ * is thrown verbatim — a `TaggedError`, so `_tag` / `cause` / `toJSON()` survive
+ * the throw and `stream-instrumentation` can recover the structured error.
+ *
+ * Built on `matchErrorPartial` (not a hand-rolled `_tag` ladder) so the busy
+ * arm is the library's discriminated-union match, not a copy-pasted branch.
+ */
+function throwNominatimError(err: NominatimError): never {
+	return matchErrorPartial(
+		err,
+		{
+			NominatimBusy: () => {
+				throw new Error(NOMINATIM_BUSY_MESSAGE);
+			},
+		},
+		(e) => {
+			throw e;
+		},
+	);
+}
+
+/**
+ * Terminal for an {@link OverpassError} at the JS→sandbox boundary — the
+ * Overpass counterpart to {@link throwNominatimError}. See that function for
+ * why the busy arm is remapped and the rest thrown verbatim.
+ */
+function throwOverpassError(err: OverpassError): never {
+	return matchErrorPartial(
+		err,
+		{
+			OverpassBusy: () => {
+				throw new Error(OVERPASS_BUSY_MESSAGE);
+			},
+		},
+		(e) => {
+			throw e;
+		},
+	);
+}
+
 /** Geocode a place name via Nominatim. Returns the top hit (with up to 3 alternatives) or null. */
 export async function geocodeHost(ctx: HostContext, query: string): Promise<GeocodeResult | null> {
 	const result = await ctx.nominatim.search(query, { limit: 5 }, ctx.signal);
-	if (Result.isError(result)) {
-		if (result.error._tag === "NominatimBusy") throw new Error(NOMINATIM_BUSY_MESSAGE);
-		throw new Error(result.error.message);
-	}
+	if (Result.isError(result)) throwNominatimError(result.error);
 	const hits = result.value;
 	if (hits.length === 0) return null;
 	const top = hits[0]!;
@@ -100,10 +142,7 @@ export async function reverseGeocodeHost(
 	lon: number,
 ): Promise<GeocodeResult[]> {
 	const result = await ctx.nominatim.reverse(lat, lon, { zoom: 18 }, ctx.signal);
-	if (Result.isError(result)) {
-		if (result.error._tag === "NominatimBusy") throw new Error(NOMINATIM_BUSY_MESSAGE);
-		throw new Error(result.error.message);
-	}
+	if (Result.isError(result)) throwNominatimError(result.error);
 	if (!result.value) return [];
 	return [nominatimToGeocodeResult(result.value)];
 }
@@ -132,7 +171,7 @@ export async function findFeaturesHost(
 	ctx: HostContext,
 	params: FindFeaturesParams,
 ): Promise<FindFeaturesResult> {
-	const { nominatim, overpass, signal } = ctx;
+	const { nominatim, signal } = ctx;
 	const resolved = resolveGroups(params.types, params.tags);
 	if (!resolved) {
 		throw new Error("Provide at least one of 'types' or 'tags'.");
@@ -156,11 +195,8 @@ export async function findFeaturesHost(
 		if (!validation.valid) {
 			throw new Error(`Invalid Overpass query: ${validation.errors.join("; ")}`);
 		}
-		const result = await overpass.query(query, signal);
-		if (Result.isError(result)) {
-			if (result.error._tag === "OverpassBusy") throw new Error(OVERPASS_BUSY_MESSAGE);
-			throw new Error(result.error.message);
-		}
+		const result = await ctx.overpass.query(query, signal);
+		if (Result.isError(result)) throwOverpassError(result.error);
 		return elementsToFeatures(result.value.elements ?? []);
 	};
 
@@ -256,10 +292,7 @@ export async function overpassQueryHost(
 	truncated: boolean;
 }> {
 	const result = await ctx.overpass.query(query, ctx.signal);
-	if (Result.isError(result)) {
-		if (result.error._tag === "OverpassBusy") throw new Error(OVERPASS_BUSY_MESSAGE);
-		throw new Error(result.error.message);
-	}
+	if (Result.isError(result)) throwOverpassError(result.error);
 	const features = elementsToFeatures(result.value.elements ?? []);
 	return { features, count: features.length, truncated: false };
 }
@@ -280,10 +313,7 @@ export async function searchHost(
 	limit = 40,
 ): Promise<FeaturesEnvelope> {
 	const result = await ctx.nominatim.search(query, { limit }, ctx.signal);
-	if (Result.isError(result)) {
-		if (result.error._tag === "NominatimBusy") throw new Error(NOMINATIM_BUSY_MESSAGE);
-		throw new Error(result.error.message);
-	}
+	if (Result.isError(result)) throwNominatimError(result.error);
 	const features = result.value.map(nominatimToFeature);
 	return { features, count: features.length, truncated: features.length >= limit };
 }
@@ -409,10 +439,7 @@ async function resolveArea(
 		// Fetch up to 5 hits so the alternatives are available for diagnosis
 		// ("did you mean Athens, Greece?") without a second round-trip.
 		const result = await nominatim.search(area.place, { limit: 5 }, signal);
-		if (Result.isError(result)) {
-			if (result.error._tag === "NominatimBusy") throw new Error(NOMINATIM_BUSY_MESSAGE);
-			throw new Error(result.error.message);
-		}
+		if (Result.isError(result)) throwNominatimError(result.error);
 		const hits = result.value;
 		const hit = hits[0];
 		if (!hit) throw new Error(`Place '${area.place}' did not geocode to any result.`);
