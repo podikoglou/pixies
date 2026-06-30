@@ -366,7 +366,9 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 		onOpen?: (writer: SseWriter, id: string) => void;
 	}
 
-	function createStreamMessageHandler(opts: StreamMessageOpts) {
+	function createStreamMessageHandler(
+		opts: StreamMessageOpts,
+	): (req: BunRequest, server: Bun.Server<undefined>) => Promise<Response> {
 		const { rateLimitPath, analyticsEvent, resolveId, onOpen } = opts;
 		return async (req: BunRequest, server: Bun.Server<undefined>) => {
 			const ip = getClientIp(req, server, rateLimiter.trustProxy, rateLimiter.trustedProxyHops);
