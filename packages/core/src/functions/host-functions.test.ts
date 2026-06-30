@@ -82,9 +82,123 @@ function mockCtx(opts: {
 // ---------------------------------------------------------------------------
 // filterHost
 // ---------------------------------------------------------------------------
+//
+// The composed pipeline's universal laws, asserted for ANY features/params:
+// (1) the result is a subset of the input by reference (filtering never
+// invents elements — and this forces empty-input -> empty); (2) the whole
+// pipeline (where -> tags -> distinct -> sort -> limit) is idempotent —
+// filtering the filtered result is a no-op; (3) a non-negative limit bounds the
+// length (forcing limit-0 -> empty). The `where` generator draws only from a
+// grammar of compilable expressions. Specific filtering outcomes stay pinned by
+// the examples below.
 
-test("filterHost — empty features returns empty result", () => {
-	expect(filterHost([], {})).toEqual([]);
+const whereKey = fc.constantFrom(
+	"amenity",
+	"population",
+	"name",
+	"ref",
+	"level",
+	"score",
+	"region",
+);
+// Letter-leading so the tokenizer reads each value as a single ident token
+// (a digit-leading "0A" would split into number+ident and fail to compile).
+const bareword = fc
+	.string({ minLength: 1, maxLength: 8 })
+	.filter((s) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(s));
+
+/** A single compilable comparison term. */
+const whereTerm = fc.oneof(
+	fc.tuple(whereKey, fc.constantFrom("=", "!="), bareword).map(([k, o, v]) => `${k} ${o} ${v}`),
+	fc
+		.tuple(whereKey, fc.constantFrom("<", "<=", ">", ">="), fc.integer({ min: -1000, max: 1000 }))
+		.map(([k, o, v]) => `${k} ${o} ${v}`),
+	fc.tuple(whereKey, fc.constantFrom("=~", "!~"), bareword).map(([k, o, v]) => `${k} ${o} /${v}/i`),
+	fc.tuple(whereKey, fc.boolean()).map(([k, neg]) => `${k} IS ${neg ? "NOT NULL" : "NULL"}`),
+);
+
+/** A compilable where expression (a term, or two terms joined by AND/OR). */
+const whereArb = fc.oneof(
+	whereTerm,
+	fc
+		.tuple(whereTerm, fc.constantFrom("AND", "OR"), whereTerm)
+		.map(([a, op, b]) => `${a} ${op} ${b}`),
+);
+
+const filterFeatureArb = fc
+	.record({
+		id: fc.string({ minLength: 1, maxLength: 6 }),
+		name: fc.option(bareword),
+		tags: fc
+			.uniqueArray(fc.tuple(whereKey, bareword), { selector: ([k]) => k, maxLength: 4 })
+			.map((entries) => Object.fromEntries(entries) as Record<string, string>),
+	})
+	.map((f) => ({
+		id: f.id,
+		...(f.name !== null ? { name: f.name } : {}),
+		...(f.tags !== null && Object.keys(f.tags).length > 0 ? { tags: f.tags } : {}),
+	}));
+
+const filterTagsParamArb = fc.array(
+	fc.record({
+		key: whereKey,
+		value: fc.option(bareword).map((v) => v ?? undefined),
+		op: fc
+			.option(fc.constantFrom("eq", "neq", "regex", "iregex", "exists", "notexists"))
+			.map((v) => v ?? undefined),
+	}),
+	{ maxLength: 3 },
+);
+
+const filterParamsArb = fc.record({
+	where: fc.option(whereArb).map((v) => v ?? undefined),
+	tags: filterTagsParamArb,
+	distinct: fc.boolean(),
+	sort_by: fc
+		.option(
+			fc.oneof(
+				whereKey,
+				whereKey.map((k) => `-${k}`),
+			),
+		)
+		.map((v) => v ?? undefined),
+});
+
+test("filterHost: result is a subset of the input by reference, for any features/params", () => {
+	fc.assert(
+		fc.property(
+			fc.array(filterFeatureArb, { maxLength: 15 }),
+			filterParamsArb,
+			(features, params) => {
+				const result = filterHost(features, params);
+				return result.every((r) => features.includes(r));
+			},
+		),
+	);
+});
+
+test("filterHost: idempotent — filtering the filtered result is a no-op, for any features/params", () => {
+	fc.assert(
+		fc.property(
+			fc.array(filterFeatureArb, { maxLength: 15 }),
+			filterParamsArb,
+			(features, params) => {
+				const once = filterHost(features, params);
+				const twice = filterHost(once, params);
+				return once.length === twice.length && once.every((e, i) => twice[i] === e);
+			},
+		),
+	);
+});
+
+test("filterHost: a non-negative limit bounds the result length, for any features", () => {
+	fc.assert(
+		fc.property(
+			fc.array(filterFeatureArb, { maxLength: 15 }),
+			fc.integer({ min: 0, max: 20 }),
+			(features, limit) => filterHost(features, { limit }).length <= limit,
+		),
+	);
 });
 
 test("filterHost — no params returns identity (same features)", () => {
@@ -158,11 +272,6 @@ test("filterHost — applies sortBy ascending (default)", () => {
 test("filterHost — applies limit", () => {
 	const features: Feature[] = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }, { id: "e" }];
 	expect(filterHost(features, { limit: 3 })).toHaveLength(3);
-});
-
-test("filterHost — limit 0 returns empty", () => {
-	const features: Feature[] = [{ id: "a" }, { id: "b" }];
-	expect(filterHost(features, { limit: 0 })).toEqual([]);
 });
 
 test("filterHost — chains where + sort_by + limit", () => {
