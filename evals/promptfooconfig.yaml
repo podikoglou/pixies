@@ -29,10 +29,11 @@ defaultTest:
         if (m.status === "answered")
           return { pass: true, score: 1, reason: `status=answered (${m.displaysCount} item(s) shown, ${m.retryCount} retry(ies))` };
         const detail = m.errorEvent ? ` — ${JSON.stringify(m.errorEvent)}` : "";
+        const hint = m.status === "empty_stream" ? " — stream cut before completion (likely infra, not the agent)" : "";
         return {
           pass: false,
           score: 0,
-          reason: `status=${m.status}${detail} (toolCalls=${m.toolCallCount}, displays=${m.displaysCount}) — see transcript`,
+          reason: `status=${m.status}${detail}${hint} (toolCalls=${m.toolCallCount}, displays=${m.displaysCount}) — see transcript`,
         };
     # Shared quality rubric — graded only meaningfully once `answered` passes.
     # The Pixies agent emits NO prose; judge purely from the tool transcript.
