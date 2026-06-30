@@ -406,6 +406,77 @@ test("applyTagsFilter: eq with value matches exactly", () => {
 // ---------------------------------------------------------------------------
 // applySortBy
 // ---------------------------------------------------------------------------
+//
+// The universal sort laws, asserted for ANY element set and sort key: the
+// result is a permutation of the input (nothing dropped or invented), the
+// input array is never mutated, and the sort is idempotent (a deterministic
+// stable comparator makes re-sorting the sorted result a no-op). Correct
+// *ordering* is pinned by the examples below — property-testing it would mean
+// reimplementing the comparator (a smell).
+
+const sortKeyArb = fc
+	.string({ minLength: 1, maxLength: 6 })
+	.filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));
+const tagValArb = fc.oneof(
+	fc.integer({ min: -100_000, max: 100_000 }).map(String),
+	fc.string({ maxLength: 6 }),
+);
+const sortTagsArb = fc
+	.uniqueArray(fc.tuple(sortKeyArb, tagValArb), { selector: ([k]) => k, maxLength: 4 })
+	.map((entries) => Object.fromEntries(entries) as Record<string, string>);
+const sortElementArb = fc
+	.record({
+		id: fc.string({ minLength: 1, maxLength: 6 }),
+		name: fc.option(fc.string({ maxLength: 6 })),
+		tags: fc.option(sortTagsArb),
+	})
+	.map((f) => ({
+		id: f.id,
+		...(f.name !== null ? { name: f.name } : {}),
+		...(f.tags !== null ? { tags: f.tags } : {}),
+	}));
+const sortByArb = fc.oneof(
+	sortKeyArb,
+	sortKeyArb.map((k) => `-${k}`),
+);
+
+test("applySortBy: result is a permutation of the input, for any elements/key", () => {
+	fc.assert(
+		fc.property(fc.array(sortElementArb, { maxLength: 15 }), sortByArb, (elements, sortBy) => {
+			const result = applySortBy(elements, sortBy);
+			if (result.length !== elements.length) return false;
+			const remaining = [...elements];
+			for (const r of result) {
+				const idx = remaining.indexOf(r);
+				if (idx === -1) return false;
+				remaining.splice(idx, 1);
+			}
+			return remaining.length === 0;
+		}),
+	);
+});
+
+test("applySortBy: never mutates the input array, for any elements/key", () => {
+	fc.assert(
+		fc.property(fc.array(sortElementArb, { maxLength: 15 }), sortByArb, (elements, sortBy) => {
+			const snapshot = [...elements];
+			applySortBy(elements, sortBy);
+			return (
+				elements.length === snapshot.length && elements.every((e, i) => elements[i] === snapshot[i])
+			);
+		}),
+	);
+});
+
+test("applySortBy: idempotent — re-sorting the sorted result is a no-op, for any elements/key", () => {
+	fc.assert(
+		fc.property(fc.array(sortElementArb, { maxLength: 15 }), sortByArb, (elements, sortBy) => {
+			const once = applySortBy(elements, sortBy);
+			const twice = applySortBy(once, sortBy);
+			return once.length === twice.length && once.every((e, i) => twice[i] === e);
+		}),
+	);
+});
 
 test("applySortBy: ascending by string tag", () => {
 	const elements = [
@@ -467,13 +538,6 @@ test("applySortBy: non-numeric values use localeCompare", () => {
 	const elements = [mk("1", { code: "äbc" }), mk("2", { code: "abc" }), mk("3", { code: "ABC" })];
 	const result = applySortBy(elements, "code");
 	expect(result.map((e) => e.id)).toEqual(["2", "3", "1"]);
-});
-
-test("applySortBy: does not mutate input array", () => {
-	const elements = [mk("2", { name: "Bob" }), mk("1", { name: "Alice" })];
-	const original = [...elements];
-	applySortBy(elements, "name");
-	expect(elements).toEqual(original);
 });
 
 test("applySortBy: mixed numeric and non-numeric values", () => {
