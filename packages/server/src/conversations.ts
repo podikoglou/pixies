@@ -68,22 +68,7 @@ export class ConversationStore {
 
 	create(): string {
 		const id = uuidv7();
-		const executor = new MontyExecutor({ nominatim: this.nominatim, overpass: this.overpass });
-		const conv: Conversation = {
-			id,
-			agent: this.agentFactory({
-				config: this.config,
-				nominatim: this.nominatim,
-				overpass: this.overpass,
-				codeExecutor: executor,
-			}),
-			executor,
-			lastActivity: Date.now(),
-			inFlight: false,
-			tokensUsed: 0,
-		};
-		this.map.set(conv.id, conv);
-		this.evictIfNeeded();
+		this.buildConversation(id);
 		void Result.tryPromise(() =>
 			this.db.insert(conversationsTable).values({ id, transcript: [] }),
 		).then((r) =>
@@ -94,7 +79,7 @@ export class ConversationStore {
 				}),
 			),
 		);
-		return conv.id;
+		return id;
 	}
 
 	async get(id: string): Promise<Conversation | undefined> {
@@ -131,27 +116,10 @@ export class ConversationStore {
 		if (rows.length === 0) return undefined;
 
 		const row = rows[0]!;
-		const executor = new MontyExecutor({ nominatim: this.nominatim, overpass: this.overpass });
-		conv = {
-			id,
-			agent: this.agentFactory({
-				config: this.config,
-				nominatim: this.nominatim,
-				overpass: this.overpass,
-				codeExecutor: executor,
-			}),
-			executor,
-			lastActivity: Date.now(),
-			inFlight: false,
-			tokensUsed: 0,
-		};
-
+		conv = this.buildConversation(id);
 		if (row.transcript && row.transcript.length > 0) {
 			this.rehydrateTranscript(conv, row.transcript, id);
 		}
-
-		this.map.set(id, conv);
-		this.evictIfNeeded();
 		return conv;
 	}
 
@@ -261,6 +229,24 @@ export class ConversationStore {
 
 	stop(): void {
 		clearInterval(this.sweeper);
+	}
+
+	private buildConversation(id: string): Conversation {
+		const executor = new MontyExecutor({ nominatim: this.nominatim, overpass: this.overpass });
+		const conv: Conversation = {
+			id,
+			agent: this.agentFactory({
+				config: this.config,
+				codeExecutor: executor,
+			}),
+			executor,
+			lastActivity: Date.now(),
+			inFlight: false,
+			tokensUsed: 0,
+		};
+		this.map.set(id, conv);
+		this.evictIfNeeded();
+		return conv;
 	}
 
 	private abortConversation(conv: Conversation): void {
