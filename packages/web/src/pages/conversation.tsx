@@ -1,19 +1,19 @@
 import { useEffect } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useChatContext } from "@/contexts/chat-context";
-import { ChatView } from "@/components/chat/chat-view";
+import { useMapContext } from "@/contexts/map-context";
+import { MapView } from "@/components/map/map-view";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getConversation } from "@/api/conversations";
-import { transcriptToItems } from "@/state/chat-reducer";
+import { transcriptToLayers } from "@/state/transcript-to-layers";
 import { ApiError } from "@/sse/client";
 
 export function ConversationPage() {
 	const { conversationId } = useParams({ from: "/c/$conversationId", strict: true });
-	const { state, loadTranscript } = useChatContext();
+	const { state, loadTranscript } = useMapContext();
 
 	const needsLoad = state.conversationId !== conversationId;
 
@@ -26,7 +26,7 @@ export function ConversationPage() {
 
 	useEffect(() => {
 		if (data && state.conversationId !== conversationId) {
-			loadTranscript(conversationId, transcriptToItems(data));
+			loadTranscript(conversationId, transcriptToLayers(data));
 		}
 	}, [data, conversationId, state.conversationId, loadTranscript]);
 
@@ -83,5 +83,5 @@ export function ConversationPage() {
 		);
 	}
 
-	return <ChatView />;
+	return <MapView />;
 }
