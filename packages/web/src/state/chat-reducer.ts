@@ -24,7 +24,6 @@ export type TimelineItem =
 export interface ChatState {
 	conversationId: string | null;
 	items: TimelineItem[];
-	streamingText: string;
 	isStreaming: boolean;
 	error: string | null;
 }
@@ -32,7 +31,6 @@ export interface ChatState {
 export const initialChatState: ChatState = {
 	conversationId: null,
 	items: [],
-	streamingText: "",
 	isStreaming: false,
 	error: null,
 };
@@ -41,9 +39,6 @@ export type ChatAction =
 	| { type: "LOAD_TRANSCRIPT"; conversationId: string; items: TimelineItem[] }
 	| { type: "SEND_MESSAGE"; text: string }
 	| { type: "CONVERSATION_CREATED"; id: string }
-	| { type: "MESSAGE_START" }
-	| { type: "TEXT_DELTA"; delta: string }
-	| { type: "MESSAGE_END"; text: string; responseTimeMs?: number }
 	| { type: "TOOL_START"; toolCallId: string; toolName: string; args: unknown }
 	| { type: "TOOL_UPDATE"; toolCallId: string; progress: ToolProgress }
 	| {
@@ -64,7 +59,6 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 				...state,
 				conversationId: action.conversationId,
 				items: action.items,
-				streamingText: "",
 				isStreaming: false,
 				error: null,
 			};
@@ -72,18 +66,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 			return {
 				...state,
 				items: [...state.items, { kind: "user-message", text: action.text }],
-				streamingText: "",
 				isStreaming: true,
 				error: null,
 			};
 		case "CONVERSATION_CREATED":
 			return { ...state, conversationId: action.id };
-		case "MESSAGE_START":
-			return { ...state, streamingText: "" };
-		case "TEXT_DELTA":
-			return { ...state, streamingText: state.streamingText + action.delta };
-		case "MESSAGE_END":
-			return { ...state, streamingText: "" };
 		case "TOOL_START":
 			return {
 				...state,

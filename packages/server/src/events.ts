@@ -4,10 +4,6 @@ import type { SSEEvent } from "@pixies/protocol";
 
 export function translateAgentEvent(event: AgentEvent): SSEEvent[] {
 	switch (event.type) {
-		case "message_start":
-		case "message_update":
-		case "message_end":
-			return [];
 		case "tool_execution_start":
 			return [
 				{
