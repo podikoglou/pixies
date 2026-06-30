@@ -81,25 +81,31 @@ export interface StartServerOptions extends Partial<Pick<ResolvedPixiesConfig, "
 	onReady?: (url: string) => void;
 }
 
-const MessageBodySchema = Type.Object({
-	message: Type.String({ minLength: 1 }),
-});
-
 /**
  * Parse and validate the request body's `message` field.
  *
  * JSON-parse failures map to {@link InvalidJsonError}; schema failures map to
  * {@link ValidationError}. Both flow through `Result` rather than a hand-rolled
  * union, so the caller exhaustively matches via {@link rejectMessageError}.
+ *
+ * `maxPromptChars` bounds the prompt at the HTTP boundary — an over-long
+ * `message` is rejected with 400 here, before it reaches the agent. The cap is
+ * always-on (config `minimum: 1`), so the check never degrades to a no-op.
  */
 async function readMessage(
 	req: Request,
+	maxPromptChars: number,
 ): Promise<Result<{ message: string }, InvalidJsonError | ValidationError>> {
 	const json = await Result.tryPromise(() => req.json());
 	if (Result.isError(json)) return Result.err(new InvalidJsonError({ message: "invalid JSON" }));
 	const body = json.value;
-	if (!Value.Check(MessageBodySchema, body))
-		return Result.err(new ValidationError({ message: "missing required field: message" }));
+	const schema = Type.Object({
+		message: Type.String({ minLength: 1, maxLength: maxPromptChars }),
+	});
+	if (!Value.Check(schema, body))
+		return Result.err(
+			new ValidationError({ message: `message must be 1-${maxPromptChars} characters` }),
+		);
 	return Result.ok({ message: body.message });
 }
 
@@ -107,7 +113,7 @@ async function readMessage(
 function rejectMessageError(err: InvalidJsonError | ValidationError): Response {
 	return matchError(err, {
 		InvalidJson: () => Response.json({ error: "invalid JSON" }, { status: 400 }),
-		Validation: () => Response.json({ error: "missing required field: message" }, { status: 400 }),
+		Validation: () => Response.json({ error: err.message }, { status: 400 }),
 	});
 }
 
@@ -378,7 +384,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 				return denied;
 			}
 
-			const parsed = await readMessage(req);
+			const parsed = await readMessage(req, config.maxPromptChars);
 			if (Result.isError(parsed)) return rejectMessageError(parsed.error);
 
 			const id = resolveId(req);
