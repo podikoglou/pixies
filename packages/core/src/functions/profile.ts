@@ -57,8 +57,17 @@ export function profileHost(features: Feature[], maxTags = 12): ProfileResult {
 	const keyValues = new Map<string, string[]>();
 	for (const f of features) {
 		const entries: Array<[string, string]> = [];
+		// "name" is the hoisted field: a feature contributes at most one "name"
+		// value — prefer f.name, else fall back to tags.name — so coverage stays
+		// in its documented (0,1] range even when both happen to be present.
 		if (f.name !== undefined) entries.push(["name", f.name]);
-		if (f.tags) for (const [k, v] of Object.entries(f.tags)) entries.push([k, v]);
+		else if (f.tags?.name !== undefined) entries.push(["name", f.tags.name]);
+		if (f.tags) {
+			for (const [k, v] of Object.entries(f.tags)) {
+				if (k === "name") continue; // handled above
+				entries.push([k, v]);
+			}
+		}
 		for (const [k, v] of entries) {
 			let list = keyValues.get(k);
 			if (!list) {

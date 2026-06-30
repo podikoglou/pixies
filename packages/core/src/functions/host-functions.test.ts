@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
+import fc from "fast-check";
 import { Result } from "better-result";
 import type { NominatimClient } from "../clients/nominatim.ts";
 import {
@@ -8,6 +9,7 @@ import {
 	NominatimHttpError,
 } from "../clients/nominatim.ts";
 import type { OverpassClient } from "../clients/overpass.ts";
+import { haversineMeters } from "./haversine.ts";
 
 import {
 	filterHost,
@@ -80,9 +82,123 @@ function mockCtx(opts: {
 // ---------------------------------------------------------------------------
 // filterHost
 // ---------------------------------------------------------------------------
+//
+// The composed pipeline's universal laws, asserted for ANY features/params:
+// (1) the result is a subset of the input by reference (filtering never
+// invents elements — and this forces empty-input -> empty); (2) the whole
+// pipeline (where -> tags -> distinct -> sort -> limit) is idempotent —
+// filtering the filtered result is a no-op; (3) a non-negative limit bounds the
+// length (forcing limit-0 -> empty). The `where` generator draws only from a
+// grammar of compilable expressions. Specific filtering outcomes stay pinned by
+// the examples below.
 
-test("filterHost — empty features returns empty result", () => {
-	expect(filterHost([], {})).toEqual([]);
+const whereKey = fc.constantFrom(
+	"amenity",
+	"population",
+	"name",
+	"ref",
+	"level",
+	"score",
+	"region",
+);
+// Letter-leading so the tokenizer reads each value as a single ident token
+// (a digit-leading "0A" would split into number+ident and fail to compile).
+const bareword = fc
+	.string({ minLength: 1, maxLength: 8 })
+	.filter((s) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(s));
+
+/** A single compilable comparison term. */
+const whereTerm = fc.oneof(
+	fc.tuple(whereKey, fc.constantFrom("=", "!="), bareword).map(([k, o, v]) => `${k} ${o} ${v}`),
+	fc
+		.tuple(whereKey, fc.constantFrom("<", "<=", ">", ">="), fc.integer({ min: -1000, max: 1000 }))
+		.map(([k, o, v]) => `${k} ${o} ${v}`),
+	fc.tuple(whereKey, fc.constantFrom("=~", "!~"), bareword).map(([k, o, v]) => `${k} ${o} /${v}/i`),
+	fc.tuple(whereKey, fc.boolean()).map(([k, neg]) => `${k} IS ${neg ? "NOT NULL" : "NULL"}`),
+);
+
+/** A compilable where expression (a term, or two terms joined by AND/OR). */
+const whereArb = fc.oneof(
+	whereTerm,
+	fc
+		.tuple(whereTerm, fc.constantFrom("AND", "OR"), whereTerm)
+		.map(([a, op, b]) => `${a} ${op} ${b}`),
+);
+
+const filterFeatureArb = fc
+	.record({
+		id: fc.string({ minLength: 1, maxLength: 6 }),
+		name: fc.option(bareword),
+		tags: fc
+			.uniqueArray(fc.tuple(whereKey, bareword), { selector: ([k]) => k, maxLength: 4 })
+			.map((entries) => Object.fromEntries(entries) as Record<string, string>),
+	})
+	.map((f) => ({
+		id: f.id,
+		...(f.name !== null ? { name: f.name } : {}),
+		...(f.tags !== null && Object.keys(f.tags).length > 0 ? { tags: f.tags } : {}),
+	}));
+
+const filterTagsParamArb = fc.array(
+	fc.record({
+		key: whereKey,
+		value: fc.option(bareword).map((v) => v ?? undefined),
+		op: fc
+			.option(fc.constantFrom("eq", "neq", "regex", "iregex", "exists", "notexists"))
+			.map((v) => v ?? undefined),
+	}),
+	{ maxLength: 3 },
+);
+
+const filterParamsArb = fc.record({
+	where: fc.option(whereArb).map((v) => v ?? undefined),
+	tags: filterTagsParamArb,
+	distinct: fc.boolean(),
+	sort_by: fc
+		.option(
+			fc.oneof(
+				whereKey,
+				whereKey.map((k) => `-${k}`),
+			),
+		)
+		.map((v) => v ?? undefined),
+});
+
+test("filterHost: result is a subset of the input by reference, for any features/params", () => {
+	fc.assert(
+		fc.property(
+			fc.array(filterFeatureArb, { maxLength: 15 }),
+			filterParamsArb,
+			(features, params) => {
+				const result = filterHost(features, params);
+				return result.every((r) => features.includes(r));
+			},
+		),
+	);
+});
+
+test("filterHost: idempotent — filtering the filtered result is a no-op, for any features/params", () => {
+	fc.assert(
+		fc.property(
+			fc.array(filterFeatureArb, { maxLength: 15 }),
+			filterParamsArb,
+			(features, params) => {
+				const once = filterHost(features, params);
+				const twice = filterHost(once, params);
+				return once.length === twice.length && once.every((e, i) => twice[i] === e);
+			},
+		),
+	);
+});
+
+test("filterHost: a non-negative limit bounds the result length, for any features", () => {
+	fc.assert(
+		fc.property(
+			fc.array(filterFeatureArb, { maxLength: 15 }),
+			fc.integer({ min: 0, max: 20 }),
+			(features, limit) => filterHost(features, { limit }).length <= limit,
+		),
+	);
 });
 
 test("filterHost — no params returns identity (same features)", () => {
@@ -158,11 +274,6 @@ test("filterHost — applies limit", () => {
 	expect(filterHost(features, { limit: 3 })).toHaveLength(3);
 });
 
-test("filterHost — limit 0 returns empty", () => {
-	const features: Feature[] = [{ id: "a" }, { id: "b" }];
-	expect(filterHost(features, { limit: 0 })).toEqual([]);
-});
-
 test("filterHost — chains where + sort_by + limit", () => {
 	const features: Feature[] = [
 		{ id: "a", tags: { score: "5", region: "east" } },
@@ -179,86 +290,83 @@ test("filterHost — chains where + sort_by + limit", () => {
 });
 
 // ---------------------------------------------------------------------------
-// spatialJoinHost
+// spatialJoinHost (property-based)
 // ---------------------------------------------------------------------------
+// The contract, asserted for ANY points/targets/radius: coord-less features
+// never appear in output; every pair's recomputed haversine is ≤ radius (the
+// inclusion oracle — independent of the rounded `distance` field) and its
+// `distance` is exactly round(haversine); `near` is capped at 1000 pairs; and
+// `nearest` emits at most one pair per point. haversineMeters (already
+// property-tested) is the distance oracle.
 
-test("spatialJoinHost — empty points returns empty result", () => {
-	const targets: Feature[] = [{ id: "t1", lat: 50, lon: 10 }];
-	expect(spatialJoinHost({ points: [], targets, operation: "near", radius: 1000 })).toEqual([]);
+/** Feature with independently-optional lat/lon (some carry only one axis). */
+const coordFeatureArb = fc
+	.record({
+		id: fc.string({ minLength: 1, maxLength: 8 }),
+		lat: fc.option(fc.float({ min: -90, max: 90, noNaN: true })),
+		lon: fc.option(fc.float({ min: -180, max: 180, noNaN: true })),
+	})
+	.map((f) => ({
+		id: f.id,
+		...(f.lat !== null ? { lat: f.lat } : {}),
+		...(f.lon !== null ? { lon: f.lon } : {}),
+	}));
+
+const radiusArb = fc.float({ min: 0, max: 1_000_000, noNaN: true });
+
+const hasCoords = (f: Feature) => f.lat !== undefined && f.lon !== undefined;
+
+test("spatialJoinHost (near): pairs are within radius, coord-bearing, distance is round(haversine), and empty inputs yield empty, for any inputs", () => {
+	fc.assert(
+		fc.property(
+			fc.array(coordFeatureArb),
+			fc.array(coordFeatureArb),
+			radiusArb,
+			(points, targets, radius) => {
+				const result = spatialJoinHost({ points, targets, operation: "near", radius });
+				if (!points.some(hasCoords) || !targets.some(hasCoords)) {
+					return result.length === 0;
+				}
+				return (
+					result.length <= 1000 &&
+					result.every((p) => {
+						const raw = haversineMeters(p.point.lat!, p.point.lon!, p.target.lat!, p.target.lon!);
+						return (
+							raw <= radius &&
+							p.distance === Math.round(raw) &&
+							hasCoords(p.point) &&
+							hasCoords(p.target)
+						);
+					})
+				);
+			},
+		),
+	);
 });
 
-test("spatialJoinHost — empty targets returns empty result", () => {
-	const points: Feature[] = [{ id: "p1", lat: 50, lon: 10 }];
-	expect(spatialJoinHost({ points, targets: [], operation: "near", radius: 1000 })).toEqual([]);
-});
-
-test("spatialJoinHost — features without lat/lon are skipped", () => {
-	const points: Feature[] = [
-		{ id: "p1", lat: 50, lon: 10 },
-		{ id: "p2" }, // no coords — skipped
-	];
-	const targets: Feature[] = [
-		{ id: "t1", lat: 50, lon: 10 }, // 0 m from p1
-		{ id: "t2" }, // no coords — skipped
-	];
-	const result = spatialJoinHost({ points, targets, operation: "near", radius: 100 });
-	expect(result).toHaveLength(1);
-	expect(result[0]!.point.id).toBe("p1");
-	expect(result[0]!.target.id).toBe("t1");
-	expect(result[0]!.distance).toBe(0);
-});
-
-test("spatialJoinHost — near: all pairs within radius", () => {
-	const points: Feature[] = [
-		{ id: "p1", lat: 50, lon: 10 },
-		{ id: "p2", lat: 50.001, lon: 10 },
-	];
-	const targets: Feature[] = [
-		{ id: "t1", lat: 50.0005, lon: 10 },
-		{ id: "t2", lat: 49.9995, lon: 10.0008 },
-	];
-	// p1→t1 ~55 m, p1→t2 ~79 m, p2→t1 ~75 m, p2→t2 ~62 m — all within 200 m
-	const result = spatialJoinHost({ points, targets, operation: "near", radius: 200 });
-	expect(result).toHaveLength(4);
-	// pairs are in nested-loop order: point-major, target-minor
-	expect(result[0]!.point.id).toBe("p1");
-	expect(result[0]!.target.id).toBe("t1");
-	expect(result[1]!.point.id).toBe("p1");
-	expect(result[1]!.target.id).toBe("t2");
-	expect(result[2]!.point.id).toBe("p2");
-	expect(result[2]!.target.id).toBe("t1");
-	expect(result[3]!.point.id).toBe("p2");
-	expect(result[3]!.target.id).toBe("t2");
-	// all distances ≤ radius
-	for (const p of result) expect(p.distance).toBeLessThanOrEqual(200);
-});
-
-test("spatialJoinHost — nearest: only closest target per point", () => {
-	const points: Feature[] = [
-		{ id: "p1", lat: 50, lon: 10 },
-		{ id: "p2", lat: 50, lon: 10.001 },
-	];
-	const targets: Feature[] = [
-		{ id: "t1", lat: 50.0005, lon: 10 },
-		{ id: "t2", lat: 49.9995, lon: 10.0008 },
-	];
-	// p1 closer to t1 (~55 m) than t2 (~79 m) — picks t1
-	// p2 closer to t2 (~62 m) than t1 (~75 m) — picks t2
-	const result = spatialJoinHost({ points, targets, operation: "nearest", radius: 200 });
-	expect(result).toHaveLength(2);
-	expect(result[0]!.point.id).toBe("p1");
-	expect(result[0]!.target.id).toBe("t1");
-	expect(result[1]!.point.id).toBe("p2");
-	expect(result[1]!.target.id).toBe("t2");
-});
-
-test("spatialJoinHost — nearest ignores targets outside radius", () => {
-	const points: Feature[] = [{ id: "p1", lat: 50, lon: 10 }];
-	const targets: Feature[] = [
-		{ id: "t1", lat: 50.1, lon: 10.1 }, // ~15 km away
-	];
-	const result = spatialJoinHost({ points, targets, operation: "nearest", radius: 100 });
-	expect(result).toEqual([]);
+test("spatialJoinHost (nearest): at most one pair per point, each within radius and coord-bearing, for any inputs", () => {
+	fc.assert(
+		fc.property(
+			fc.array(coordFeatureArb),
+			fc.array(coordFeatureArb),
+			radiusArb,
+			(points, targets, radius) => {
+				const result = spatialJoinHost({ points, targets, operation: "nearest", radius });
+				if (!points.some(hasCoords) || !targets.some(hasCoords)) {
+					return result.length === 0;
+				}
+				const seen = new Set<Feature>();
+				for (const p of result) {
+					const raw = haversineMeters(p.point.lat!, p.point.lon!, p.target.lat!, p.target.lon!);
+					if (raw > radius || p.distance !== Math.round(raw)) return false;
+					if (!hasCoords(p.point) || !hasCoords(p.target)) return false;
+					if (seen.has(p.point)) return false;
+					seen.add(p.point);
+				}
+				return true;
+			},
+		),
+	);
 });
 
 test("spatialJoinHost — respects DEFAULT_MAX_PAIRS = 1000", () => {

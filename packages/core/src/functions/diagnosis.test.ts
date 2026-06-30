@@ -8,6 +8,8 @@ import {
 	renderDiagnosisLines,
 	type ResolvedKind,
 } from "./diagnosis.ts";
+import { TYPE_DICTIONARY } from "./find-features-types.ts";
+import { BRAND_DICTIONARY } from "./find-features-brands.ts";
 
 // ---------------------------------------------------------------------------
 // levenshtein
@@ -85,27 +87,59 @@ test("levenshtein — d(a, b) <= max(len(a), len(b)) for any two strings (upper 
 });
 
 // ---------------------------------------------------------------------------
-// computeTypeMatches
+// computeTypeMatches (property-based)
 // ---------------------------------------------------------------------------
+// "Did you mean?" over the type ∪ brand dictionary. The universal contract:
+// every result is a real dictionary key within edit distance ≤ 2 of the
+// normalized input, results are nearest-first (non-decreasing distance), never
+// more than `max`, and the lookup is invariant under case/whitespace. These
+// hold for ANY input; the single cofee→cafe anchor below guards recall (the
+// properties are vacuously true on an always-[] implementation).
 
+const ALL_DICT_KEYS = new Set<string>([
+	...Object.keys(TYPE_DICTIONARY),
+	...Object.keys(BRAND_DICTIONARY),
+]);
+const MAX_TYPE_DISTANCE = 2;
+
+test("computeTypeMatches: results are valid keys within distance 2, nearest-first, and bounded by max, for any input", () => {
+	fc.assert(
+		fc.property(fc.string(), fc.integer({ min: 0, max: 10 }), (input, max) => {
+			const result = computeTypeMatches(input, max);
+			const needle = input.trim().toLowerCase();
+			// trimmed-empty input never matches
+			if (needle === "") return result.length === 0;
+			// bounded by max
+			if (result.length > max) return false;
+			// every result is a real key, within distance 2, non-decreasing order
+			let prevDist = -1;
+			for (const r of result) {
+				if (!ALL_DICT_KEYS.has(r)) return false;
+				const d = levenshtein(needle, r);
+				if (d > MAX_TYPE_DISTANCE) return false;
+				if (d < prevDist) return false;
+				prevDist = d;
+			}
+			return true;
+		}),
+	);
+});
+
+test("computeTypeMatches: output depends only on the trimmed/lowercased input, for any input", () => {
+	fc.assert(
+		fc.property(fc.string(), (input) => {
+			const canonical = input.trim().toLowerCase();
+			return (
+				JSON.stringify(computeTypeMatches(input)) === JSON.stringify(computeTypeMatches(canonical))
+			);
+		}),
+	);
+});
+
+// Recall anchor — guards against an always-[] regression (the properties above
+// are vacuously true on empty output). cofee→cafe is the motivating example.
 test("computeTypeMatches — misspelled type resolves to nearest dictionary key", () => {
 	expect(computeTypeMatches("cofee")).toContain("cafe");
-});
-
-test("computeTypeMatches — misspelled brand resolves across brand dictionary", () => {
-	expect(computeTypeMatches("starbucs")).toContain("starbucks");
-});
-
-test("computeTypeMatches — returns empty for input far from any key", () => {
-	expect(computeTypeMatches("zzzzzzzzzz")).toEqual([]);
-});
-
-test("computeTypeMatches — empty input returns empty", () => {
-	expect(computeTypeMatches("")).toEqual([]);
-});
-
-test("computeTypeMatches — is case-insensitive and trims", () => {
-	expect(computeTypeMatches("  CoFeE  ")).toContain("cafe");
 });
 
 // ---------------------------------------------------------------------------

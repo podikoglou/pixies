@@ -1,4 +1,5 @@
 import { test, expect } from "bun:test";
+import fc from "fast-check";
 import { compileWhere, applyTagsFilter, applySortBy, parseOsmNumber } from "./filter-logic.ts";
 
 interface FilterableElement {
@@ -272,6 +273,68 @@ test("compileWhere: unknown operator throws", () => {
 // ---------------------------------------------------------------------------
 // applyTagsFilter
 // ---------------------------------------------------------------------------
+//
+// The filter's universal laws, asserted for ANY elements and tag spec list: an
+// empty tag list returns the SAME array reference; the result is always a
+// subset of the input by reference; and re-filtering the filtered set is a
+// no-op (the per-element predicate is deterministic). Operator *semantics*
+// (what each op matches) stay pinned by the examples below.
+
+const tfKeyArb = fc
+	.string({ minLength: 1, maxLength: 6 })
+	.filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));
+const tfValArb = fc.string({ maxLength: 6 });
+const tfTagsArb = fc.array(
+	fc.record({
+		key: tfKeyArb,
+		value: fc.option(tfValArb).map((v) => v ?? undefined),
+		op: fc
+			.option(fc.constantFrom("eq", "neq", "regex", "iregex", "exists", "notexists"))
+			.map((v) => v ?? undefined),
+	}),
+	{ maxLength: 4 },
+);
+const tfElementArb = fc
+	.record({
+		id: fc.string({ minLength: 1, maxLength: 6 }),
+		name: fc.option(tfValArb),
+		tags: fc
+			.uniqueArray(fc.tuple(tfKeyArb, tfValArb), { selector: ([k]) => k, maxLength: 4 })
+			.map((entries) => Object.fromEntries(entries) as Record<string, string>),
+	})
+	.map((f) => ({
+		id: f.id,
+		...(f.name !== null ? { name: f.name } : {}),
+		...(f.tags !== null && Object.keys(f.tags).length > 0 ? { tags: f.tags } : {}),
+	}));
+
+test("applyTagsFilter: an empty tag list returns the input unchanged (same reference), for any elements", () => {
+	fc.assert(
+		fc.property(
+			fc.array(tfElementArb, { maxLength: 10 }),
+			(elements) => applyTagsFilter(elements, []) === elements,
+		),
+	);
+});
+
+test("applyTagsFilter: result is a subset of the input by reference, for any elements/tags", () => {
+	fc.assert(
+		fc.property(fc.array(tfElementArb, { maxLength: 15 }), tfTagsArb, (elements, tags) => {
+			const result = applyTagsFilter(elements, tags);
+			return result.every((r) => elements.includes(r));
+		}),
+	);
+});
+
+test("applyTagsFilter: idempotent — re-filtering the filtered set is a no-op, for any elements/tags", () => {
+	fc.assert(
+		fc.property(fc.array(tfElementArb, { maxLength: 15 }), tfTagsArb, (elements, tags) => {
+			const once = applyTagsFilter(elements, tags);
+			const twice = applyTagsFilter(once, tags);
+			return once.length === twice.length && once.every((e, i) => twice[i] === e);
+		}),
+	);
+});
 
 test("applyTagsFilter: eq matches matching value", () => {
 	const result = applyTagsFilter(
@@ -371,11 +434,6 @@ test("applyTagsFilter: invalid regex returns false instead of throwing", () => {
 	expect(result).toHaveLength(0);
 });
 
-test("applyTagsFilter: empty tags array returns all elements", () => {
-	const elements = [mk("1", { amenity: "pharmacy" })];
-	expect(applyTagsFilter(elements, [])).toBe(elements);
-});
-
 test("applyTagsFilter: unknown op returns false (element excluded)", () => {
 	const result = applyTagsFilter(
 		[mk("1", { amenity: "pharmacy" })],
@@ -405,6 +463,77 @@ test("applyTagsFilter: eq with value matches exactly", () => {
 // ---------------------------------------------------------------------------
 // applySortBy
 // ---------------------------------------------------------------------------
+//
+// The universal sort laws, asserted for ANY element set and sort key: the
+// result is a permutation of the input (nothing dropped or invented), the
+// input array is never mutated, and the sort is idempotent (a deterministic
+// stable comparator makes re-sorting the sorted result a no-op). Correct
+// *ordering* is pinned by the examples below — property-testing it would mean
+// reimplementing the comparator (a smell).
+
+const sortKeyArb = fc
+	.string({ minLength: 1, maxLength: 6 })
+	.filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));
+const tagValArb = fc.oneof(
+	fc.integer({ min: -100_000, max: 100_000 }).map(String),
+	fc.string({ maxLength: 6 }),
+);
+const sortTagsArb = fc
+	.uniqueArray(fc.tuple(sortKeyArb, tagValArb), { selector: ([k]) => k, maxLength: 4 })
+	.map((entries) => Object.fromEntries(entries) as Record<string, string>);
+const sortElementArb = fc
+	.record({
+		id: fc.string({ minLength: 1, maxLength: 6 }),
+		name: fc.option(fc.string({ maxLength: 6 })),
+		tags: fc.option(sortTagsArb),
+	})
+	.map((f) => ({
+		id: f.id,
+		...(f.name !== null ? { name: f.name } : {}),
+		...(f.tags !== null ? { tags: f.tags } : {}),
+	}));
+const sortByArb = fc.oneof(
+	sortKeyArb,
+	sortKeyArb.map((k) => `-${k}`),
+);
+
+test("applySortBy: result is a permutation of the input, for any elements/key", () => {
+	fc.assert(
+		fc.property(fc.array(sortElementArb, { maxLength: 15 }), sortByArb, (elements, sortBy) => {
+			const result = applySortBy(elements, sortBy);
+			if (result.length !== elements.length) return false;
+			const remaining = [...elements];
+			for (const r of result) {
+				const idx = remaining.indexOf(r);
+				if (idx === -1) return false;
+				remaining.splice(idx, 1);
+			}
+			return remaining.length === 0;
+		}),
+	);
+});
+
+test("applySortBy: never mutates the input array, for any elements/key", () => {
+	fc.assert(
+		fc.property(fc.array(sortElementArb, { maxLength: 15 }), sortByArb, (elements, sortBy) => {
+			const snapshot = [...elements];
+			applySortBy(elements, sortBy);
+			return (
+				elements.length === snapshot.length && elements.every((e, i) => elements[i] === snapshot[i])
+			);
+		}),
+	);
+});
+
+test("applySortBy: idempotent — re-sorting the sorted result is a no-op, for any elements/key", () => {
+	fc.assert(
+		fc.property(fc.array(sortElementArb, { maxLength: 15 }), sortByArb, (elements, sortBy) => {
+			const once = applySortBy(elements, sortBy);
+			const twice = applySortBy(once, sortBy);
+			return once.length === twice.length && once.every((e, i) => twice[i] === e);
+		}),
+	);
+});
 
 test("applySortBy: ascending by string tag", () => {
 	const elements = [
@@ -468,13 +597,6 @@ test("applySortBy: non-numeric values use localeCompare", () => {
 	expect(result.map((e) => e.id)).toEqual(["2", "3", "1"]);
 });
 
-test("applySortBy: does not mutate input array", () => {
-	const elements = [mk("2", { name: "Bob" }), mk("1", { name: "Alice" })];
-	const original = [...elements];
-	applySortBy(elements, "name");
-	expect(elements).toEqual(original);
-});
-
 test("applySortBy: mixed numeric and non-numeric values", () => {
 	const elements = [
 		mk("1", { ref: "hello" }),
@@ -505,33 +627,57 @@ test("applySortBy: name key reads el.name", () => {
 // ---------------------------------------------------------------------------
 // parseOsmNumber
 // ---------------------------------------------------------------------------
+//
+// OSM stores numbers as strings in many loose but equivalent formats. The
+// contract: every accepted representation of a given integer parses to that
+// SAME number — plain, thousands-separated (',' or ' '), and the approximate
+// prefixes (~, ≈, c.). The hand-picked examples below only witness a couple of
+// values; the properties assert the equivalence for ANY integer, which is where
+// a fiddly grouping regex (`\d{1,3}(?:[ ,]?\d{3})*`) actually breaks — boundary
+// digit counts and separator placement that 30000 / 1234567 never exercise.
 
-test("parseOsmNumber: plain number", () => {
-	expect(parseOsmNumber("30000")).toBe(30000);
+/** Format |n| with `sep` grouping every three digits from the right (sign kept). */
+function withThousandsSep(n: number, sep: string): string {
+	const sign = n < 0 ? "-" : "";
+	const digits = String(Math.abs(n));
+	let out = "";
+	for (let i = 0; i < digits.length; i++) {
+		if (i > 0 && (digits.length - i) % 3 === 0) out += sep;
+		out += digits[i]!;
+	}
+	return sign + out;
+}
+
+test("parseOsmNumber: plain, comma, and space forms all equal the integer, for any integer", () => {
+	fc.assert(
+		fc.property(fc.integer({ min: -1_000_000_000, max: 1_000_000_000 }), (n) => {
+			const got = new Set([
+				parseOsmNumber(String(n)),
+				parseOsmNumber(withThousandsSep(n, ",")),
+				parseOsmNumber(withThousandsSep(n, " ")),
+			]);
+			return got.size === 1 && got.has(n);
+		}),
+	);
 });
 
-test("parseOsmNumber: space-separated thousands", () => {
-	expect(parseOsmNumber("30 000")).toBe(30000);
+test("parseOsmNumber: ~, ≈, and c. prefixes equal the plain value, for any non-negative integer", () => {
+	fc.assert(
+		fc.property(fc.integer({ min: 0, max: 1_000_000_000 }), (n) => {
+			const plain = String(n);
+			return (
+				parseOsmNumber(`~${plain}`) === n &&
+				parseOsmNumber(`≈${plain}`) === n &&
+				parseOsmNumber(`c. ${plain}`) === n
+			);
+		}),
+	);
 });
 
-test("parseOsmNumber: comma-separated thousands", () => {
-	expect(parseOsmNumber("30,000")).toBe(30000);
-});
-
-test("parseOsmNumber: approximate tilde prefix", () => {
-	expect(parseOsmNumber("~30000")).toBe(30000);
-});
-
-test("parseOsmNumber: approximate 'c.' prefix", () => {
-	expect(parseOsmNumber("c. 30000")).toBe(30000);
-});
+// Rejection / distinct-contract cases (not covered by the equivalence property):
 
 test("parseOsmNumber: uppercase 'C.' prefix is rejected (acceptable regex requires lowercase c.)", () => {
 	expect(parseOsmNumber("C. 30000")).toBeNull();
-});
-
-test("parseOsmNumber: negative number", () => {
-	expect(parseOsmNumber("-100")).toBe(-100);
 });
 
 test("parseOsmNumber: decimal number", () => {
@@ -558,18 +704,6 @@ test("parseOsmNumber: whitespace padding", () => {
 	expect(parseOsmNumber("  30000  ")).toBe(30000);
 });
 
-test("parseOsmNumber: approx symbol (≈) prefix", () => {
-	expect(parseOsmNumber("≈30000")).toBe(30000);
-});
-
-test("parseOsmNumber: multi-digit thousands separator", () => {
-	expect(parseOsmNumber("1 234 567")).toBe(1234567);
-});
-
-test("parseOsmNumber: comma and space mixed thousands", () => {
-	expect(parseOsmNumber("1,234,567")).toBe(1234567);
-});
-
 test("parseOsmNumber: empty string returns null", () => {
 	expect(parseOsmNumber("")).toBeNull();
 });
@@ -581,8 +715,4 @@ test("parseOsmNumber: negative decimal", () => {
 test("parseOsmNumber: number with trailing unit is rejected", () => {
 	// The regex ends with \s*$ so trailing non-whitespace chars are not accepted
 	expect(parseOsmNumber("42 m")).toBeNull();
-});
-
-test("parseOsmNumber: negative space-separated thousands", () => {
-	expect(parseOsmNumber("-1 234")).toBe(-1234);
 });
