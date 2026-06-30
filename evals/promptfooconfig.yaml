@@ -106,6 +106,21 @@ tests:
   - description: spatial — nearest 24/7 pharmacy (nearest op)
     vars: { message: "what is the nearest 24/7 pharmacy to the Eiffel Tower?" }
     assert:
+      - type: javascript
+        metric: nearest-used-spatial-join
+        value: |
+          # "nearest" requires a spatial_join ranking step — a bare find_features
+          # dump (the #279 false-pass) has no spatial_join in any code block.
+          const code = (context.providerResponse?.metadata?.toolCalls ?? [])
+            .map((t) => t.code ?? "").join("\n");
+          const ok = code.includes("spatial_join");
+          return {
+            pass: ok,
+            score: ok ? 1 : 0,
+            reason: ok
+              ? "agent called spatial_join (nearest ranking)"
+              : "no spatial_join in transcript — likely a raw feature dump (#279 regression)",
+          };
       - type: llm-rubric
         value: |
           Should display ONE (or very few) pharmacy result(s) as a nearest
