@@ -358,30 +358,32 @@ export class NominatimClient {
 		});
 		const cache = this.cache;
 		const logger = this.logger;
-		const fetchResult = await Result.tryPromise({
-			try: () => this.fetchJson(url, signal, callbacks),
+		// Single tryPromise boundary over fetch + parse (Overpass parity): the
+		// body throws TaggedErrors (NominatimParseError here; the fetch layer
+		// throws NominatimBusy/Http), and `toNominatimError` normalizes. Cache
+		// lookup stays before the boundary (never enters the rate-limit queue);
+		// cache-set stays inside on success.
+		return Result.tryPromise({
+			try: async () => {
+				const { json, statusCode, contentType } = await this.fetchJson(url, signal, callbacks);
+				try {
+					const parsed = Value.Parse(NominatimSearchResponseSchema, json);
+					cache?.set(key, parsed);
+					return parsed;
+				} catch (err) {
+					logger.warning("invalid search response shape", {
+						service: "Nominatim",
+						statusCode,
+						contentType,
+						cause: err,
+					});
+					throw new NominatimParseError({
+						message: "Nominatim: invalid search response shape",
+						cause: err,
+					});
+				}
+			},
 			catch: toNominatimError,
-		});
-		if (Result.isError(fetchResult)) return Result.err(fetchResult.error);
-		const { json, statusCode, contentType } = fetchResult.value;
-		return Result.try({
-			try: () => {
-				const parsed = Value.Parse(NominatimSearchResponseSchema, json);
-				cache?.set(key, parsed);
-				return parsed;
-			},
-			catch: (err) => {
-				logger.warning("invalid search response shape", {
-					service: "Nominatim",
-					statusCode,
-					contentType,
-					cause: err,
-				});
-				return new NominatimParseError({
-					message: "Nominatim: invalid search response shape",
-					cause: err,
-				});
-			},
 		});
 	}
 
@@ -408,14 +410,14 @@ export class NominatimClient {
 		});
 		const cache = this.cache;
 		const logger = this.logger;
-		const fetchResult = await Result.tryPromise({
-			try: () => this.fetchJson(url, signal, callbacks),
-			catch: toNominatimError,
-		});
-		if (Result.isError(fetchResult)) return Result.err(fetchResult.error);
-		const { json, statusCode, contentType } = fetchResult.value;
-		return Result.try({
-			try: () => {
+		// Single tryPromise boundary over fetch + parse (Overpass parity). The
+		// body throws TaggedErrors (NominatimParseError for shape/error-body
+		// failures; the fetch layer throws NominatimBusy/Http), normalized by a
+		// single `toNominatimError` catch — replacing the prior two-stage ladder
+		// whose catch re-narrowed the very NominatimParseError it had just thrown.
+		return Result.tryPromise({
+			try: async () => {
+				const { json, statusCode, contentType } = await this.fetchJson(url, signal, callbacks);
 				if (typeof json !== "object" || json === null) {
 					logger.warning("invalid reverse response", {
 						service: "Nominatim",
@@ -449,10 +451,7 @@ export class NominatimClient {
 					});
 				}
 			},
-			catch: (err): NominatimError =>
-				NominatimParseError.is(err)
-					? err
-					: new NominatimParseError({ message: String(err), cause: err }),
+			catch: toNominatimError,
 		});
 	}
 }
