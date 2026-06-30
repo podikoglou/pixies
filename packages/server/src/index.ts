@@ -377,15 +377,19 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 				captureRateLimitDenied(posthog, ip, rateLimitPath);
 				return denied;
 			}
+
 			const parsed = await readMessage(req);
 			if (Result.isError(parsed)) return rejectMessageError(parsed.error);
+
 			const id = resolveId(req);
 			server.timeout(req, 0);
+
 			const result = await store.streamPrompt(id, parsed.value.message);
 			if (Result.isError(result)) {
 				captureBudgetExceeded(posthog, id, result.error);
 				return rejectStream(result.error);
 			}
+
 			captureServerEvent(posthog, id, analyticsEvent, {
 				message_length: parsed.value.message.length,
 			});
