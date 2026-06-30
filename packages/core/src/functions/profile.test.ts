@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
+import fc from "fast-check";
 import { profileHost, formatProfileSummary } from "./profile.ts";
 import type { Feature } from "./host-functions.ts";
 
@@ -7,8 +8,68 @@ function feat(overrides: Partial<Feature> = {}): Feature {
 	return { id: "node/1", ...overrides };
 }
 
-test("profileHost — n=0 returns empty fingerprint (no division by zero)", () => {
-	expect(profileHost([])).toEqual({ count: 0, tags: [], numeric: [] });
+// ---------------------------------------------------------------------------
+// profileHost (property-based)
+// ---------------------------------------------------------------------------
+// The fingerprint's universal invariants, asserted for ANY feature set: count
+// is preserved; every coverage is in (0, 1] (the documented "0..1" range — a
+// feature must not be double-counted); tag/numeric lists respect maxTags;
+// tags are sorted by coverage descending; cardinality/values-length agree; and
+// every numeric entry satisfies min ≤ median ≤ max.
+
+/** Identifier-shaped tag keys (no `__proto__`/constructor). `"name"` is mixed
+ *  in often so it collides with the hoisted `.name` field — a realistic OSM key. */
+const profKeyArb = fc.oneof(
+	fc.constant("name"),
+	fc.string({ minLength: 1, maxLength: 8 }).filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)),
+);
+
+const tagsArb = fc
+	.uniqueArray(fc.tuple(profKeyArb, fc.string({ maxLength: 8 })), {
+		selector: ([k]) => k,
+		minLength: 0,
+		maxLength: 5,
+	})
+	.map((entries) => Object.fromEntries(entries) as Record<string, string>);
+
+const profFeatureArb = fc
+	.record({
+		id: fc.string({ minLength: 1, maxLength: 6 }),
+		name: fc.option(fc.string({ maxLength: 8 })),
+		tags: fc.option(tagsArb),
+	})
+	.map((f) => ({
+		id: f.id,
+		...(f.name !== null ? { name: f.name } : {}),
+		...(f.tags !== null ? { tags: f.tags } : {}),
+	}));
+
+test("profileHost: count preserved, coverage in (0,1], lists bounded by maxTags, tags coverage-sorted, numeric min<=median<=max, for any feature set", () => {
+	fc.assert(
+		fc.property(
+			fc.array(profFeatureArb, { maxLength: 20 }),
+			fc.integer({ min: 0, max: 20 }),
+			(features, maxTags) => {
+				const r = profileHost(features, maxTags);
+				if (r.count !== features.length) return false;
+				if (r.tags.length > maxTags || r.numeric.length > maxTags) return false;
+				let prevCov = 2;
+				for (const t of r.tags) {
+					if (!(t.coverage > 0 && t.coverage <= 1)) return false;
+					if (t.coverage > prevCov) return false; // non-increasing coverage
+					prevCov = t.coverage;
+					if (t.cardinality < 1) return false;
+					const expectedLen = t.cardinality > 8 ? 3 : t.cardinality;
+					if (t.values.length !== expectedLen) return false;
+				}
+				for (const nm of r.numeric) {
+					if (!(nm.coverage > 0 && nm.coverage <= 1)) return false;
+					if (!(nm.min <= nm.median && nm.median <= nm.max)) return false;
+				}
+				return true;
+			},
+		),
+	);
 });
 
 test("profileHost — coverage is features-having-key / count", () => {
@@ -23,25 +84,6 @@ test("profileHost — coverage is features-having-key / count", () => {
 	expect(amenity?.coverage).toBe(1);
 	const population = r.tags.find((t) => t.key === "population");
 	expect(population?.coverage).toBeCloseTo(2 / 3);
-});
-
-test("profileHost — values: ≤8 distinct lists all, >8 lists first 3 with cardinality", () => {
-	const many = Array.from({ length: 10 }, (_, i) =>
-		feat({ id: `n${i}`, tags: { ref: String(i) } }),
-	);
-	const r = profileHost(many);
-	const ref = r.tags.find((t) => t.key === "ref")!;
-	expect(ref.cardinality).toBe(10);
-	expect(ref.values).toHaveLength(3); // >8 → first 3
-
-	const few = [
-		feat({ id: "a", tags: { cuisine: "italian" } }),
-		feat({ id: "b", tags: { cuisine: "french" } }),
-	];
-	const r2 = profileHost(few);
-	const cuisine = r2.tags.find((t) => t.key === "cuisine")!;
-	expect(cuisine.cardinality).toBe(2);
-	expect(cuisine.values).toEqual(expect.arrayContaining(["italian", "french"]));
 });
 
 test("profileHost — numeric detection: population classified numeric with min/max/median", () => {
@@ -96,14 +138,6 @@ test("profileHost — treats hoisted name as the 'name' key", () => {
 	const nameTag = r.tags.find((t) => t.key === "name");
 	expect(nameTag?.coverage).toBe(1);
 	expect(nameTag?.cardinality).toBe(2);
-});
-
-test("profileHost — respects maxTags limit, keeping highest-coverage tags", () => {
-	const features: Feature[] = Array.from({ length: 5 }, (_, i) =>
-		feat({ id: `n${i}`, tags: { k0: "v", k1: "v", k2: "v", k3: "v", k4: "v" } }),
-	);
-	const r = profileHost(features, 3);
-	expect(r.tags).toHaveLength(3);
 });
 
 // ---------------------------------------------------------------------------
