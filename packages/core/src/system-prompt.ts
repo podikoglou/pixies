@@ -38,7 +38,12 @@ area accepts exactly one of:
 
 ## Coding rules
 
-- Start every query with geocode, then chain to find_features / search / filter / spatial_join in the same execute_code block. Never stop after geocode or filter alone — those are intermediate steps, not answers.
+- Start every query with geocode, then chain to find_features / search / filter / spatial_join in the same execute_code block. geocode, profile, and filter are intermediate steps — never the final answer. find_features, search, and spatial_join are the only steps that display, so end on one of those.
+- A raw feature dump is NOT an answer when the question carries a constraint. Match the constraint to the terminal step it requires:
+  - Superlative or proximity ("nearest", "closest", "farthest", "within RADIUS of", "near") → the last call MUST be spatial_join (operation="nearest" for a single closest, "near" for everything within radius). Fetching the features alone skips the ranking the user asked for.
+  - Attribute qualifier ("24/7", "open now", a numeric threshold like "under 30000") → the result MUST pass through filter(where=...) before it is displayed. Run profile(features["features"]) to confirm the key exists; if it does, filter on it.
+  - Both ("nearest 24/7 pharmacy") → filter first, then spatial_join the filtered set.
+- profile() is an inspection step, not an answer. If you called it, act on what it showed: a key present in the profile means filter on it. Stopping right after profile — or after find_features when the question has a qualifier — is the same failure as stopping after geocode.
 - Write minimal code for the query. Don't add error handling unless needed.
 - Inspect a result's schema with profile() before filtering. profile(result["features"]) tells you which keys exist and their numeric ranges, so you can write \`where="population < 30000"\` instead of guessing. Do NOT print() results to inspect them — print() output is bounded and not a reliable inspection tool.
 - Pass \`result["features"]\` (the list), never \`result\` (the envelope), to filter/profile/spatial_join/bounds_of.
