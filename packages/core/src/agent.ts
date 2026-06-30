@@ -226,8 +226,14 @@ const QUERY_ERROR_PATTERN =
 
 /** Shape-misuse sub-patterns: passing a FeaturesEnvelope where a bare list is
  *  expected (the most common list/envelope confusion). The thrown error names
- *  the wrong type and the fix; this makes it immediately retryable. */
-const SHAPE_ERROR_PATTERN = /\bmust be a list\[Feature\]\b/;
+ *  the wrong type and the fix; this makes it immediately retryable.
+ *
+ *  NOTE: no trailing `\b` — `]` is a non-word char, so `\b` after it would only
+ *  match if a word char followed `[Feature]`, which never happens in the real
+ *  throw (`${name} must be a list[Feature], got ${got}` at host-call-shapes.ts).
+ *  The leading `\b` is sufficient and matches the documented contract in
+ *  system-prompt.ts ("shape error → fix and retry"). */
+const SHAPE_ERROR_PATTERN = /\bmust be a list\[Feature\]/;
 
 function isRetryableError(text: string): boolean {
 	return (
@@ -253,6 +259,58 @@ function prependRetryDirective(errorText: string): TextContent[] {
 	];
 }
 
+/**
+ * Transient network/timeout failures. Both OSM clients wrap any uncaught throw
+ * that is not a caller-abort as `network error: <reason>` (overpass.ts /
+ * nominatim.ts), so this prefix is the stable, server-authored signal that the
+ * request never completed — distinct from the non-retryable busy message
+ * (OVERPASS_BUSY_MESSAGE / NOMINATIM_BUSY_MESSAGE), which this does not match.
+ */
+const TRANSIENT_NETWORK_PATTERN = /\bnetwork error\b/i;
+
+/** The kind of tool error, deciding which retry directive (if any) to inject. */
+export type ToolErrorKind = "coding" | "transient" | "other";
+
+/**
+ * Classify a tool-error text into the retry strategy that applies. Pure and
+ * unit-testable. "other" covers the non-retryable busy/overload signal and
+ * anything unrecognized — the caller must not inject a retry directive for it.
+ */
+export function classifyToolError(text: string): ToolErrorKind {
+	if (TRANSIENT_NETWORK_PATTERN.test(text)) return "transient";
+	if (isRetryableError(text)) return "coding";
+	return "other";
+}
+
+/**
+ * Build the retry directive to inject in place of the raw error, or null when
+ * the kind is non-retryable. Pure and unit-testable.
+ */
+export function retryDirectiveFor(kind: ToolErrorKind, errorText: string): TextContent[] | null {
+	if (kind === "coding") return prependRetryDirective(errorText);
+	if (kind === "transient") {
+		return [
+			{
+				type: "text",
+				text: `The previous call failed with a transient network error — the OSM endpoint timed out or dropped the connection mid-request. This is temporary and not a problem with your query or arguments. Retry the SAME call, unchanged, in a new execute_code block.\n\n${errorText}`,
+			},
+		];
+	}
+	return null;
+}
+
+/** Max consecutive transient-error retries per conversation before giving up gracefully. */
+export const MAX_TRANSIENT_RETRIES = 2;
+
+/**
+ * Directive injected when the transient retry budget is exhausted: the backing
+ * service appears to be down. Phrased to match the busy-message convention
+ * ("tell the user … temporarily unavailable") — the agent is prose-less by
+ * design, so this directive carries the user-facing wording.
+ */
+const TRANSIENT_GIVE_UP_TEXT =
+	"The backing service has failed with a transient network error several times in a row and appears to be down. Stop retrying. Tell the user that the map service is temporarily unavailable and suggest they try again shortly.";
+
 export function createAgent(options: CreateAgentOptions): Agent {
 	const { config } = options;
 	const model = resolveModel(config.model);
@@ -268,16 +326,26 @@ export function createAgent(options: CreateAgentOptions): Agent {
 	});
 
 	let lastToolWasError = false;
+	let lastErrorKind: ToolErrorKind = "other";
+	let transientRetryCount = 0;
 
 	agent.afterToolCall = async (ctx: AfterToolCallContext) => {
 		if (!ctx.isError) {
 			lastToolWasError = false;
+			lastErrorKind = "other";
+			transientRetryCount = 0;
 			return;
 		}
 		lastToolWasError = true;
 		const textContent = ctx.result.content.map((c) => ("text" in c ? c.text : "")).join("\n");
-		if (isRetryableError(textContent)) {
-			return { content: prependRetryDirective(textContent) };
+		lastErrorKind = classifyToolError(textContent);
+		if (lastErrorKind === "transient" && transientRetryCount >= MAX_TRANSIENT_RETRIES) {
+			return { content: [{ type: "text", text: TRANSIENT_GIVE_UP_TEXT }] };
+		}
+		const directive = retryDirectiveFor(lastErrorKind, textContent);
+		if (directive) {
+			if (lastErrorKind === "transient") transientRetryCount++;
+			return { content: directive };
 		}
 	};
 
@@ -287,14 +355,15 @@ export function createAgent(options: CreateAgentOptions): Agent {
 			const content = msg.role === "assistant" ? msg.content : undefined;
 			const toolCalls = content?.filter((c: { type: string }) => c.type === "toolCall");
 			if (!toolCalls || toolCalls.length === 0) {
+				const steerText =
+					lastErrorKind === "transient"
+						? transientRetryCount >= MAX_TRANSIENT_RETRIES
+							? "The map service appears to be down after repeated network errors. Stop retrying and end the turn."
+							: "The previous call hit a transient network error, not a bad query. Retry the SAME call unchanged in a new execute_code block."
+						: "You got an error. Retry with a different approach — narrow the area, fix arguments, or simplify the query.";
 				agent.steer({
 					role: "user",
-					content: [
-						{
-							type: "text",
-							text: "You got an error. Retry with a different approach — narrow the area, fix arguments, or simplify the query.",
-						},
-					],
+					content: [{ type: "text", text: steerText }],
 					timestamp: Date.now(),
 				});
 			}
