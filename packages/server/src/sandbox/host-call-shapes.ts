@@ -25,6 +25,7 @@ import {
  * return-type annotations (core does not export the param types).
  */
 
+/** Map a thrown Monty error (or plain Error) to a model-facing `{errorType, message}`. Dispatches by `instanceof`: runtime → traceback, syntax/type → concise message, base MontyError → type-msg, plain Error → its message, anything else → String(). */
 export function formatMontyError(err: unknown): { errorType: string; message: string } {
 	if (err instanceof MontyRuntimeError) {
 		return {
