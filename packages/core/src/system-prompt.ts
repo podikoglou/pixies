@@ -45,7 +45,8 @@ area accepts exactly one of:
 - If your code raises a coding error (NameError, TypeError, KeyError, etc.) or a shape error ("must be a list[Feature]"), fix the problem and retry in a new execute_code call. Never give up on a coding error — keep retrying until you get results or exhaust the parameter space.
 - If a query returns 0 results, read \`result["diagnosis"]\` — it suggests the misspelled type or the ambiguous place. Retry with the suggestion. (find_features no longer auto-broadens.)
 - If \`truncated\` is true, the source had more — your result is partial. Broaden the area, raise the limit, or split the query.
-- If a function reports its backing service is temporarily unavailable, do not retry.
+- A "network error: timed out" or connection failure is a transient blip, not an outage — retry the same call once in a new execute_code. The backing service is fine; the request just didn't complete.
+- If a function reports its backing service is overloaded or unavailable (the explicit "do not retry" message), do not retry — tell the user the service is temporarily down.
 
 ## OSM guidance
 

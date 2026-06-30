@@ -1,7 +1,15 @@
 /// <reference types="bun" />
 import { afterEach, expect, mock, test } from "bun:test";
 import { ParseError } from "typebox/value";
-import { createNominatimClient, createOverpassClient, readConfigFromEnv } from "./agent.ts";
+import {
+	classifyToolError,
+	createNominatimClient,
+	createOverpassClient,
+	MAX_TRANSIENT_RETRIES,
+	readConfigFromEnv,
+	retryDirectiveFor,
+} from "./agent.ts";
+import { OVERPASS_BUSY_MESSAGE } from "./clients/overpass.ts";
 import type { ResolvedPixiesConfig } from "./config-schema.ts";
 
 /**
@@ -433,4 +441,75 @@ test("readConfigFromEnv surfaces the unknown-provider message with the valid-pro
 	expect(issueMsg).toContain('Unknown provider "notaprovider"');
 	expect(issueMsg).toContain("anthropic");
 	expect(issueMsg).toContain("openai");
+});
+
+// ---- tool-error classification + retry directives (issue #277) --------------
+//
+// The agent used to give up after a single transient `network error:` from an
+// OSM endpoint. classifyToolError / retryDirectiveFor are the pure helpers that
+// drive the new retry directive; MAX_TRANSIENT_RETRIES bounds it per
+// conversation. Tests cover the three kinds and the "busy signal must NOT be
+// classified as transient" guardrail.
+
+test('classifyToolError returns "transient" for the exact #277 RuntimeError string', () => {
+	expect(classifyToolError("RuntimeError: network error: The operation timed out.")).toBe(
+		"transient",
+	);
+});
+
+test('classifyToolError returns "transient" for a bare "network error: fetch failed"', () => {
+	expect(classifyToolError("network error: fetch failed")).toBe("transient");
+});
+
+test("classifyToolError is case-insensitive (NETWORK ERROR still transient)", () => {
+	// The clients author lowercase `network error:` today, but the regex is /i
+	// — pin that so a future change to the clients' wording stays classified.
+	expect(classifyToolError("RuntimeError: NETWORK ERROR: fetch failed")).toBe("transient");
+});
+
+test('classifyToolError returns "coding" for a NameError', () => {
+	expect(classifyToolError("NameError: name 'x' is not defined")).toBe("coding");
+});
+
+test('classifyToolError returns "coding" for a shape error', () => {
+	expect(classifyToolError("result must be a list[Feature]")).toBe("coding");
+});
+
+test('classifyToolError returns "other" for the Overpass busy message (NOT transient)', () => {
+	// The busy signal is explicitly non-retryable and textually distinct from
+	// `network error:`. Classification must keep it in "other" so the agent
+	// tells the user the service is down rather than retrying.
+	expect(classifyToolError(OVERPASS_BUSY_MESSAGE)).toBe("other");
+});
+
+test('classifyToolError returns "other" for an unrelated string', () => {
+	expect(classifyToolError("something else entirely")).toBe("other");
+});
+
+test('retryDirectiveFor("transient") says to retry the SAME call unchanged', () => {
+	const directive = retryDirectiveFor("transient", "network error: timed out");
+	expect(directive).not.toBeNull();
+	expect(directive!.length).toBe(1);
+	expect(directive![0]!.type).toBe("text");
+	expect(directive![0]!.text).toContain("Retry the SAME call");
+	// Original error text is appended so the model can see what failed.
+	expect(directive![0]!.text).toContain("network error: timed out");
+});
+
+test('retryDirectiveFor("coding") starts with the "Your code produced a" preamble', () => {
+	const directive = retryDirectiveFor("coding", "NameError: name 'x' is not defined");
+	expect(directive).not.toBeNull();
+	expect(directive![0]!.text.startsWith("Your code produced a")).toBe(true);
+	expect(directive![0]!.text).toContain("NameError: name 'x' is not defined");
+});
+
+test('retryDirectiveFor("other") returns null (no directive injected)', () => {
+	expect(retryDirectiveFor("other", OVERPASS_BUSY_MESSAGE)).toBeNull();
+});
+
+test("MAX_TRANSIENT_RETRIES is the documented budget of 2", () => {
+	// Pinning the cap so a future change is deliberate and visible. Each
+	// transient retry is one model turn (one fresh 5s execute_code cell);
+	// 2 means up to 3 total attempts of the same call before give-up.
+	expect(MAX_TRANSIENT_RETRIES).toBe(2);
 });
