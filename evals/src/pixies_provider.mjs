@@ -302,7 +302,7 @@ function renderTranscript(s) {
 	return L.join("\n");
 }
 
-export { callApi };
+export { callApi, summarize };
 
 // promptfoo's file-provider loader does `new (importModule(path))(...)` on the
 // default export, so it must be a class with an instance `callApi`. This thin

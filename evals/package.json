@@ -7,7 +7,8 @@
   "scripts": {
     "eval": "promptfoo eval",
     "eval:quick": "promptfoo eval --repeat 1",
-    "view": "promptfoo view"
+    "view": "promptfoo view",
+    "test": "bun test"
   },
   "dependencies": {
     "promptfoo": "^0.121.0"
