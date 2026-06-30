@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { test, expect } from "bun:test";
+import fc from "fast-check";
 import { Result } from "better-result";
 import type { NominatimClient } from "../clients/nominatim.ts";
 import {
@@ -8,6 +9,7 @@ import {
 	NominatimHttpError,
 } from "../clients/nominatim.ts";
 import type { OverpassClient } from "../clients/overpass.ts";
+import { haversineMeters } from "./haversine.ts";
 
 import {
 	filterHost,
@@ -179,86 +181,83 @@ test("filterHost — chains where + sort_by + limit", () => {
 });
 
 // ---------------------------------------------------------------------------
-// spatialJoinHost
+// spatialJoinHost (property-based)
 // ---------------------------------------------------------------------------
+// The contract, asserted for ANY points/targets/radius: coord-less features
+// never appear in output; every pair's recomputed haversine is ≤ radius (the
+// inclusion oracle — independent of the rounded `distance` field) and its
+// `distance` is exactly round(haversine); `near` is capped at 1000 pairs; and
+// `nearest` emits at most one pair per point. haversineMeters (already
+// property-tested) is the distance oracle.
 
-test("spatialJoinHost — empty points returns empty result", () => {
-	const targets: Feature[] = [{ id: "t1", lat: 50, lon: 10 }];
-	expect(spatialJoinHost({ points: [], targets, operation: "near", radius: 1000 })).toEqual([]);
+/** Feature with independently-optional lat/lon (some carry only one axis). */
+const coordFeatureArb = fc
+	.record({
+		id: fc.string({ minLength: 1, maxLength: 8 }),
+		lat: fc.option(fc.float({ min: -90, max: 90, noNaN: true })),
+		lon: fc.option(fc.float({ min: -180, max: 180, noNaN: true })),
+	})
+	.map((f) => ({
+		id: f.id,
+		...(f.lat !== null ? { lat: f.lat } : {}),
+		...(f.lon !== null ? { lon: f.lon } : {}),
+	}));
+
+const radiusArb = fc.float({ min: 0, max: 1_000_000, noNaN: true });
+
+const hasCoords = (f: Feature) => f.lat !== undefined && f.lon !== undefined;
+
+test("spatialJoinHost (near): pairs are within radius, coord-bearing, distance is round(haversine), and empty inputs yield empty, for any inputs", () => {
+	fc.assert(
+		fc.property(
+			fc.array(coordFeatureArb),
+			fc.array(coordFeatureArb),
+			radiusArb,
+			(points, targets, radius) => {
+				const result = spatialJoinHost({ points, targets, operation: "near", radius });
+				if (!points.some(hasCoords) || !targets.some(hasCoords)) {
+					return result.length === 0;
+				}
+				return (
+					result.length <= 1000 &&
+					result.every((p) => {
+						const raw = haversineMeters(p.point.lat!, p.point.lon!, p.target.lat!, p.target.lon!);
+						return (
+							raw <= radius &&
+							p.distance === Math.round(raw) &&
+							hasCoords(p.point) &&
+							hasCoords(p.target)
+						);
+					})
+				);
+			},
+		),
+	);
 });
 
-test("spatialJoinHost — empty targets returns empty result", () => {
-	const points: Feature[] = [{ id: "p1", lat: 50, lon: 10 }];
-	expect(spatialJoinHost({ points, targets: [], operation: "near", radius: 1000 })).toEqual([]);
-});
-
-test("spatialJoinHost — features without lat/lon are skipped", () => {
-	const points: Feature[] = [
-		{ id: "p1", lat: 50, lon: 10 },
-		{ id: "p2" }, // no coords — skipped
-	];
-	const targets: Feature[] = [
-		{ id: "t1", lat: 50, lon: 10 }, // 0 m from p1
-		{ id: "t2" }, // no coords — skipped
-	];
-	const result = spatialJoinHost({ points, targets, operation: "near", radius: 100 });
-	expect(result).toHaveLength(1);
-	expect(result[0]!.point.id).toBe("p1");
-	expect(result[0]!.target.id).toBe("t1");
-	expect(result[0]!.distance).toBe(0);
-});
-
-test("spatialJoinHost — near: all pairs within radius", () => {
-	const points: Feature[] = [
-		{ id: "p1", lat: 50, lon: 10 },
-		{ id: "p2", lat: 50.001, lon: 10 },
-	];
-	const targets: Feature[] = [
-		{ id: "t1", lat: 50.0005, lon: 10 },
-		{ id: "t2", lat: 49.9995, lon: 10.0008 },
-	];
-	// p1→t1 ~55 m, p1→t2 ~79 m, p2→t1 ~75 m, p2→t2 ~62 m — all within 200 m
-	const result = spatialJoinHost({ points, targets, operation: "near", radius: 200 });
-	expect(result).toHaveLength(4);
-	// pairs are in nested-loop order: point-major, target-minor
-	expect(result[0]!.point.id).toBe("p1");
-	expect(result[0]!.target.id).toBe("t1");
-	expect(result[1]!.point.id).toBe("p1");
-	expect(result[1]!.target.id).toBe("t2");
-	expect(result[2]!.point.id).toBe("p2");
-	expect(result[2]!.target.id).toBe("t1");
-	expect(result[3]!.point.id).toBe("p2");
-	expect(result[3]!.target.id).toBe("t2");
-	// all distances ≤ radius
-	for (const p of result) expect(p.distance).toBeLessThanOrEqual(200);
-});
-
-test("spatialJoinHost — nearest: only closest target per point", () => {
-	const points: Feature[] = [
-		{ id: "p1", lat: 50, lon: 10 },
-		{ id: "p2", lat: 50, lon: 10.001 },
-	];
-	const targets: Feature[] = [
-		{ id: "t1", lat: 50.0005, lon: 10 },
-		{ id: "t2", lat: 49.9995, lon: 10.0008 },
-	];
-	// p1 closer to t1 (~55 m) than t2 (~79 m) — picks t1
-	// p2 closer to t2 (~62 m) than t1 (~75 m) — picks t2
-	const result = spatialJoinHost({ points, targets, operation: "nearest", radius: 200 });
-	expect(result).toHaveLength(2);
-	expect(result[0]!.point.id).toBe("p1");
-	expect(result[0]!.target.id).toBe("t1");
-	expect(result[1]!.point.id).toBe("p2");
-	expect(result[1]!.target.id).toBe("t2");
-});
-
-test("spatialJoinHost — nearest ignores targets outside radius", () => {
-	const points: Feature[] = [{ id: "p1", lat: 50, lon: 10 }];
-	const targets: Feature[] = [
-		{ id: "t1", lat: 50.1, lon: 10.1 }, // ~15 km away
-	];
-	const result = spatialJoinHost({ points, targets, operation: "nearest", radius: 100 });
-	expect(result).toEqual([]);
+test("spatialJoinHost (nearest): at most one pair per point, each within radius and coord-bearing, for any inputs", () => {
+	fc.assert(
+		fc.property(
+			fc.array(coordFeatureArb),
+			fc.array(coordFeatureArb),
+			radiusArb,
+			(points, targets, radius) => {
+				const result = spatialJoinHost({ points, targets, operation: "nearest", radius });
+				if (!points.some(hasCoords) || !targets.some(hasCoords)) {
+					return result.length === 0;
+				}
+				const seen = new Set<Feature>();
+				for (const p of result) {
+					const raw = haversineMeters(p.point.lat!, p.point.lon!, p.target.lat!, p.target.lon!);
+					if (raw > radius || p.distance !== Math.round(raw)) return false;
+					if (!hasCoords(p.point) || !hasCoords(p.target)) return false;
+					if (seen.has(p.point)) return false;
+					seen.add(p.point);
+				}
+				return true;
+			},
+		),
+	);
 });
 
 test("spatialJoinHost — respects DEFAULT_MAX_PAIRS = 1000", () => {
