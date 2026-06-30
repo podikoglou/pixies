@@ -359,20 +359,16 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 		logger,
 	});
 
-	type StreamAnalyticsEvent = "conversation started" | "message sent";
-
-	interface StreamMessageHandlerOpts {
+	interface StreamMessageOpts {
 		rateLimitPath: string;
-		analyticsEvent: StreamAnalyticsEvent;
+		analyticsEvent: "conversation started" | "message sent";
 		resolveId: (req: BunRequest) => string;
 		onOpen?: (writer: SseWriter, id: string) => void;
 	}
 
-	function streamMessageHandler(
-		opts: StreamMessageHandlerOpts,
-	): (req: BunRequest, server: Bun.Server<undefined>) => Promise<Response> {
+	function createStreamMessageHandler(opts: StreamMessageOpts) {
 		const { rateLimitPath, analyticsEvent, resolveId, onOpen } = opts;
-		return async (req, server) => {
+		return async (req: BunRequest, server: Bun.Server<undefined>) => {
 			const ip = getClientIp(req, server, rateLimiter.trustProxy, rateLimiter.trustedProxyHops);
 			const denied = checkRateLimit(ip, rateLimiter);
 			if (denied) {
@@ -397,7 +393,7 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 				id,
 				logger,
 				posthog,
-				onOpen && ((w) => onOpen(w, id)),
+				onOpen ? (w) => onOpen(w, id) : undefined,
 			);
 		};
 	}
@@ -415,20 +411,18 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 			"/conversations": {
 				POST: withRequestLogging(
 					logger,
-					streamMessageHandler({
+					createStreamMessageHandler({
 						rateLimitPath: "/conversations",
 						analyticsEvent: "conversation started",
-						resolveId: (_req) => store.create(),
-						onOpen: (w, id) => {
-							w.write("conversation_created", { id });
-						},
+						resolveId: () => store.create(),
+						onOpen: (w, id) => w.write("conversation_created", { id }),
 					}),
 				),
 			},
 			"/conversations/:id/messages": {
 				POST: withRequestLogging(
 					logger,
-					streamMessageHandler({
+					createStreamMessageHandler({
 						rateLimitPath: "/conversations/:id/messages",
 						analyticsEvent: "message sent",
 						resolveId: (req) => req.params.id!,
