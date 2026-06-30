@@ -97,3 +97,20 @@ test("opts.serverConfig overrides readServerConfigFromEnv and flows to the stati
 		fs.rmSync(tempWebDist, { recursive: true, force: true });
 	}
 });
+
+/**
+ * Regression: an over-long prompt must be rejected at the HTTP boundary with
+ * 400, BEFORE any agent/LLM call or conversation row. The default config fixture
+ * above sets `maxPromptChars: 20000`, so a 20001-char body exceeds the cap.
+ */
+test("POST /conversations rejects a prompt over maxPromptChars with 400", async () => {
+	const base = `http://localhost:${instance.server.port}`;
+	const res = await fetch(`${base}/conversations`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ message: "x".repeat(20001) }),
+	});
+	expect(res.status).toBe(400);
+	const body = await res.json();
+	expect(body).toHaveProperty("error", expect.stringMatching(/character/i));
+});
