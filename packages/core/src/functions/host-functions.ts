@@ -82,15 +82,14 @@ const DEFAULT_MAX_PAIRS = 1000;
 
 /**
  * Terminal for a {@link NominatimError} at the JS→sandbox (Monty) boundary,
- * where `Result` cannot cross. Throws at this layer is correct; *what* is
- * thrown is the concern. The busy variant's raw `.message`
- * ("Nominatim: OSM server busy (HTTP 429)") does not tell the model to stop
- * retrying, so substitute {@link NOMINATIM_BUSY_MESSAGE}. Every other variant
- * is thrown verbatim — a `TaggedError`, so `_tag` / `cause` / `toJSON()` survive
- * the throw and `stream-instrumentation` can recover the structured error.
+ * where `Result` cannot cross. The busy variant's raw `.message`
+ * ("Nominatim: OSM server busy (HTTP 429/502/503/504)") does not tell the
+ * model to stop retrying, so substitute {@link NOMINATIM_BUSY_MESSAGE}; every
+ * other variant is thrown verbatim so `_tag` / `cause` / `toJSON()` survive to
+ * direct callers (the Monty boundary currently flattens to `.message`, so the
+ * structured-identity benefit is latent until a non-Monty path needs it).
  *
- * Built on `matchErrorPartial` (not a hand-rolled `_tag` ladder) so the busy
- * arm is the library's discriminated-union match, not a copy-pasted branch.
+ * Built on `matchErrorPartial` rather than an ad-hoc `_tag` check.
  */
 function throwNominatimError(err: NominatimError): never {
 	return matchErrorPartial(

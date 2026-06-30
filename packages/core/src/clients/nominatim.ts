@@ -358,11 +358,6 @@ export class NominatimClient {
 		});
 		const cache = this.cache;
 		const logger = this.logger;
-		// Single tryPromise boundary over fetch + parse (Overpass parity): the
-		// body throws TaggedErrors (NominatimParseError here; the fetch layer
-		// throws NominatimBusy/Http), and `toNominatimError` normalizes. Cache
-		// lookup stays before the boundary (never enters the rate-limit queue);
-		// cache-set stays inside on success.
 		return Result.tryPromise({
 			try: async () => {
 				const { json, statusCode, contentType } = await this.fetchJson(url, signal, callbacks);
@@ -410,11 +405,6 @@ export class NominatimClient {
 		});
 		const cache = this.cache;
 		const logger = this.logger;
-		// Single tryPromise boundary over fetch + parse (Overpass parity). The
-		// body throws TaggedErrors (NominatimParseError for shape/error-body
-		// failures; the fetch layer throws NominatimBusy/Http), normalized by a
-		// single `toNominatimError` catch — replacing the prior two-stage ladder
-		// whose catch re-narrowed the very NominatimParseError it had just thrown.
 		return Result.tryPromise({
 			try: async () => {
 				const { json, statusCode, contentType } = await this.fetchJson(url, signal, callbacks);
