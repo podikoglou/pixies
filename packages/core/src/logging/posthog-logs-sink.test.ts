@@ -127,10 +127,17 @@ test("getPostHogLogsSink constructs without throwing (import compat)", () => {
 // (no allocation) iff every property key is allowed. fast-check draws random
 // property/allowlist pairs; the example tests above only witness three.
 
-/** Identifier-shaped keys (excludes __proto__/constructor to avoid prototype pollution). */
+/**
+ * Identifier-shaped keys. `__proto__`/`constructor`/`prototype` are excluded:
+ * they carry Object.prototype accessor/data semantics, so a bracket assignment
+ * (`filtered[key] = …` in the redactor) does not define a normal own property —
+ * these are not realistic LogRecord.properties keys, and including them would
+ * test a JS object-model quirk, not the redaction contract.
+ */
+const PROTOTYPE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 const keyArb = fc
 	.string({ minLength: 1, maxLength: 16 })
-	.filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));
+	.filter((k) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k) && !PROTOTYPE_KEYS.has(k));
 
 /** Scalar values where === identity is meaningful for the redaction contract. */
 const valArb = fc.oneof(
