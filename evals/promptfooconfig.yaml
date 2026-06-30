@@ -58,7 +58,7 @@ commandLineOptions:
   maxConcurrency: 1   # be nice to OSM + pixies' per-IP POST rate limit
   repeat: 3           # tame LLM + judge variance; use `eval:quick` for a 1-shot smoke test
   delay: 500
-  grader: openai:gpt-4.1
+  grader: openrouter:google/gemini-3.1-flash-lite
 
 tests:
   # ── Basic: geocode → find_features ───────────────────────────────────────

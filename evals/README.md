@@ -29,7 +29,7 @@ evals/
 
 ```sh
 cd evals
-cp .env.example .env        # set PIXIES_EVAL_BASE_URL + OPENAI_API_KEY
+cp .env.example .env        # set PIXIES_EVAL_BASE_URL + OPENROUTER_API_KEY
 bun install                 # installs promptfoo locally (isolated from the monorepo)
 ```
 
@@ -76,9 +76,16 @@ transcript.
 
 ## Judge
 
-Default grader is `openai:gpt-4.1` (needs `OPENAI_API_KEY`). Swap with the
-`--grader` flag or by changing `commandLineOptions.grader` in the config, e.g.
-`--grader anthropic:claude-3-5-sonnet-latest` (set the matching key in `.env`).
+Default grader is `openrouter:google/gemini-3.1-flash-lite` (needs
+`OPENROUTER_API_KEY`). Swap with the `--grader` flag or by changing
+`commandLineOptions.grader` in the config, e.g.
+`--grader openrouter:anthropic/claude-3.5-sonnet`.
+
+Note: a flash-lite judge is cheap but more prone to false passes on the
+qualitative rubric. The deterministic `answered` gate (status === "answered")
+catches the give-up failure mode regardless of judge strength — that's the
+layer the suite primarily exists for. Bump to a stronger model if you see
+the rubric waving through bad answers.
 
 ## Adding a case
 
