@@ -114,3 +114,36 @@ test("POST /conversations rejects a prompt over maxPromptChars with 400", async 
 	const body = await res.json();
 	expect(body).toHaveProperty("error", expect.stringMatching(/character/i));
 });
+
+/**
+ * Regression: the GET and DELETE handlers on `/conversations/:id` are now
+ * rate-limited (same shared per-IP limiter as the POST routes), not just
+ * request-logged. A nonexistent id still returns 404 while under the limit;
+ * once the per-IP window is exhausted the limiter short-circuits with 429 +
+ * `Retry-After`. All requests share one loopback IP under `trustProxy: false`.
+ */
+test("GET/DELETE /conversations/:id return 429 over the per-IP window", async () => {
+	const limited = startServer({
+		config: { ...config, httpRateLimit: 2 },
+		logger: silentLogger,
+		host: "127.0.0.1",
+		port: 0,
+	});
+	try {
+		const base = `http://localhost:${limited.server.port}`;
+		const url = `${base}/conversations/does-not-exist`;
+		// Two requests are allowed (window = 2); the third is denied.
+		const r1 = await fetch(url);
+		const r2 = await fetch(url);
+		const r3 = await fetch(url);
+		expect(r1.status).toBe(404); // nonexistent id, but under the limit
+		expect(r2.status).toBe(404);
+		expect(r3.status).toBe(429);
+		expect(r3.headers.get("retry-after")).toMatch(/^\d+$/);
+		// Same limiter applies to DELETE on the next request.
+		const d3 = await fetch(url, { method: "DELETE" });
+		expect(d3.status).toBe(429);
+	} finally {
+		limited.stop();
+	}
+});

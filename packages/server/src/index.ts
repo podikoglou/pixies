@@ -288,6 +288,30 @@ function withRequestLogging<T extends string = string>(
 	};
 }
 
+/**
+ * Wrap a handler so a per-IP rate-limit check runs first, short-circuiting
+ * with the `429` response when the IP is over the window. Compose with
+ * {@link withRequestLogging} on the outside so a denied request is still
+ * logged, mirroring the POST routes' wiring inside
+ * {@link createStreamMessageHandler}.
+ */
+function withRateLimit<T extends string = string>(
+	rateLimiter: IpRateLimiter,
+	rateLimitPath: string,
+	posthog: PostHogAnalyticsClient | undefined,
+	handler: (req: BunRequest<T>, server: Bun.Server<undefined>) => Response | Promise<Response>,
+): (req: BunRequest<T>, server: Bun.Server<undefined>) => Promise<Response> {
+	return async (req, server) => {
+		const ip = getClientIp(req, server, rateLimiter.trustProxy, rateLimiter.trustedProxyHops);
+		const denied = checkRateLimit(ip, rateLimiter);
+		if (denied) {
+			captureRateLimitDenied(posthog, ip, rateLimitPath);
+			return denied;
+		}
+		return handler(req, server);
+	};
+}
+
 function logResolvedConfig(
 	logger: Logger,
 	config: ResolvedPixiesConfig,
@@ -442,24 +466,30 @@ export function startServer(opts: StartServerOptions = {}): ServerInstance {
 				),
 			},
 			"/conversations/:id": {
-				GET: withRequestLogging(logger, async (req) => {
-					const id = req.params.id!;
-					const conv = await store.get(id);
-					if (!conv)
-						return Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
-					const messages = conv.agent.state.messages
-						.filter((m) => m.role !== "assistant")
-						.map(toClientTranscriptMessage);
-					return Response.json({ id, messages });
-				}),
-				DELETE: withRequestLogging(logger, (req) => {
-					const id = req.params.id!;
-					const ok = store.delete(id);
-					if (ok) captureServerEvent(posthog, id, "conversation deleted", {});
-					return ok
-						? new Response(null, { status: 204 })
-						: Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
-				}),
+				GET: withRequestLogging(
+					logger,
+					withRateLimit(rateLimiter, "/conversations/:id", posthog, async (req) => {
+						const id = req.params.id!;
+						const conv = await store.get(id);
+						if (!conv)
+							return Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
+						const messages = conv.agent.state.messages
+							.filter((m) => m.role !== "assistant")
+							.map(toClientTranscriptMessage);
+						return Response.json({ id, messages });
+					}),
+				),
+				DELETE: withRequestLogging(
+					logger,
+					withRateLimit(rateLimiter, "/conversations/:id", posthog, (req) => {
+						const id = req.params.id!;
+						const ok = store.delete(id);
+						if (ok) captureServerEvent(posthog, id, "conversation deleted", {});
+						return ok
+							? new Response(null, { status: 204 })
+							: Response.json({ error: `conversation not found: ${id}` }, { status: 404 });
+					}),
+				),
 			},
 		},
 		fetch: withRequestLogging(logger, (req) => {
