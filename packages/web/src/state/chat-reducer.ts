@@ -1,13 +1,8 @@
 import type { ConversationTranscript } from "../api/conversations.ts";
 import type { Static } from "typebox";
 import { Value } from "typebox/value";
-import {
-	parseToolResult,
-	isBusyResult,
-	TextContentBlock,
-	type ToolProgress,
-	type ToolResult,
-} from "@pixies/core";
+import { parseToolResult, isBusyResult, type ToolProgress, type ToolResult } from "@pixies/core";
+import { TextContentBlock } from "@pixies/protocol";
 
 type TextBlock = Static<typeof TextContentBlock>;
 

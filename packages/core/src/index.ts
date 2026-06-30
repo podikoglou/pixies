@@ -39,31 +39,6 @@ export type { CreateAgentOptions } from "./agent.ts";
 export { PixiesConfigSchema, type ResolvedPixiesConfig } from "./config-schema.ts";
 export { SYSTEM_PROMPT } from "./system-prompt.ts";
 export {
-	ConversationCreatedData,
-	MessageStartData,
-	TextDeltaData,
-	TextContentBlock,
-	UnknownContentBlock,
-	ContentBlock,
-	AssistantMessageSchema,
-	toClientAssistantMessage,
-	MessageEndData,
-	ToolExecutionStartData,
-	ToolExecutionUpdateData,
-	ToolResultSchema,
-	ToolExecutionEndData,
-	DoneData,
-	ErrorData,
-	SSEEventSchema,
-	SSE_EVENT_DATA_SCHEMAS,
-} from "./sse-events.ts";
-export type {
-	ContentBlockType,
-	SSEEvent,
-	SSEEventName,
-	ClientAssistantMessage,
-} from "./sse-events.ts";
-export {
 	createTools,
 	ToolProgressSchema,
 	isToolProgress,
@@ -86,26 +61,15 @@ export type {
 	DisplayData,
 } from "./tools/index.ts";
 export {
-	ConversationTranscriptSchema,
-	isConversationTranscript,
 	PersistedTranscriptSchema,
 	PersistedAgentMessageSchema,
 	isPersistedTranscript,
-	toClientTranscriptMessage,
-} from "./transcript-schema.ts";
+} from "./persisted-transcript.ts";
 export {
 	countTranscriptTokens,
 	budgetExceeded,
 	type TranscriptTokenCount,
 } from "./token-budget.ts";
-export type {
-	ConversationTranscript,
-	TranscriptContentBlock,
-	TranscriptUserMessage,
-	TranscriptAssistantMessage,
-	TranscriptToolResultMessage,
-	TranscriptMessage,
-} from "./transcript-schema.ts";
 
 export {
 	NominatimClient,

@@ -2,7 +2,7 @@ import { Type } from "typebox";
 import type { Static, TSchema } from "typebox";
 import { Value } from "typebox/value";
 import type { AssistantMessage as PiAiAssistantMessage } from "@earendil-works/pi-ai";
-import { ToolProgressSchema } from "./tools/progress.ts";
+import { ToolProgressSchema } from "@pixies/core";
 
 export const ConversationCreatedData = Type.Object({
 	id: Type.String(),

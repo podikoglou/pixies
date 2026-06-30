@@ -1,6 +1,7 @@
 import { Value } from "typebox/value";
-import type { PixiesErrorTag, SSEEvent } from "@pixies/core";
+import type { PixiesErrorTag } from "@pixies/core";
 import { isToolProgress, PixiesErrorTagSchema } from "@pixies/core";
+import type { SSEEvent } from "@pixies/protocol";
 import { errorToToastCopy } from "../lib/error-copy.ts";
 import { joinContentText, type ChatAction } from "./chat-reducer.ts";
 

@@ -1,9 +1,9 @@
-import type { SSEEvent } from "@pixies/core";
+import { InvalidTranscriptError } from "@pixies/core";
 import {
 	isConversationTranscript,
-	InvalidTranscriptError,
 	type ConversationTranscript,
-} from "@pixies/core";
+	type SSEEvent,
+} from "@pixies/protocol";
 import { buildApiError, streamSSE } from "../sse/client.ts";
 
 export type {
@@ -13,7 +13,7 @@ export type {
 	TranscriptAssistantMessage,
 	TranscriptToolResultMessage,
 	TranscriptMessage,
-} from "@pixies/core";
+} from "@pixies/protocol";
 
 export async function getConversation(id: string): Promise<ConversationTranscript> {
 	const res = await fetch(`/conversations/${encodeURIComponent(id)}`);
