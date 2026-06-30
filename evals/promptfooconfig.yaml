@@ -58,7 +58,8 @@ defaultTest:
 commandLineOptions:
   maxConcurrency: 1   # be nice to OSM + pixies' per-IP POST rate limit
   repeat: 3           # tame LLM + judge variance; use `eval:quick` for a 1-shot smoke test
-  delay: 500
+  delay: 500          # applied as a post-response sleep (promptfoo index.cjs:6794); skipped on cache hits
+  cache: false        # live evals must hit the server fresh; cache hits also bypass `delay`
   grader: openrouter:google/gemini-3.1-flash-lite
 
 tests:
